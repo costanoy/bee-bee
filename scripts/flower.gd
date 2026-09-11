@@ -8,9 +8,9 @@ const FLOWER_R := 14.0
 # share the same canvas size/padding (the blue one is a different source
 # than red/yellow), so each needs its own reference width to scale correctly.
 static var textures: Array = [
-	{"tex": load("res://art/flower_red.png"), "content_w": 334.0},
+	{"tex": load("res://art/flower_red.png"), "content_w": 694.0},
 	{"tex": load("res://art/flower_yellow.png"), "content_w": 120.0},
-	{"tex": load("res://art/flower_blue.png"), "content_w": 120.0},
+	{"tex": load("res://art/flower_blue.png"), "content_w": 346.0},
 ]
 
 var sway_phase := 0.0
