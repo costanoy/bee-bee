@@ -4,10 +4,13 @@ extends Area2D
 
 const FLOWER_R := 14.0
 
+# Each texture's own content-box width inside its canvas — not all three
+# share the same canvas size/padding (the blue one is a different source
+# than red/yellow), so each needs its own reference width to scale correctly.
 static var textures: Array = [
-	load("res://art/flower_red.png"),
-	load("res://art/flower_yellow.png"),
-	load("res://art/flower_blue.png"),
+	{"tex": load("res://art/flower_red.png"), "content_w": 120.0},
+	{"tex": load("res://art/flower_yellow.png"), "content_w": 120.0},
+	{"tex": load("res://art/flower_blue.png"), "content_w": 562.0},
 ]
 
 var sway_phase := 0.0
@@ -23,12 +26,10 @@ func setup() -> void:
 
 	sprite = Sprite2D.new()
 	add_child(sprite)
-	var tex: Texture2D = textures[randi() % textures.size()]
-	sprite.texture = tex
-	# 768x768 canvas, actual flower content is only ~120px wide inside it.
-	const CONTENT_W := 120.0
+	var entry: Dictionary = textures[randi() % textures.size()]
+	sprite.texture = entry["tex"]
 	var visual_span := FLOWER_R * 2.1
-	sprite.scale = Vector2.ONE * (visual_span / CONTENT_W)
+	sprite.scale = Vector2.ONE * (visual_span / entry["content_w"])
 
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
