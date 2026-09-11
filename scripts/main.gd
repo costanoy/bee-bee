@@ -480,13 +480,13 @@ func _build_ui() -> void:
 	ui_layer.layer = 10
 	add_child(ui_layer)
 
-	score_label = _make_label("Score: 0", 20, Color.WHITE)
+	score_label = _make_label("Score: 0", 26, Color.WHITE)
 	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	score_label.position = Vector2(0, 24)
 	score_label.size = Vector2(SCREEN_W, 40)
 	ui_layer.add_child(score_label)
 
-	record_label = _make_label("Record: 0", 11, Color(1, 1, 1, 0.8))
+	record_label = _make_label("Record: 0", 15, Color(1, 1, 1, 0.8))
 	record_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	record_label.position = Vector2(0, 66)
 	record_label.size = Vector2(SCREEN_W, 24)
@@ -554,7 +554,7 @@ func _add_hint_side(parent: Control, cx: float, dir: int, text: String) -> void:
 	arrow.position = Vector2(cx, mid_y)
 	parent.add_child(arrow)
 
-	var label := _make_label(text, 10, Color(1, 1, 1, 0.85))
+	var label := _make_label(text, 13, Color(1, 1, 1, 0.85))
 	label.position = Vector2(cx - 60, mid_y + 34)
 	label.size = Vector2(120, 24)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -566,7 +566,7 @@ func _build_start_screen() -> Control:
 	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
 	screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var title := _make_label("Bee Bee", 26, Color.WHITE)
+	var title := _make_label("Bee Bee", 34, Color.WHITE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.position = Vector2(0, 90)
 	title.size = Vector2(SCREEN_W, 60)
@@ -592,19 +592,19 @@ func _build_game_over_screen() -> Control:
 	screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	screen.visible = false
 
-	var title := _make_label("Game Over", 22, Color.WHITE)
+	var title := _make_label("Game Over", 28, Color.WHITE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.position = Vector2(0, SCREEN_H * 0.32)
 	title.size = Vector2(SCREEN_W, 50)
 	screen.add_child(title)
 
-	final_score_label = _make_label("Score: 0", 13, Color(1, 0.88, 0.4))
+	final_score_label = _make_label("Score: 0", 17, Color(1, 0.88, 0.4))
 	final_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	final_score_label.position = Vector2(0, SCREEN_H * 0.32 + 56)
 	final_score_label.size = Vector2(SCREEN_W, 30)
 	screen.add_child(final_score_label)
 
-	final_best_label = _make_label("Record: 0", 13, Color(1, 0.88, 0.4))
+	final_best_label = _make_label("Record: 0", 17, Color(1, 0.88, 0.4))
 	final_best_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	final_best_label.position = Vector2(0, SCREEN_H * 0.32 + 90)
 	final_best_label.size = Vector2(SCREEN_W, 30)
@@ -650,7 +650,7 @@ func _make_text_button(text: String) -> Button:
 	btn.custom_minimum_size = Vector2(180, 52)
 	btn.size = Vector2(180, 52)
 	btn.add_theme_font_override("font", pixel_font)
-	btn.add_theme_font_size_override("font_size", 11)
+	btn.add_theme_font_size_override("font_size", 14)
 	btn.add_theme_color_override("font_color", Color(0.1, 0.16, 0.07))
 
 	var style := StyleBoxFlat.new()
