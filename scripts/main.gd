@@ -577,6 +577,7 @@ func _build_start_screen() -> Control:
 	play_button = _make_image_button("res://art/play_button.png", Rect2(174, 224, 418, 320), 110.0)
 	play_button.position = Vector2(SCREEN_W / 2.0 - play_button.size.x / 2.0, SCREEN_H - 140)
 	play_button.pressed.connect(_on_play_pressed)
+	_add_press_feedback(play_button)
 	screen.add_child(play_button)
 
 	return screen
@@ -628,6 +629,21 @@ func _make_image_button(path: String, content_rect: Rect2, visual_w: float) -> T
 	btn.custom_minimum_size = Vector2(visual_w, visual_h)
 	btn.size = btn.custom_minimum_size
 	return btn
+
+
+func _add_press_feedback(btn: BaseButton) -> void:
+	# Mobile has no real hover state, but a tap should still feel
+	# responsive — shrink/darken slightly for as long as it's held down,
+	# same idea as a hover/active state, and snap back on release.
+	btn.pivot_offset = btn.size / 2.0
+	btn.button_down.connect(func():
+		btn.scale = Vector2.ONE * 0.92
+		btn.modulate = Color(0.82, 0.82, 0.82)
+	)
+	btn.button_up.connect(func():
+		btn.scale = Vector2.ONE
+		btn.modulate = Color.WHITE
+	)
 
 
 func _make_text_button(text: String) -> Button:
