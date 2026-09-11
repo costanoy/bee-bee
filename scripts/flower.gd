@@ -9,7 +9,7 @@ const FLOWER_R := 14.0
 # than red/yellow), so each needs its own reference width to scale correctly.
 static var textures: Array = [
 	{"tex": load("res://art/flower_red.png"), "content_w": 694.0},
-	{"tex": load("res://art/flower_yellow.png"), "content_w": 120.0},
+	{"tex": load("res://art/flower_yellow.png"), "content_w": 346.0},
 	{"tex": load("res://art/flower_blue.png"), "content_w": 346.0},
 ]
 
