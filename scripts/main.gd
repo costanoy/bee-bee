@@ -64,7 +64,7 @@ var score_label: Label
 var record_label: Label
 var direction_hint: Control
 var start_screen: Control
-var play_button: Button
+var play_button: TextureButton
 var game_over_screen: Control
 var final_score_label: Label
 var final_best_label: Label
@@ -486,10 +486,10 @@ func _build_ui() -> void:
 	record_label.size = Vector2(SCREEN_W, 24)
 	ui_layer.add_child(record_label)
 
-	score_label = _make_label("0", 26, Color.WHITE)
+	score_label = _make_label("0", 40, Color.WHITE)
 	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	score_label.position = Vector2(0, 60)
-	score_label.size = Vector2(SCREEN_W, 40)
+	score_label.position = Vector2(0, 56)
+	score_label.size = Vector2(SCREEN_W, 56)
 	ui_layer.add_child(score_label)
 
 	direction_hint = _build_direction_hint()
@@ -572,16 +572,12 @@ func _build_start_screen() -> Control:
 	title.size = Vector2(SCREEN_W, 60)
 	screen.add_child(title)
 
-	play_button = _make_round_button()
-	play_button.position = Vector2(SCREEN_W / 2.0 - 42, SCREEN_H - 140)
+	# source is a 768x768 canvas; the actual button art is a 418x320 content
+	# box inside it.
+	play_button = _make_image_button("res://art/play_button.png", Rect2(174, 224, 418, 320), 110.0)
+	play_button.position = Vector2(SCREEN_W / 2.0 - play_button.size.x / 2.0, SCREEN_H - 140)
 	play_button.pressed.connect(_on_play_pressed)
 	screen.add_child(play_button)
-
-	var tri := Polygon2D.new()
-	tri.polygon = PackedVector2Array([Vector2(-10, -16), Vector2(-10, 16), Vector2(16, 0)])
-	tri.color = Color(0.1, 0.16, 0.07)
-	tri.position = Vector2(44, 42)
-	play_button.add_child(tri)
 
 	return screen
 
@@ -618,28 +614,19 @@ func _build_game_over_screen() -> Control:
 	return screen
 
 
-func _make_round_button() -> Button:
-	var btn := Button.new()
-	btn.text = ""
+func _make_image_button(path: String, content_rect: Rect2, visual_w: float) -> TextureButton:
+	var atlas := AtlasTexture.new()
+	atlas.atlas = load(path)
+	atlas.region = content_rect
+
+	var btn := TextureButton.new()
+	btn.texture_normal = atlas
 	btn.focus_mode = Control.FOCUS_NONE
-	btn.custom_minimum_size = Vector2(84, 84)
-	btn.size = Vector2(84, 84)
-
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(1.0, 0.808, 0.239)
-	style.set_corner_radius_all(42)
-	style.shadow_color = Color(0, 0, 0, 0.3)
-	style.shadow_size = 6
-	btn.add_theme_stylebox_override("normal", style)
-
-	var style_hover := style.duplicate()
-	style_hover.bg_color = Color(1.0, 0.87, 0.4)
-	btn.add_theme_stylebox_override("hover", style_hover)
-
-	var style_pressed := style.duplicate()
-	style_pressed.bg_color = Color(0.9, 0.7, 0.15)
-	btn.add_theme_stylebox_override("pressed", style_pressed)
-
+	btn.ignore_texture_size = true
+	btn.stretch_mode = TextureButton.STRETCH_SCALE
+	var visual_h := visual_w * (content_rect.size.y / content_rect.size.x)
+	btn.custom_minimum_size = Vector2(visual_w, visual_h)
+	btn.size = btn.custom_minimum_size
 	return btn
 
 
