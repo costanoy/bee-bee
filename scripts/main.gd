@@ -436,7 +436,7 @@ func _on_restart_pressed() -> void:
 
 
 func _update_score_label() -> void:
-	score_label.text = "Score: %d" % score
+	score_label.text = "%d" % score
 
 
 func _on_shining_bee_unlock_requested() -> void:
@@ -480,7 +480,7 @@ func _build_ui() -> void:
 	ui_layer.layer = 10
 	add_child(ui_layer)
 
-	score_label = _make_label("Score: 0", 26, Color.WHITE)
+	score_label = _make_label("0", 26, Color.WHITE)
 	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	score_label.position = Vector2(0, 24)
 	score_label.size = Vector2(SCREEN_W, 40)
