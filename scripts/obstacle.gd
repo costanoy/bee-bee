@@ -10,10 +10,10 @@ extends Area2D
 const THICK := 22.0
 const SCREEN_W := 400.0
 
-# source is a 1152x480 canvas; the actual rose/vine band only occupies
-# y=[200,280] (80px tall) inside it.
-const CONTENT_Y := 200.0
-const CONTENT_H := 80.0
+# source is a 1176x480 canvas; the actual rose/vine band only occupies
+# y=[150,316] (166px tall) inside it.
+const CONTENT_Y := 150.0
+const CONTENT_H := 166.0
 # Visual thickness of the drawn bush, uniformly scaled down from the 80px
 # native content height — a bit bigger than the thin collision band still
 # reads better than squeezing it to exactly THICK, but the native size was
