@@ -480,17 +480,17 @@ func _build_ui() -> void:
 	ui_layer.layer = 10
 	add_child(ui_layer)
 
-	score_label = _make_label("0", 26, Color.WHITE)
-	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	score_label.position = Vector2(0, 24)
-	score_label.size = Vector2(SCREEN_W, 40)
-	ui_layer.add_child(score_label)
-
 	record_label = _make_label("Record: 0", 15, Color(1, 1, 1, 0.8))
 	record_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	record_label.position = Vector2(0, 66)
+	record_label.position = Vector2(0, 24)
 	record_label.size = Vector2(SCREEN_W, 24)
 	ui_layer.add_child(record_label)
+
+	score_label = _make_label("0", 26, Color.WHITE)
+	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	score_label.position = Vector2(0, 60)
+	score_label.size = Vector2(SCREEN_W, 40)
+	ui_layer.add_child(score_label)
 
 	direction_hint = _build_direction_hint()
 	ui_layer.add_child(direction_hint)
