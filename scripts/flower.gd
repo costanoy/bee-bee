@@ -10,7 +10,7 @@ const FLOWER_R := 14.0
 static var textures: Array = [
 	{"tex": load("res://art/flower_red.png"), "content_w": 346.0, "burst_color": Color(0.94, 0.2, 0.2)},
 	{"tex": load("res://art/flower_yellow.png"), "content_w": 346.0, "burst_color": Color(1.0, 0.82, 0.25)},
-	{"tex": load("res://art/flower_blue.png"), "content_w": 346.0, "burst_color": Color(0.25, 0.55, 0.95)},
+	{"tex": load("res://art/flower_blue.png"), "content_w": 346.0, "burst_color": Color(0.35, 0.2, 0.95)},
 ]
 
 var sway_phase := 0.0
