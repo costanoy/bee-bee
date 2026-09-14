@@ -38,14 +38,14 @@ func setup() -> void:
 	var sprite_frames := SpriteFrames.new()
 	sprite_frames.add_animation("fly")
 	sprite_frames.set_animation_loop("fly", true)
-	sprite_frames.set_animation_speed("fly", 8.0)
+	sprite_frames.set_animation_speed("fly", 5.0)
 	for i in PLAYBACK_ORDER:
 		sprite_frames.add_frame("fly", atlases[i])
 
 	self.sprite_frames = sprite_frames
 	play("fly")
 
-	var visual_span: float = 8.0 + randf() * 4.0
+	var visual_span: float = 13.0 + randf() * 6.0
 	scale = Vector2.ONE * (visual_span / CONTENT_H)
 
 	var direction := 1.0 if randf() < 0.5 else -1.0
