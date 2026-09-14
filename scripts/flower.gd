@@ -28,7 +28,7 @@ func setup() -> void:
 	add_child(sprite)
 	var entry: Dictionary = textures[randi() % textures.size()]
 	sprite.texture = entry["tex"]
-	var visual_span := FLOWER_R * 2.1
+	var visual_span := FLOWER_R * 2.4
 	sprite.scale = Vector2.ONE * (visual_span / entry["content_w"])
 
 	var shape := CollisionShape2D.new()
