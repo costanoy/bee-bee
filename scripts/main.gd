@@ -614,17 +614,17 @@ func _build_game_over_screen() -> Control:
 	title.size = Vector2(SCREEN_W, 50)
 	screen.add_child(title)
 
-	final_score_label = _make_label("Score: 0", 17, Color(1, 0.88, 0.4))
-	final_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	final_score_label.position = Vector2(0, SCREEN_H * 0.32 + 56)
-	final_score_label.size = Vector2(SCREEN_W, 30)
-	screen.add_child(final_score_label)
-
-	final_best_label = _make_label("Record: 0", 17, Color(1, 0.88, 0.4))
+	final_best_label = _make_label("Record: 0", 15, Color(1, 0.88, 0.4))
 	final_best_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	final_best_label.position = Vector2(0, SCREEN_H * 0.32 + 90)
-	final_best_label.size = Vector2(SCREEN_W, 30)
+	final_best_label.position = Vector2(0, SCREEN_H * 0.32 + 56)
+	final_best_label.size = Vector2(SCREEN_W, 26)
 	screen.add_child(final_best_label)
+
+	final_score_label = _make_label("Score: 0", 22, Color(1, 0.88, 0.4))
+	final_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	final_score_label.position = Vector2(0, SCREEN_H * 0.32 + 86)
+	final_score_label.size = Vector2(SCREEN_W, 36)
+	screen.add_child(final_score_label)
 
 	restart_button = _make_text_button("Play Again")
 	restart_button.position = Vector2(SCREEN_W / 2.0 - 90, SCREEN_H * 0.32 + 150)
