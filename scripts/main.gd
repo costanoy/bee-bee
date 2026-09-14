@@ -23,6 +23,7 @@ const SCROLL_START_DELAY := 1.0
 const ObstacleScript := preload("res://scripts/obstacle.gd")
 const FlowerScript := preload("res://scripts/flower.gd")
 const CloudScript := preload("res://scripts/cloud.gd")
+const SeagullScript := preload("res://scripts/seagull.gd")
 const SkyScript := preload("res://scripts/sky.gd")
 const BeeScript := preload("res://scripts/bee.gd")
 
@@ -51,6 +52,7 @@ var dying_timer := 0.0
 var obstacles: Array = []
 var flowers: Array = []
 var clouds: Array = []
+var seagulls: Array = []
 
 var bee: CharacterBody2D
 var camera: Camera2D
@@ -119,9 +121,12 @@ func _clear_world() -> void:
 		f.queue_free()
 	for c in clouds:
 		c.queue_free()
+	for g in seagulls:
+		g.queue_free()
 	obstacles.clear()
 	flowers.clear()
 	clouds.clear()
+	seagulls.clear()
 	if ground_sprite:
 		ground_sprite.queue_free()
 		ground_sprite = null
@@ -228,6 +233,15 @@ func _spawn_row() -> void:
 		cloud.setup()
 		clouds.append(cloud)
 
+	if score < 75 and randf() < 0.15:
+		var gull := AnimatedSprite2D.new()
+		gull.set_script(SeagullScript)
+		gull.position = Vector2(randf() * SCREEN_W, y - randf() * 80.0)
+		gull.z_index = -1
+		add_child(gull)
+		gull.setup()
+		seagulls.append(gull)
+
 
 # ------------------------------------------------------------------
 # Update loop
@@ -283,6 +297,10 @@ func _update_playing(delta: float) -> void:
 		if c.position.y > bottom_cull or c.position.x > SCREEN_W + 150.0 or c.position.x < -150.0:
 			clouds.erase(c)
 			c.queue_free()
+	for g in seagulls.duplicate():
+		if g.position.y > bottom_cull or g.position.x > SCREEN_W + 150.0 or g.position.x < -150.0:
+			seagulls.erase(g)
+			g.queue_free()
 
 	# Every flower is mandatory — letting one scroll off the bottom
 	# uncollected ends the run, same as hitting an obstacle (spec change:
