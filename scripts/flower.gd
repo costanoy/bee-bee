@@ -8,9 +8,9 @@ const FLOWER_R := 14.0
 # share the same canvas size/padding (the blue one is a different source
 # than red/yellow), so each needs its own reference width to scale correctly.
 static var textures: Array = [
-	{"tex": load("res://art/flower_red.png"), "content_w": 346.0},
-	{"tex": load("res://art/flower_yellow.png"), "content_w": 346.0},
-	{"tex": load("res://art/flower_blue.png"), "content_w": 346.0},
+	{"tex": load("res://art/flower_red.png"), "content_w": 346.0, "burst_color": Color(0.94, 0.2, 0.2)},
+	{"tex": load("res://art/flower_yellow.png"), "content_w": 346.0, "burst_color": Color(1.0, 0.82, 0.25)},
+	{"tex": load("res://art/flower_blue.png"), "content_w": 346.0, "burst_color": Color(0.25, 0.55, 0.95)},
 ]
 
 var sway_phase := 0.0
@@ -18,6 +18,7 @@ var _time := 0.0
 var _base_x := 0.0
 
 var sprite: Sprite2D
+var burst_color := Color(1.0, 0.82, 0.25)
 
 
 func setup() -> void:
@@ -28,6 +29,7 @@ func setup() -> void:
 	add_child(sprite)
 	var entry: Dictionary = textures[randi() % textures.size()]
 	sprite.texture = entry["tex"]
+	burst_color = entry["burst_color"]
 	var visual_span := FLOWER_R * 2.4
 	sprite.scale = Vector2.ONE * (visual_span / entry["content_w"])
 
@@ -70,7 +72,7 @@ func play_collect_effect() -> void:
 	particles.initial_velocity_max = 200.0
 	particles.scale_amount_min = 3.0
 	particles.scale_amount_max = 5.0
-	particles.color = Color(1.0, 0.82, 0.25)
+	particles.color = burst_color
 	add_child(particles)
 	particles.emitting = true
 
