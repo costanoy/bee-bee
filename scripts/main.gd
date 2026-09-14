@@ -233,7 +233,10 @@ func _spawn_row() -> void:
 	flower.setup()
 	flowers.append(flower)
 
-	if score < 75 and randf() < 0.6:
+	# Clouds keep appearing through the night, just less often once the sky
+	# has started turning (day->fade now begins at score 50 — see sky.gd).
+	var cloud_chance: float = 0.6 if score < 50 else 0.2
+	if randf() < cloud_chance:
 		var cloud := Sprite2D.new()
 		cloud.set_script(CloudScript)
 		cloud.position = Vector2(randf() * SCREEN_W, y - randf() * 60.0)

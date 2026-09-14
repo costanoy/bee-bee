@@ -9,10 +9,16 @@ extends Node
 # This script only decides *when* (via signals) and lets main.gd own the
 # actual sprite/positioning since it already tracks camera_y.
 
-const NIGHT_RAMP_START := 75.0
-const NIGHT_RAMP_END := 200.0
+const DAY_TO_FADE_START := 50.0
+const DAY_TO_FADE_END := 70.0
+const FADE_TO_NIGHT_START := 70.0
+const FADE_TO_NIGHT_END := 95.0
 
 const SUN_SCORE := 20
+const MOON_SCORE := 100
+const JUPITER_SCORE := 200
+const SHIP_SCORE := 250
+const SHINING_BEE_SCORE := 300
 
 var layer: CanvasLayer
 var start_rect: TextureRect
@@ -65,8 +71,8 @@ func update(delta: float, is_start_phase: bool, score: int) -> void:
 	var target_start: float = 1.0 if is_start_phase else 0.0
 	start_rect.modulate.a = move_toward(start_rect.modulate.a, target_start, delta * 2.0)
 
-	var t1: float = clamp((score - NIGHT_RAMP_START) / ((NIGHT_RAMP_END - NIGHT_RAMP_START) * 0.5), 0.0, 1.0)
-	var t2: float = clamp((score - (NIGHT_RAMP_START + NIGHT_RAMP_END) * 0.5) / ((NIGHT_RAMP_END - NIGHT_RAMP_START) * 0.5), 0.0, 1.0)
+	var t1: float = clamp((score - DAY_TO_FADE_START) / (DAY_TO_FADE_END - DAY_TO_FADE_START), 0.0, 1.0)
+	var t2: float = clamp((score - FADE_TO_NIGHT_START) / (FADE_TO_NIGHT_END - FADE_TO_NIGHT_START), 0.0, 1.0)
 
 	day_rect.modulate.a = 1.0 - t1
 	fade_rect.modulate.a = clamp(t1 - t2, 0.0, 1.0)
@@ -79,18 +85,18 @@ func _check_triggers(score: int) -> void:
 	if score >= SUN_SCORE and not sun_spawned:
 		sun_spawned = true
 		sun_spawn_requested.emit()
-	if score >= 75:
+	if score >= DAY_TO_FADE_START:
 		stars_should_spawn.emit()
-	if score >= 150 and not moon_spawned:
+	if score >= MOON_SCORE and not moon_spawned:
 		moon_spawned = true
 		moon_spawn_requested.emit()
-	if score >= 250 and not jupiter_spawned:
+	if score >= JUPITER_SCORE and not jupiter_spawned:
 		jupiter_spawned = true
 		jupiter_spawn_requested.emit()
-	if score >= 400 and not ship_spawned:
+	if score >= SHIP_SCORE and not ship_spawned:
 		ship_spawned = true
 		ship_spawn_requested.emit()
-	if score >= 500 and not shining_bee_unlocked:
+	if score >= SHINING_BEE_SCORE and not shining_bee_unlocked:
 		shining_bee_unlocked = true
 		shining_bee_unlock_requested.emit()
 
