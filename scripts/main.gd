@@ -53,6 +53,7 @@ var obstacles: Array = []
 var flowers: Array = []
 var clouds: Array = []
 var seagulls: Array = []
+var celestials: Array = []
 
 var bee: CharacterBody2D
 var camera: Camera2D
@@ -87,7 +88,10 @@ func _ready() -> void:
 	sky = SkyScript.new()
 	add_child(sky)
 	sky.shining_bee_unlock_requested.connect(_on_shining_bee_unlock_requested)
-	# Moon/Jupiter/UFO sprites are owned and faded in entirely inside sky.gd.
+	sky.sun_spawn_requested.connect(_on_sun_spawn_requested)
+	sky.moon_spawn_requested.connect(_on_moon_spawn_requested)
+	sky.jupiter_spawn_requested.connect(_on_jupiter_spawn_requested)
+	sky.ship_spawn_requested.connect(_on_ship_spawn_requested)
 	# Stars are the one extension point still pending (no sprite yet).
 
 	camera = Camera2D.new()
@@ -124,10 +128,13 @@ func _clear_world() -> void:
 		c.queue_free()
 	for g in seagulls:
 		g.queue_free()
+	for c in celestials:
+		c.queue_free()
 	obstacles.clear()
 	flowers.clear()
 	clouds.clear()
 	seagulls.clear()
+	celestials.clear()
 	if ground_sprite:
 		ground_sprite.queue_free()
 		ground_sprite = null
@@ -144,6 +151,7 @@ func _reset_to_ground_scene() -> void:
 	# start screen the very first time the player presses Play — callers
 	# handle that by only calling this once before that first press.
 	_clear_world()
+	sky.reset_run()
 
 	var ground_y := 0.0
 	var grass_center_local: float = (GROUND_GRASS_Y0 + GROUND_GRASS_Y1) / 2.0
@@ -302,6 +310,10 @@ func _update_playing(delta: float) -> void:
 		if g.position.y > bottom_cull or g.position.x > SCREEN_W + 150.0 or g.position.x < -150.0:
 			seagulls.erase(g)
 			g.queue_free()
+	for c in celestials.duplicate():
+		if c.position.y > bottom_cull:
+			celestials.erase(c)
+			c.queue_free()
 
 	# Every flower is mandatory — letting one scroll off the bottom
 	# uncollected ends the run, same as hitting an obstacle (spec change:
@@ -461,6 +473,41 @@ func _update_score_label() -> void:
 func _on_shining_bee_unlock_requested() -> void:
 	SaveData.shining_bee_unlocked = true
 	SaveData.save_data()
+
+
+# ------------------------------------------------------------------
+# Celestial bodies (sun/moon/Jupiter/UFO) — static world-space objects,
+# same as a cloud but without the drift: they spawn once near the top of
+# the current view and just sit there, so the climb naturally scrolls
+# them down and off the bottom of the screen.
+# ------------------------------------------------------------------
+
+func _spawn_celestial(path: String, content_w: float, visual_w: float, y_offset: float) -> void:
+	if state != State.PLAYING:
+		return
+	var body := Sprite2D.new()
+	body.texture = load(path)
+	body.scale = Vector2.ONE * (visual_w / content_w)
+	body.position = Vector2(80.0 + randf() * (SCREEN_W - 160.0), camera_y + y_offset)
+	body.z_index = -1
+	add_child(body)
+	celestials.append(body)
+
+
+func _on_sun_spawn_requested() -> void:
+	_spawn_celestial("res://art/sun.png", 597.0, 90.0, 120.0)
+
+
+func _on_moon_spawn_requested() -> void:
+	_spawn_celestial("res://art/moon.png", 435.0, 80.0, 120.0)
+
+
+func _on_jupiter_spawn_requested() -> void:
+	_spawn_celestial("res://art/jupiter.png", 690.0, 100.0, 140.0)
+
+
+func _on_ship_spawn_requested() -> void:
+	_spawn_celestial("res://art/ufo.png", 492.0, 80.0, 100.0)
 
 
 # ------------------------------------------------------------------

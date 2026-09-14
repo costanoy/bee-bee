@@ -1,16 +1,14 @@
 extends Node
 
-# Score-driven background crossfade + celestial bodies (spec 4.9): sun,
-# moon, Jupiter and the UFO all have real art now; only stars are still a
-# no-op stub (sprite not made yet). Progression is keyed off SCORE, not
-# height/time, so the background is a screen-fixed layer (a CanvasLayer
-# behind everything) rather than something that scrolls with the world.
+# Score-driven background crossfade (spec 4.9). Progression is keyed off
+# SCORE, not height/time, so the background gradient itself is a
+# screen-fixed layer (a CanvasLayer behind everything). The celestial
+# bodies (sun/moon/Jupiter/UFO) are NOT part of this layer — they're
+# spawned by main.gd as static world-space objects that scroll down and
+# off-screen as the bee climbs, same as clouds, just without the drift.
+# This script only decides *when* (via signals) and lets main.gd own the
+# actual sprite/positioning since it already tracks camera_y.
 
-const SCREEN_W := 400.0
-const SCREEN_H := 800.0
-
-# Score window over which day -> fade -> night crossfades (handoff only pins
-# the start point at 75; the width is a reasonable tunable default).
 const NIGHT_RAMP_START := 75.0
 const NIGHT_RAMP_END := 200.0
 
@@ -21,10 +19,6 @@ var start_rect: TextureRect
 var day_rect: TextureRect
 var fade_rect: TextureRect
 var night_rect: TextureRect
-var sun_sprite: Sprite2D
-var moon_sprite: Sprite2D
-var jupiter_sprite: Sprite2D
-var ufo_sprite: Sprite2D
 
 var sun_spawned := false
 var moon_spawned := false
@@ -33,6 +27,7 @@ var ship_spawned := false
 var shining_bee_unlocked := false
 
 signal stars_should_spawn  # score >= 75, repeats forever — no-op until star sprites exist
+signal sun_spawn_requested
 signal moon_spawn_requested
 signal jupiter_spawn_requested
 signal ship_spawn_requested
@@ -54,17 +49,6 @@ func _ready() -> void:
 	night_rect.modulate.a = 0.0
 	start_rect.modulate.a = 1.0
 
-	# Sun/moon sit above the backgrounds but are still part of this same
-	# screen-fixed layer (behind gameplay). Each fades in with the alpha of
-	# the background it belongs to, so the sun recedes as night comes in
-	# and the moon only really shows once night has actually arrived.
-	sun_sprite = _make_celestial_sprite("res://art/sun.png", 597.0, 80.0, Vector2(300.0, 130.0))
-	moon_sprite = _make_celestial_sprite("res://art/moon.png", 435.0, 70.0, Vector2(100.0, 130.0))
-	# Jupiter/UFO are later, one-time night-sky arrivals (spec 4.9) — same
-	# screen-fixed treatment, faded in with the night backdrop like the moon.
-	jupiter_sprite = _make_celestial_sprite("res://art/jupiter.png", 690.0, 90.0, Vector2(320.0, 210.0))
-	ufo_sprite = _make_celestial_sprite("res://art/ufo.png", 492.0, 70.0, Vector2(160.0, 90.0))
-
 
 func _make_bg_rect(path: String) -> TextureRect:
 	var rect := TextureRect.new()
@@ -75,16 +59,6 @@ func _make_bg_rect(path: String) -> TextureRect:
 	rect.clip_contents = true
 	layer.add_child(rect)
 	return rect
-
-
-func _make_celestial_sprite(path: String, content_dim: float, visual_dim: float, pos: Vector2) -> Sprite2D:
-	var sprite := Sprite2D.new()
-	sprite.texture = load(path)
-	sprite.scale = Vector2.ONE * (visual_dim / content_dim)
-	sprite.position = pos
-	sprite.modulate.a = 0.0
-	layer.add_child(sprite)
-	return sprite
 
 
 func update(delta: float, is_start_phase: bool, score: int) -> void:
@@ -98,18 +72,13 @@ func update(delta: float, is_start_phase: bool, score: int) -> void:
 	fade_rect.modulate.a = clamp(t1 - t2, 0.0, 1.0)
 	night_rect.modulate.a = t2
 
-	if score >= SUN_SCORE:
-		sun_spawned = true
-
 	_check_triggers(score)
-
-	sun_sprite.modulate.a = day_rect.modulate.a if sun_spawned else 0.0
-	moon_sprite.modulate.a = night_rect.modulate.a if moon_spawned else 0.0
-	jupiter_sprite.modulate.a = night_rect.modulate.a if jupiter_spawned else 0.0
-	ufo_sprite.modulate.a = night_rect.modulate.a if ship_spawned else 0.0
 
 
 func _check_triggers(score: int) -> void:
+	if score >= SUN_SCORE and not sun_spawned:
+		sun_spawned = true
+		sun_spawn_requested.emit()
 	if score >= 75:
 		stars_should_spawn.emit()
 	if score >= 150 and not moon_spawned:
@@ -124,3 +93,13 @@ func _check_triggers(score: int) -> void:
 	if score >= 500 and not shining_bee_unlocked:
 		shining_bee_unlocked = true
 		shining_bee_unlock_requested.emit()
+
+
+func reset_run() -> void:
+	# Spec 4.9: these are "evento único NA PARTIDA" — one-time per RUN, not
+	# per app session — so every fresh run needs to see them again.
+	# shining_bee_unlocked stays untouched: that unlock is permanent.
+	sun_spawned = false
+	moon_spawned = false
+	jupiter_spawned = false
+	ship_spawned = false
