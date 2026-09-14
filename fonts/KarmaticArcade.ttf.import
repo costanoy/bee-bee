@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://bv54imnclg8it"
-path="res://.godot/imported/PressStart2P-Regular.ttf-c7d83f2c4bd295d4c960a93a703ae2b2.fontdata"
+uid="uid://bpbf021qhoo2v"
+path="res://.godot/imported/KarmaticArcade.ttf-a599b4b94ae73d33c54634590b9eb63f.fontdata"
 
 [deps]
 
-source_file="res://fonts/PressStart2P-Regular.ttf"
-dest_files=["res://.godot/imported/PressStart2P-Regular.ttf-c7d83f2c4bd295d4c960a93a703ae2b2.fontdata"]
+source_file="res://fonts/KarmaticArcade.ttf"
+dest_files=["res://.godot/imported/KarmaticArcade.ttf-a599b4b94ae73d33c54634590b9eb63f.fontdata"]
 
 [params]
 

@@ -75,10 +75,11 @@ var restart_button: Button
 
 func _ready() -> void:
 	# Placeholder-era plain Label/Button text (spec 3.2/4.10) — swapped for
-	# a real pixel font (Press Start 2P, OFL-licensed, via Google Fonts)
-	# instead of the default UI font. Antialiasing/subpixel positioning off
-	# so it renders crisp instead of blurry at these small sizes.
-	pixel_font = load("res://fonts/PressStart2P-Regular.ttf")
+	# a real arcade font (Karmatic Arcade, 1001fonts FFC license — free for
+	# commercial/embedded use) instead of the default UI font. Antialiasing/
+	# subpixel positioning off so it renders crisp instead of blurry at
+	# these small sizes.
+	pixel_font = load("res://fonts/KarmaticArcade.ttf")
 	pixel_font.antialiasing = TextServer.FONT_ANTIALIASING_NONE
 	pixel_font.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
 	pixel_font.oversampling = 1.0
