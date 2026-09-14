@@ -11,8 +11,8 @@ var drift_speed := 0.0
 
 func setup() -> void:
 	texture = cloud_texture
-	# 1024x1024 canvas, actual cloud content is only ~864px wide inside it.
-	const CONTENT_W := 864.0
+	# 768x768 canvas, actual cloud content is only ~652px wide inside it.
+	const CONTENT_W := 652.0
 	var visual_span: float = 45.0 + randf() * 30.0
 	scale = Vector2.ONE * (visual_span / CONTENT_W)
 	var direction := 1.0 if randf() < 0.5 else -1.0
