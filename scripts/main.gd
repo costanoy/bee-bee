@@ -29,9 +29,9 @@ const BeeScript := preload("res://scripts/bee.gd")
 # Ground/trees content bounding boxes inside their source canvases (see
 # scripts for the other assets' equivalents) — used once, to frame the
 # cold-start scene precisely instead of eyeballing it.
-const GROUND_CANVAS_W := 1176.0
-const GROUND_GRASS_Y0 := 212.0
-const GROUND_GRASS_Y1 := 266.0
+const GROUND_CANVAS_W := 1568.0
+const GROUND_GRASS_Y0 := 416.0
+const GROUND_GRASS_Y1 := 494.0
 const TREES_CANVAS_W := 1568.0
 const TREES_BOTTOM_Y := 636.0
 
