@@ -132,8 +132,14 @@ func _ready() -> void:
 
 func _clear_world() -> void:
 	for o in obstacles:
+		# queue_free() is deferred to end-of-frame — stop it from detecting
+		# overlaps immediately (the bee's respawn position could land right
+		# on top of where an old run's obstacle still physically sits for
+		# the rest of this frame).
+		o.monitoring = false
 		o.queue_free()
 	for f in flowers:
+		f.monitoring = false
 		f.queue_free()
 	for c in clouds:
 		c.queue_free()
@@ -401,7 +407,13 @@ func on_flower_collected(flower: Area2D) -> void:
 	_update_score_label()
 
 
-func on_bee_hit_obstacle() -> void:
+func on_bee_hit_obstacle(obstacle: Area2D) -> void:
+	# An obstacle can still be mid-queue_free (deletion is deferred to end
+	# of frame) when a fresh run repositions the bee right on top of where
+	# it used to be — without this check, that stale, already-cleared
+	# obstacle could still fire a real game over on a brand new run.
+	if not obstacles.has(obstacle):
+		return
 	_trigger_game_over()
 
 

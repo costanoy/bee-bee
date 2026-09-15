@@ -73,4 +73,4 @@ func _add_bar(x1: float, x2: float) -> void:
 
 func _on_body_entered(_body: Node) -> void:
 	if get_parent().has_method("on_bee_hit_obstacle"):
-		get_parent().on_bee_hit_obstacle()
+		get_parent().on_bee_hit_obstacle(self)
