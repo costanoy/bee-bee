@@ -12,7 +12,9 @@ const SCREEN_H := 800.0
 # Physics/gameplay constants ported verbatim from reference-prototype.html.
 const OBSTACLE_SPACING := 190.0
 const SCROLL_BASE := 78.0
-const SCROLL_MAX := 165.0
+# Tuned down from the prototype's 165 — combined with mandatory flowers and
+# shrinking gaps, that ramp made the late game effectively unplayable.
+const SCROLL_MAX := 110.0
 const DIFFICULTY_RAMP_TIME := 50.0
 const BEE_R := 16.0
 
