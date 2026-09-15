@@ -702,7 +702,7 @@ func _build_game_over_screen() -> Control:
 	screen.add_child(final_score_label)
 
 	restart_button = _make_text_button("Play Again")
-	restart_button.position = Vector2(SCREEN_W / 2.0 - 90, SCREEN_H - 140)
+	restart_button.position = Vector2(SCREEN_W / 2.0 - 115, SCREEN_H - 146)
 	restart_button.pressed.connect(_on_restart_pressed)
 	screen.add_child(restart_button)
 
@@ -744,10 +744,10 @@ func _make_text_button(text: String) -> Button:
 	var btn := Button.new()
 	btn.text = text
 	btn.focus_mode = Control.FOCUS_NONE
-	btn.custom_minimum_size = Vector2(180, 52)
-	btn.size = Vector2(180, 52)
+	btn.custom_minimum_size = Vector2(230, 66)
+	btn.size = Vector2(230, 66)
 	btn.add_theme_font_override("font", pixel_font)
-	btn.add_theme_font_size_override("font_size", 14)
+	btn.add_theme_font_size_override("font_size", 17)
 	btn.add_theme_color_override("font_color", Color(0.1, 0.16, 0.07))
 
 	# Plate art, cropped to its content box (768x768 canvas, content is a
