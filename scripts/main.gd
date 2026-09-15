@@ -499,13 +499,16 @@ func _on_shining_bee_unlock_requested() -> void:
 # them down and off the bottom of the screen.
 # ------------------------------------------------------------------
 
-func _spawn_celestial(path: String, content_w: float, visual_w: float, y_offset: float) -> void:
+func _spawn_celestial(path: String, content_w: float, visual_w: float, y_offset_above_view: float) -> void:
 	if state != State.PLAYING:
 		return
 	var body := Sprite2D.new()
 	body.texture = load(path)
 	body.scale = Vector2.ONE * (visual_w / content_w)
-	body.position = Vector2(80.0 + randf() * (SCREEN_W - 160.0), camera_y + y_offset)
+	# Spawn ABOVE the current view (camera_y is the screen's top edge) so it
+	# scrolls into sight as the bee keeps climbing, instead of popping into
+	# the middle of whatever's already on screen.
+	body.position = Vector2(80.0 + randf() * (SCREEN_W - 160.0), camera_y - y_offset_above_view)
 	body.z_index = -1
 	add_child(body)
 	celestials.append(body)
