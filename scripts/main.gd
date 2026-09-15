@@ -739,19 +739,22 @@ func _make_text_button(text: String) -> Button:
 	btn.add_theme_font_size_override("font_size", 14)
 	btn.add_theme_color_override("font_color", Color(0.1, 0.16, 0.07))
 
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(1.0, 0.808, 0.239)
-	style.set_corner_radius_all(26)
-	style.shadow_color = Color(0, 0, 0, 0.3)
-	style.shadow_size = 6
+	# Plate art, cropped to its content box (768x768 canvas, content is a
+	# 598x262 box inside it) — same technique as the other assets. Only one
+	# image exists so hover/pressed reuse it with a modulate tint instead
+	# of separate art.
+	var plate: Texture2D = load("res://art/button_plate.png")
+	var style := StyleBoxTexture.new()
+	style.texture = plate
+	style.region_rect = Rect2(84, 252, 598, 262)
 	btn.add_theme_stylebox_override("normal", style)
 
-	var style_hover := style.duplicate()
-	style_hover.bg_color = Color(1.0, 0.87, 0.4)
+	var style_hover: StyleBoxTexture = style.duplicate()
+	style_hover.modulate_color = Color(1.08, 1.08, 1.08)
 	btn.add_theme_stylebox_override("hover", style_hover)
 
-	var style_pressed := style.duplicate()
-	style_pressed.bg_color = Color(0.9, 0.7, 0.15)
+	var style_pressed: StyleBoxTexture = style.duplicate()
+	style_pressed.modulate_color = Color(0.82, 0.82, 0.82)
 	btn.add_theme_stylebox_override("pressed", style_pressed)
 
 	return btn
