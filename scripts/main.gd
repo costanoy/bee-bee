@@ -19,6 +19,14 @@ const BEE_R := 16.0
 # How long after the first flap the camera waits before it starts climbing
 # (the bee itself is already flying/falling normally during this pause).
 const SCROLL_START_DELAY := 1.0
+# Short grace window after the first flap where falling off the bottom of
+# the (still tightly-framed) cold-start view can't end the run — a rapid
+# extra tap right after "Play Again" (e.g. an impatient double-press) could
+# otherwise land as a flap with no follow-up, and the bee had barely any
+# room to fall before being ruled "off-screen" against the ground-flush
+# framing. Obstacle/flower rules are unaffected — nothing is close enough
+# to matter this early anyway.
+const FALL_DEATH_GRACE := 0.5
 
 const ObstacleScript := preload("res://scripts/obstacle.gd")
 const FlowerScript := preload("res://scripts/flower.gd")
@@ -40,6 +48,7 @@ var state: State = State.START
 var world_moving := false
 var scrolling_started := false
 var launch_timer := 0.0
+var time_since_first_flap := 0.0
 var has_tapped_once := false
 var hint_alpha := 0.0
 
@@ -154,7 +163,6 @@ func _reset_to_ground_scene() -> void:
 	sky.reset_run()
 
 	var ground_y := 0.0
-	var grass_center_local: float = (GROUND_GRASS_Y0 + GROUND_GRASS_Y1) / 2.0
 	var ground_scale: float = SCREEN_W / GROUND_CANVAS_W
 
 	trees_sprite = Sprite2D.new()
@@ -170,13 +178,17 @@ func _reset_to_ground_scene() -> void:
 	ground_sprite.texture = load("res://art/ground.png")
 	ground_sprite.centered = false
 	ground_sprite.scale = Vector2.ONE * ground_scale
-	ground_sprite.position = Vector2(0.0, ground_y - grass_center_local * ground_scale)
+	# Align world y=0 with the TOP edge of the grass (GROUND_GRASS_Y0) —
+	# the actual surface the bee should stand on — not the middle of the
+	# grass+dirt band, which left the bee visibly sunk into the ground.
+	ground_sprite.position = Vector2(0.0, ground_y - GROUND_GRASS_Y0 * ground_scale)
 	add_child(ground_sprite)
 
 	bee.reset_bee(Vector2(SCREEN_W / 2.0, ground_y - BEE_R))
 	world_moving = false
 	scrolling_started = false
 	launch_timer = 0.0
+	time_since_first_flap = 0.0
 
 	# Frame the cold-start camera so the ground graphic's own bottom edge
 	# sits flush with the bottom of the screen (no floating gap beneath it).
@@ -281,6 +293,8 @@ func _update_playing(delta: float) -> void:
 	if not world_moving:
 		return
 
+	time_since_first_flap += delta
+
 	if not scrolling_started:
 		launch_timer += delta
 		if launch_timer >= SCROLL_START_DELAY:
@@ -343,7 +357,7 @@ func _update_playing(delta: float) -> void:
 			_trigger_game_over()
 			return
 
-	if bee.position.y - BEE_R > screen_bottom:
+	if time_since_first_flap >= FALL_DEATH_GRACE and bee.position.y - BEE_R > screen_bottom:
 		_trigger_game_over()
 
 
