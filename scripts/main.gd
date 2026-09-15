@@ -654,11 +654,17 @@ func _build_start_screen() -> Control:
 	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
 	screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var title := _make_label("Bee Bee", 34, Color.WHITE)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, 90)
-	title.size = Vector2(SCREEN_W, 60)
-	screen.add_child(title)
+	# source is a 1344x768 canvas; the actual logo art is an 822x254
+	# content box inside it.
+	var logo := Sprite2D.new()
+	var logo_atlas := AtlasTexture.new()
+	logo_atlas.atlas = load("res://art/logo.png")
+	logo_atlas.region = Rect2(264, 264, 822, 254)
+	logo.texture = logo_atlas
+	var logo_visual_w := 320.0
+	logo.scale = Vector2.ONE * (logo_visual_w / 822.0)
+	logo.position = Vector2(SCREEN_W / 2.0, 140.0)
+	screen.add_child(logo)
 
 	# source is a 768x768 canvas; the actual button art is a 418x320 content
 	# box inside it.
@@ -696,7 +702,7 @@ func _build_game_over_screen() -> Control:
 	screen.add_child(final_score_label)
 
 	restart_button = _make_text_button("Play Again")
-	restart_button.position = Vector2(SCREEN_W / 2.0 - 90, SCREEN_H * 0.32 + 150)
+	restart_button.position = Vector2(SCREEN_W / 2.0 - 90, SCREEN_H - 140)
 	restart_button.pressed.connect(_on_restart_pressed)
 	screen.add_child(restart_button)
 
