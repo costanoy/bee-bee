@@ -13,9 +13,8 @@ const SCREEN_H := 800.0
 const OBSTACLE_SPACING := 190.0
 const SCROLL_BASE := 78.0
 # Prototype's original ramp topped out at 165 (too punishing with mandatory
-# flowers + shrinking gaps); 110 turned out too tame. Splitting the
-# difference.
-const SCROLL_MAX := 135.0
+# flowers + shrinking gaps); 110 was too tame, 135 still felt easy.
+const SCROLL_MAX := 148.0
 const DIFFICULTY_RAMP_TIME := 50.0
 const BEE_R := 16.0
 
