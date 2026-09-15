@@ -13,9 +13,9 @@ extends Node
 # steadily just from normal play, so a narrow window made the sky change
 # feel fast/abrupt. Stretched way out for a slow, smooth fade instead.
 const DAY_TO_FADE_START := 50.0
-const DAY_TO_FADE_END := 200.0
-const FADE_TO_NIGHT_START := 200.0
-const FADE_TO_NIGHT_END := 350.0
+const DAY_TO_FADE_END := 90.0
+const FADE_TO_NIGHT_START := 90.0
+const FADE_TO_NIGHT_END := 130.0
 
 const SUN_SCORE := 20
 const MOON_SCORE := 100
