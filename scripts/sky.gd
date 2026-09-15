@@ -9,10 +9,13 @@ extends Node
 # This script only decides *when* (via signals) and lets main.gd own the
 # actual sprite/positioning since it already tracks camera_y.
 
+# Wide, gradual ramp — since every flower is mandatory, score climbs
+# steadily just from normal play, so a narrow window made the sky change
+# feel fast/abrupt. Stretched way out for a slow, smooth fade instead.
 const DAY_TO_FADE_START := 50.0
-const DAY_TO_FADE_END := 70.0
-const FADE_TO_NIGHT_START := 70.0
-const FADE_TO_NIGHT_END := 95.0
+const DAY_TO_FADE_END := 200.0
+const FADE_TO_NIGHT_START := 200.0
+const FADE_TO_NIGHT_END := 350.0
 
 const SUN_SCORE := 20
 const MOON_SCORE := 100
