@@ -4,7 +4,7 @@ extends Node2D
 # obstacles, flowers, clouds) is built here by code rather than laid out by
 # hand in the editor — see HANDOFF_Claude_Code.md section 2 for why.
 
-enum State { START, STARTING, PLAYING, DYING, GAMEOVER }
+enum State { START, STARTING, PLAYING, PAUSED, DYING, GAMEOVER }
 
 const SCREEN_W := 400.0
 const SCREEN_H := 800.0
@@ -33,6 +33,48 @@ const FALL_DEATH_GRACE := 0.5
 # Music sits under whatever else the game plays; the theme itself is
 # mastered around -18 dBFS RMS, so this only trims it the rest of the way.
 const MUSIC_VOLUME_DB := -3.0
+# Muting by volume rather than stopping the player keeps the track running
+# underneath, so unmuting picks up where the loop got to instead of
+# snapping back to the top of the phrase.
+const MUSIC_MUTED_DB := -80.0
+
+# Icons are drawn as pixel grids rather than imported art, so they match
+# the game's own resolution instead of being scaled-down smooth shapes.
+const ICON_PAUSE := [
+	"XX.XX",
+	"XX.XX",
+	"XX.XX",
+	"XX.XX",
+	"XX.XX",
+	"XX.XX",
+	"XX.XX",
+]
+const ICON_NOTE := [
+	"...XXXXXXX.",
+	"...XXXXXXX.",
+	"...X.....X.",
+	"...X.....X.",
+	"...X.....X.",
+	"...X.....X.",
+	"...X.....X.",
+	".XXX...XXX.",
+	"XXXXX.XXXXX",
+	"XXXXX.XXXXX",
+	".XXX...XXX.",
+]
+const ICON_SLASH := [
+	"X..........",
+	"XX.........",
+	".XX........",
+	"..XX.......",
+	"...XX......",
+	"....XX.....",
+	".....XX....",
+	"......XX...",
+	".......XX..",
+	"........XX.",
+	".........XX",
+]
 
 const ObstacleScript := preload("res://scripts/obstacle.gd")
 const FlowerScript := preload("res://scripts/flower.gd")
@@ -88,6 +130,10 @@ var game_over_screen: Control
 var final_score_label: Label
 var final_best_label: Label
 var restart_button: Button
+var pause_button: Button
+var pause_screen: Control
+var music_note: Control
+var music_slash: Control
 
 
 func _ready() -> void:
@@ -129,9 +175,12 @@ func _ready() -> void:
 	# repeat is gapless inside the audio server.
 	music = AudioStreamPlayer.new()
 	music.stream = preload("res://audio/music_theme.wav")
-	music.volume_db = MUSIC_VOLUME_DB
+	# Pausing the game freezes the whole tree, so the player has to opt out
+	# of that or the track would cut off the moment the menu opens.
+	music.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(music)
 	music.play()
+	_apply_music_mute()
 
 	_reset_to_ground_scene()
 
@@ -437,6 +486,7 @@ func _trigger_game_over() -> void:
 		return
 	state = State.DYING
 	dying_timer = 0.0
+	pause_button.visible = false
 	bee.die()
 	# The bee keeps falling under its own gravity — no impact effect, no
 	# reposition. Tested and decided explicitly (spec 4.7): any collision FX
@@ -492,6 +542,7 @@ func _begin_playing() -> void:
 	state = State.PLAYING
 	start_screen.visible = false
 	game_over_screen.visible = false
+	pause_button.visible = true
 	# world_moving/bee.physics_enabled stay false here on the cold-start
 	# path — spec 4.3: gravity only turns on at the real first flap
 	# ("decolar" = "primeiro flap" = "início da partida", spec 4.3).
@@ -504,12 +555,60 @@ func _on_restart_pressed() -> void:
 	# a press from an actual game-over screen should ever reset anything.
 	if state != State.GAMEOVER:
 		return
-	# Every fresh run — first launch or replay after a game over — starts
-	# the same way: bee grounded, waiting for the real first flap.
+	_start_fresh_run()
+
+
+func _start_fresh_run() -> void:
+	# Every fresh run — first launch, replay after a game over, or restart
+	# from the pause menu — starts the same way: bee grounded, waiting for
+	# the real first flap.
 	_reset_to_ground_scene()
 	state = State.PLAYING
 	start_screen.visible = false
 	game_over_screen.visible = false
+	pause_button.visible = true
+
+
+func _on_pause_pressed() -> void:
+	if state != State.PLAYING:
+		return
+	state = State.PAUSED
+	pause_button.visible = false
+	pause_screen.visible = true
+	# Freezing the tree is what actually stops the run: the bee's physics,
+	# the drifting clouds and gulls and their wing animations all advance
+	# on their own, so gating this script alone would leave the world alive
+	# behind the menu.
+	get_tree().paused = true
+
+
+func _on_resume_pressed() -> void:
+	if state != State.PAUSED:
+		return
+	get_tree().paused = false
+	pause_screen.visible = false
+	state = State.PLAYING
+	pause_button.visible = true
+
+
+func _on_pause_restart_pressed() -> void:
+	if state != State.PAUSED:
+		return
+	get_tree().paused = false
+	pause_screen.visible = false
+	_start_fresh_run()
+
+
+func _on_music_toggle_pressed() -> void:
+	SaveData.music_muted = not SaveData.music_muted
+	SaveData.save_data()
+	_apply_music_mute()
+
+
+func _apply_music_mute() -> void:
+	music.volume_db = MUSIC_MUTED_DB if SaveData.music_muted else MUSIC_VOLUME_DB
+	music_slash.visible = SaveData.music_muted
+	music_note.modulate = Color(1, 1, 1, 0.4) if SaveData.music_muted else Color.WHITE
 
 
 func _update_score_label() -> void:
@@ -593,6 +692,10 @@ func _unhandled_input(event: InputEvent) -> void:
 func _build_ui() -> void:
 	var ui_layer := CanvasLayer.new()
 	ui_layer.layer = 10
+	# Pausing stops the whole scene tree, this layer included — without
+	# opting out, the pause menu would freeze the instant it appeared and
+	# none of its buttons would ever respond.
+	ui_layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(ui_layer)
 
 	record_label = _make_label("Record: 0", 15, Color(1, 1, 1, 0.8))
@@ -610,8 +713,17 @@ func _build_ui() -> void:
 	direction_hint = _build_direction_hint()
 	ui_layer.add_child(direction_hint)
 
+	pause_button = _make_icon_button(_build_pixel_icon(ICON_PAUSE, 4.0, Color.WHITE), 46.0)
+	pause_button.position = Vector2(SCREEN_W - pause_button.size.x - 14, 18)
+	pause_button.visible = false
+	pause_button.pressed.connect(_on_pause_pressed)
+	ui_layer.add_child(pause_button)
+
 	start_screen = _build_start_screen()
 	ui_layer.add_child(start_screen)
+
+	pause_screen = _build_pause_screen()
+	ui_layer.add_child(pause_screen)
 
 	game_over_screen = _build_game_over_screen()
 	ui_layer.add_child(game_over_screen)
@@ -702,6 +814,107 @@ func _build_start_screen() -> Control:
 	screen.add_child(play_button)
 
 	return screen
+
+
+func _build_pause_screen() -> Control:
+	var screen := Control.new()
+	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
+	screen.visible = false
+
+	# The game-over screen deliberately leaves the world undimmed (spec 4.7),
+	# but pause is a different message: the run is suspended, not finished,
+	# and the menu has to stay readable over whatever happened to be on
+	# screen when the player tapped.
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.5)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	screen.add_child(dim)
+
+	var title := _make_label("Paused", 28, Color.WHITE)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.position = Vector2(0, SCREEN_H * 0.26)
+	title.size = Vector2(SCREEN_W, 50)
+	screen.add_child(title)
+
+	var resume_button := _make_text_button("Resume")
+	resume_button.position = Vector2(SCREEN_W / 2.0 - 115, SCREEN_H * 0.41)
+	resume_button.pressed.connect(_on_resume_pressed)
+	screen.add_child(resume_button)
+
+	var pause_restart_button := _make_text_button("Restart")
+	pause_restart_button.position = Vector2(SCREEN_W / 2.0 - 115, SCREEN_H * 0.41 + 86)
+	pause_restart_button.pressed.connect(_on_pause_restart_pressed)
+	screen.add_child(pause_restart_button)
+
+	music_note = _build_pixel_icon(ICON_NOTE, 4.0, Color.WHITE)
+	var music_button := _make_icon_button(music_note, 58.0)
+	music_button.position = Vector2(
+		SCREEN_W / 2.0 - music_button.size.x / 2.0, SCREEN_H * 0.41 + 200)
+	music_button.pressed.connect(_on_music_toggle_pressed)
+	screen.add_child(music_button)
+
+	music_slash = _build_pixel_icon(ICON_SLASH, 4.0, Color.WHITE)
+	music_slash.position = music_note.position
+	music_slash.visible = false
+	music_button.add_child(music_slash)
+
+	return screen
+
+
+func _build_pixel_icon(rows: Array, cell: float, color: Color) -> Control:
+	# Horizontal runs of set pixels collapse into one rect each, so a glyph
+	# costs a handful of nodes instead of one per pixel.
+	var icon := Control.new()
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var cols: int = (rows[0] as String).length()
+	icon.size = Vector2(cols * cell, rows.size() * cell)
+	for y in rows.size():
+		var row: String = rows[y]
+		var x := 0
+		while x < cols:
+			if row[x] != "X":
+				x += 1
+				continue
+			var run := 1
+			while x + run < cols and row[x + run] == "X":
+				run += 1
+			var block := ColorRect.new()
+			block.color = color
+			block.position = Vector2(x * cell, y * cell)
+			block.size = Vector2(run * cell, cell)
+			block.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			icon.add_child(block)
+			x += run
+	return icon
+
+
+func _make_icon_button(icon: Control, side: float) -> Button:
+	var btn := Button.new()
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.custom_minimum_size = Vector2(side, side)
+	btn.size = btn.custom_minimum_size
+
+	# No plate art exists at this shape, and the in-game one sits over live
+	# gameplay, so these carry their own backing instead.
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0, 0, 0, 0.42)
+	style.set_corner_radius_all(9)
+	style.set_border_width_all(2)
+	style.border_color = Color(1, 1, 1, 0.5)
+	btn.add_theme_stylebox_override("normal", style)
+
+	var style_hover: StyleBoxFlat = style.duplicate()
+	style_hover.bg_color = Color(0, 0, 0, 0.55)
+	btn.add_theme_stylebox_override("hover", style_hover)
+
+	var style_pressed: StyleBoxFlat = style.duplicate()
+	style_pressed.bg_color = Color(0.25, 0.25, 0.25, 0.65)
+	btn.add_theme_stylebox_override("pressed", style_pressed)
+
+	icon.position = ((btn.size - icon.size) / 2.0).floor()
+	btn.add_child(icon)
+	return btn
 
 
 func _build_game_over_screen() -> Control:

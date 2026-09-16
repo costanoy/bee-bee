@@ -17,6 +17,7 @@ var seen_tutorial := false
 var best_score := 0
 var shining_bee_unlocked := false
 var selected_bee := "normal"  # "normal" | "shining" — only "normal" has a sprite so far
+var music_muted := false
 
 
 func _ready() -> void:
@@ -37,6 +38,7 @@ func load_data() -> void:
 		best_score = config.get_value("save", "best_score", 0)
 		shining_bee_unlocked = config.get_value("save", "shining_bee_unlocked", false)
 		selected_bee = config.get_value("save", "selected_bee", "normal")
+		music_muted = config.get_value("save", "music_muted", false)
 
 
 func save_data() -> void:
@@ -45,5 +47,6 @@ func save_data() -> void:
 	config.set_value("save", "best_score", best_score)
 	config.set_value("save", "shining_bee_unlocked", shining_bee_unlocked)
 	config.set_value("save", "selected_bee", selected_bee)
+	config.set_value("save", "music_muted", music_muted)
 	if config.save(SAVE_PATH) == OK:
 		config.save(BACKUP_PATH)
