@@ -31,8 +31,8 @@ const SCROLL_START_DELAY := 1.0
 const FALL_DEATH_GRACE := 0.5
 
 # Music sits under whatever else the game plays; the theme itself is
-# mastered around -15 dBFS RMS, so this only trims it the rest of the way.
-const MUSIC_VOLUME_DB := -6.0
+# mastered around -18 dBFS RMS, so this only trims it the rest of the way.
+const MUSIC_VOLUME_DB := -3.0
 
 const ObstacleScript := preload("res://scripts/obstacle.gd")
 const FlowerScript := preload("res://scripts/flower.gd")
