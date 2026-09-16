@@ -38,6 +38,33 @@ const MUSIC_VOLUME_DB := -6.0
 # snapping back to the top of the phrase.
 const MUSIC_MUTED_DB := -80.0
 
+const SFX_FLAP := preload("res://audio/sfx_flap.wav")
+const SFX_COLLECT := preload("res://audio/sfx_collect.wav")
+const SFX_HIT := preload("res://audio/sfx_hit.wav")
+const SFX_GAME_OVER := preload("res://audio/sfx_game_over.wav")
+const SFX_RECORD := preload("res://audio/sfx_record.wav")
+const SFX_UI_TAP := preload("res://audio/sfx_ui_tap.wav")
+
+# Levels live here rather than baked into the files so the mix can be
+# balanced without re-rendering. The flap sits lowest by a wide margin:
+# it fires on every single tap, and anything louder takes over the mix
+# within one run.
+const SFX_FLAP_DB := -16.0
+const SFX_COLLECT_DB := -7.0
+const SFX_HIT_DB := -5.0
+const SFX_GAME_OVER_DB := -6.0
+const SFX_RECORD_DB := -5.0
+const SFX_UI_DB := -12.0
+
+# Enough voices that a flap, a pickup and a jingle can overlap without
+# any of them being cut short.
+const SFX_VOICES := 8
+
+# Minor-pentatonic steps (A C D E G), the theme's own key. Each flower in
+# a run lands one step higher before wrapping, so a good run reads as a
+# rising figure rather than the same blip over and over.
+const COLLECT_PITCH_STEPS := [1.0, 1.1892, 1.3348, 1.4983, 1.7818]
+
 # Icons are drawn as pixel grids rather than imported art, so they match
 # the game's own resolution instead of being scaled-down smooth shapes.
 const ICON_PAUSE := [
@@ -114,6 +141,8 @@ var celestials: Array = []
 
 var bee: CharacterBody2D
 var music: AudioStreamPlayer
+var sfx_pool: Array[AudioStreamPlayer] = []
+var collect_step := 0
 var camera: Camera2D
 var sky: Node
 var ground_sprite: Sprite2D
@@ -167,12 +196,20 @@ func _ready() -> void:
 	bee.z_index = 10
 	add_child(bee)
 
+	for i in SFX_VOICES:
+		var voice := AudioStreamPlayer.new()
+		# UI taps fire from the pause menu while the tree is frozen, so the
+		# pool has to keep running through a pause just like the music does.
+		voice.process_mode = Node.PROCESS_MODE_ALWAYS
+		add_child(voice)
+		sfx_pool.append(voice)
+
 	_build_ui()
 
-	# One continuous 16-bar loop across menu, run and game over — restarting
-	# it per run would clip the phrase mid-bar every death. Nothing here
-	# repeats it in code: the WAV is imported with loop mode Forward, so the
-	# repeat is gapless inside the audio server.
+	# One continuous loop across menu, run and game over — restarting it per
+	# run would clip the phrase mid-bar on every death. Nothing here repeats
+	# it in code: the WAV is imported with loop mode Forward, so the repeat
+	# is gapless inside the audio server.
 	music = AudioStreamPlayer.new()
 	music.stream = preload("res://audio/music_theme.wav")
 	# Pausing the game freezes the whole tree, so the player has to opt out
@@ -233,6 +270,7 @@ func _reset_to_ground_scene() -> void:
 	# handle that by only calling this once before that first press.
 	_clear_world()
 	sky.reset_run()
+	collect_step = 0
 
 	var ground_y := 0.0
 	var ground_scale: float = SCREEN_W / GROUND_CANVAS_W
@@ -467,6 +505,8 @@ func on_flower_collected(flower: Area2D) -> void:
 		return
 	flowers.erase(flower)
 	flower.play_collect_effect()
+	_play_sfx(SFX_COLLECT, SFX_COLLECT_DB, COLLECT_PITCH_STEPS[collect_step])
+	collect_step = (collect_step + 1) % COLLECT_PITCH_STEPS.size()
 	score += 1
 	_update_score_label()
 
@@ -487,6 +527,7 @@ func _trigger_game_over() -> void:
 	state = State.DYING
 	dying_timer = 0.0
 	pause_button.visible = false
+	_play_sfx(SFX_HIT, SFX_HIT_DB)
 	bee.die()
 	# The bee keeps falling under its own gravity — no impact effect, no
 	# reposition. Tested and decided explicitly (spec 4.7): any collision FX
@@ -498,9 +539,13 @@ func _end_game() -> void:
 	state = State.GAMEOVER
 	bee.physics_enabled = false
 
-	if score > SaveData.best_score:
+	var beat_record := score > SaveData.best_score
+	if beat_record:
 		SaveData.best_score = score
 		SaveData.save_data()
+		_play_sfx(SFX_RECORD, SFX_RECORD_DB)
+	else:
+		_play_sfx(SFX_GAME_OVER, SFX_GAME_OVER_DB)
 
 	final_score_label.text = "Score: %d" % score
 	final_best_label.text = "Record: %d" % SaveData.best_score
@@ -605,6 +650,19 @@ func _on_music_toggle_pressed() -> void:
 	_apply_music_mute()
 
 
+func _play_sfx(stream: AudioStream, volume_db: float, pitch := 1.0) -> void:
+	for voice in sfx_pool:
+		if voice.playing:
+			continue
+		voice.stream = stream
+		voice.volume_db = volume_db
+		voice.pitch_scale = pitch
+		voice.play()
+		return
+	# Every voice busy: dropping this one is better than cutting off a
+	# sound that's already audible.
+
+
 func _apply_music_mute() -> void:
 	music.volume_db = MUSIC_MUTED_DB if SaveData.music_muted else MUSIC_VOLUME_DB
 	music_slash.visible = SaveData.music_muted
@@ -681,6 +739,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		world_moving = true
 		bee.physics_enabled = true
 	bee.flap(direction)
+	# Taps come fast and in bursts; an identical sample every time reads as
+	# a stuck machine gun, so each one is detuned slightly.
+	_play_sfx(SFX_FLAP, SFX_FLAP_DB, randf_range(0.92, 1.08))
 	has_tapped_once = true
 
 
@@ -914,6 +975,7 @@ func _make_icon_button(icon: Control, side: float) -> Button:
 
 	icon.position = ((btn.size - icon.size) / 2.0).floor()
 	btn.add_child(icon)
+	_add_tap_sound(btn)
 	return btn
 
 
@@ -962,7 +1024,14 @@ func _make_image_button(path: String, content_rect: Rect2, visual_w: float) -> T
 	var visual_h := visual_w * (content_rect.size.y / content_rect.size.x)
 	btn.custom_minimum_size = Vector2(visual_w, visual_h)
 	btn.size = btn.custom_minimum_size
+	_add_tap_sound(btn)
 	return btn
+
+
+func _add_tap_sound(btn: BaseButton) -> void:
+	# Wired in the factories rather than at each call site, so every button
+	# in the game clicks without anyone having to remember to ask for it.
+	btn.pressed.connect(func(): _play_sfx(SFX_UI_TAP, SFX_UI_DB))
 
 
 func _add_press_feedback(btn: BaseButton) -> void:
@@ -1008,4 +1077,5 @@ func _make_text_button(text: String) -> Button:
 	style_pressed.modulate_color = Color(0.82, 0.82, 0.82)
 	btn.add_theme_stylebox_override("pressed", style_pressed)
 
+	_add_tap_sound(btn)
 	return btn
