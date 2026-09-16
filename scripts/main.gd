@@ -159,6 +159,8 @@ var game_over_screen: Control
 var final_score_label: Label
 var final_best_label: Label
 var restart_button: Button
+var new_record_badge: Label
+var record_pulse: Tween
 var pause_button: Button
 var pause_screen: Control
 var music_note: Control
@@ -550,7 +552,43 @@ func _end_game() -> void:
 	final_score_label.text = "Score: %d" % score
 	final_best_label.text = "Record: %d" % SaveData.best_score
 	record_label.text = "Record: %d" % SaveData.best_score
+	if beat_record:
+		_show_new_record_badge()
+	else:
+		_hide_new_record_badge()
 	game_over_screen.visible = true
+
+
+func _show_new_record_badge() -> void:
+	# "Record: n" is centred in a full-width label, so the text itself
+	# starts wherever its own width puts it — measure with the label's own
+	# font so the badge can't drift if that label is ever restyled.
+	var font: Font = final_best_label.get_theme_font("font")
+	var font_size: int = final_best_label.get_theme_font_size("font")
+	var text_w: float = font.get_string_size(
+		final_best_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	new_record_badge.position = Vector2(
+		(SCREEN_W - text_w) / 2.0 - new_record_badge.size.x - 8.0,
+		final_best_label.position.y)
+	new_record_badge.scale = Vector2.ONE
+	new_record_badge.visible = true
+
+	if record_pulse != null and record_pulse.is_valid():
+		record_pulse.kill()
+	# Bound to the badge rather than to this node so it keeps its own
+	# process mode — the UI layer runs through a pause, this script doesn't.
+	record_pulse = new_record_badge.create_tween().set_loops()
+	record_pulse.tween_property(new_record_badge, "scale", Vector2.ONE * 1.16, 0.55) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	record_pulse.tween_property(new_record_badge, "scale", Vector2.ONE, 0.55) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+func _hide_new_record_badge() -> void:
+	new_record_badge.visible = false
+	if record_pulse != null and record_pulse.is_valid():
+		record_pulse.kill()
+	record_pulse = null
 
 
 # ------------------------------------------------------------------
@@ -611,6 +649,9 @@ func _start_fresh_run() -> void:
 	state = State.PLAYING
 	start_screen.visible = false
 	game_over_screen.visible = false
+	# The badge rides along with the hidden screen, but its loop would keep
+	# ticking for the whole next run if it isn't stopped here.
+	_hide_new_record_badge()
 	pause_button.visible = true
 
 
@@ -996,6 +1037,16 @@ func _build_game_over_screen() -> Control:
 	final_best_label.position = Vector2(0, SCREEN_H * 0.32 + 56)
 	final_best_label.size = Vector2(SCREEN_W, 26)
 	screen.add_child(final_best_label)
+
+	# Sized to its own glyphs rather than given a fixed box, because it gets
+	# parked hard against the left edge of the centred "Record: n" text and
+	# any slack would read as a crooked gap.
+	new_record_badge = _make_label("NEW", 15, Color(1, 0.82, 0.18))
+	new_record_badge.size = Vector2(
+		pixel_font.get_string_size("NEW", HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x, 26)
+	new_record_badge.pivot_offset = new_record_badge.size / 2.0
+	new_record_badge.visible = false
+	screen.add_child(new_record_badge)
 
 	final_score_label = _make_label("Score: 0", 22, Color(1, 0.88, 0.4))
 	final_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
