@@ -30,6 +30,10 @@ const SCROLL_START_DELAY := 1.0
 # to matter this early anyway.
 const FALL_DEATH_GRACE := 0.5
 
+# Music sits under whatever else the game plays; the theme itself is
+# mastered around -15 dBFS RMS, so this only trims it the rest of the way.
+const MUSIC_VOLUME_DB := -6.0
+
 const ObstacleScript := preload("res://scripts/obstacle.gd")
 const FlowerScript := preload("res://scripts/flower.gd")
 const CloudScript := preload("res://scripts/cloud.gd")
@@ -67,6 +71,7 @@ var seagulls: Array = []
 var celestials: Array = []
 
 var bee: CharacterBody2D
+var music: AudioStreamPlayer
 var camera: Camera2D
 var sky: Node
 var ground_sprite: Sprite2D
@@ -117,6 +122,16 @@ func _ready() -> void:
 	add_child(bee)
 
 	_build_ui()
+
+	# One continuous 16-bar loop across menu, run and game over — restarting
+	# it per run would clip the phrase mid-bar every death. Nothing here
+	# repeats it in code: the WAV is imported with loop mode Forward, so the
+	# repeat is gapless inside the audio server.
+	music = AudioStreamPlayer.new()
+	music.stream = preload("res://audio/music_theme.wav")
+	music.volume_db = MUSIC_VOLUME_DB
+	add_child(music)
+	music.play()
 
 	_reset_to_ground_scene()
 
