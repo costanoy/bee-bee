@@ -23,11 +23,33 @@ const JUPITER_SCORE := 200
 const SHIP_SCORE := 250
 const SHINING_BEE_SCORE := 300
 
+# The flat bg_day/bg_night fills (each is a single solid color, confirmed by
+# sampling the actual files) left the sky reading as an empty void once the
+# sparse, slow-drifting clouds weren't around — worse at night, which had
+# nothing else at all. Stars are the fix: a fixed scatter across the screen
+# (this layer doesn't scroll with the camera, same as the color fills
+# behind it), most just a single pixel-art dot, a few a small sparkle glyph
+# for variety, all fading in and out in lockstep with the night backdrop
+# itself so there's no separate threshold to tune.
+const STAR_COUNT := 34
+const SPARKLE_COUNT := 6
+const SPARKLE_GLYPH := [
+	".X.",
+	"XXX",
+	".X.",
+]
+
 var layer: CanvasLayer
 var start_rect: TextureRect
 var day_rect: TextureRect
 var fade_rect: TextureRect
 var night_rect: TextureRect
+
+var stars_layer: Control
+var star_nodes: Array[Node] = []
+var star_phases: Array[float] = []
+var star_speeds: Array[float] = []
+var sky_time := 0.0
 
 var sun_spawned := false
 var moon_spawned := false
@@ -35,7 +57,6 @@ var jupiter_spawned := false
 var ship_spawned := false
 var shining_bee_unlocked := false
 
-signal stars_should_spawn  # score >= 75, repeats forever — no-op until star sprites exist
 signal sun_spawn_requested
 signal moon_spawn_requested
 signal jupiter_spawn_requested
@@ -57,6 +78,60 @@ func _ready() -> void:
 	fade_rect.modulate.a = 0.0
 	night_rect.modulate.a = 0.0
 	start_rect.modulate.a = 1.0
+
+	_build_stars()
+
+
+func _build_stars() -> void:
+	stars_layer = Control.new()
+	stars_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	stars_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stars_layer.modulate.a = 0.0
+	layer.add_child(stars_layer)
+
+	# The viewport isn't guaranteed to be exactly 800 tall (keep_width
+	# stretch shows more sky on taller phones), so scatter across whatever
+	# height is actually visible rather than a fixed constant.
+	var size: Vector2 = get_viewport().get_visible_rect().size
+
+	for i in STAR_COUNT + SPARKLE_COUNT:
+		var pos := Vector2(randf() * size.x, randf() * size.y)
+		var is_sparkle: bool = i >= STAR_COUNT
+		var star: Control = _make_sparkle(pos) if is_sparkle else _make_dot(pos)
+		stars_layer.add_child(star)
+		star_nodes.append(star)
+		star_phases.append(randf() * TAU)
+		star_speeds.append(1.4 + randf() * 1.8)
+
+
+func _make_dot(pos: Vector2) -> Control:
+	var dot := ColorRect.new()
+	dot.color = Color(1, 1, 1)
+	dot.size = Vector2.ONE * (1.0 if randf() < 0.6 else 2.0)
+	dot.position = pos
+	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return dot
+
+
+func _make_sparkle(pos: Vector2) -> Control:
+	# Same pixel-grid technique as the pause menu's icons — a plus-shaped
+	# glyph reads as a glint rather than just a bigger dot.
+	const CELL := 2.0
+	var icon := Control.new()
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.position = pos
+	for y in SPARKLE_GLYPH.size():
+		var row: String = SPARKLE_GLYPH[y]
+		for x in row.length():
+			if row[x] != "X":
+				continue
+			var px := ColorRect.new()
+			px.color = Color(1, 1, 1)
+			px.position = Vector2(x * CELL, y * CELL)
+			px.size = Vector2.ONE * CELL
+			px.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			icon.add_child(px)
+	return icon
 
 
 func _make_bg_rect(path: String) -> TextureRect:
@@ -81,6 +156,16 @@ func update(delta: float, is_start_phase: bool, score: int) -> void:
 	fade_rect.modulate.a = clamp(t1 - t2, 0.0, 1.0)
 	night_rect.modulate.a = t2
 
+	# Tied to the same t2 that drives the night backdrop, so stars are
+	# always exactly as visible as the sky they're sitting in front of —
+	# no separate fade window to keep in sync.
+	stars_layer.modulate.a = t2
+	if t2 > 0.0:
+		sky_time += delta
+		for i in star_nodes.size():
+			var twinkle: float = 0.55 + 0.45 * sin(sky_time * star_speeds[i] + star_phases[i])
+			star_nodes[i].modulate.a = twinkle
+
 	_check_triggers(score)
 
 
@@ -94,8 +179,6 @@ func _check_triggers(score: int) -> void:
 	if score >= SUN_SCORE and not sun_spawned:
 		sun_spawned = true
 		sun_spawn_requested.emit()
-	if score >= DAY_TO_FADE_START:
-		stars_should_spawn.emit()
 	if score >= MOON_SCORE and not moon_spawned:
 		moon_spawned = true
 		moon_spawn_requested.emit()

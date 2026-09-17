@@ -194,7 +194,8 @@ func _ready() -> void:
 	sky.moon_spawn_requested.connect(_on_moon_spawn_requested)
 	sky.jupiter_spawn_requested.connect(_on_jupiter_spawn_requested)
 	sky.ship_spawn_requested.connect(_on_ship_spawn_requested)
-	# Stars are the one extension point still pending (no sprite yet).
+	# Stars are self-contained inside sky.gd (fixed screen-space scatter,
+	# faded with the same night crossfade) — nothing to wire up here.
 
 	camera = Camera2D.new()
 	camera.anchor_mode = Camera2D.ANCHOR_MODE_FIXED_TOP_LEFT
