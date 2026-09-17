@@ -40,7 +40,6 @@ const MUSIC_MUTED_DB := -80.0
 const SFX_FLAP := preload("res://audio/sfx_flap.wav")
 const SFX_COLLECT := preload("res://audio/sfx_collect.wav")
 const SFX_HIT := preload("res://audio/sfx_hit.wav")
-const SFX_GAME_OVER := preload("res://audio/sfx_game_over.wav")
 const SFX_RECORD := preload("res://audio/sfx_record.wav")
 const SFX_UI_TAP := preload("res://audio/sfx_ui_tap.wav")
 
@@ -51,7 +50,6 @@ const SFX_UI_TAP := preload("res://audio/sfx_ui_tap.wav")
 const SFX_FLAP_DB := -16.0
 const SFX_COLLECT_DB := -7.0
 const SFX_HIT_DB := -5.0
-const SFX_GAME_OVER_DB := -6.0
 const SFX_RECORD_DB := -5.0
 const SFX_UI_DB := -12.0
 
@@ -601,8 +599,6 @@ func _end_game() -> void:
 		SaveData.best_score = score
 		SaveData.save_data()
 		_play_sfx(SFX_RECORD, SFX_RECORD_DB)
-	else:
-		_play_sfx(SFX_GAME_OVER, SFX_GAME_OVER_DB)
 
 	final_score_label.text = "Score: %d" % score
 	final_best_label.text = "Record: %d" % SaveData.best_score
@@ -882,7 +878,7 @@ func _build_ui() -> void:
 
 	score_label = _make_label("0", 40, Color.WHITE)
 	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	score_label.position = Vector2(0, 56)
+	score_label.position = Vector2(0, 104)
 	score_label.size = Vector2(SCREEN_W, 56)
 	ui_layer.add_child(score_label)
 

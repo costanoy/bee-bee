@@ -12,9 +12,9 @@ config_version=5
 
 config/name="Bee Bee"
 run/main_scene="res://scenes/main.tscn"
+config/quit_on_go_back=false
 config/features=PackedStringArray("4.7", "Mobile")
 config/icon="res://art/icon_bg.png"
-config/quit_on_go_back=false
 
 [autoload]
 
@@ -30,6 +30,6 @@ window/handheld/orientation=1
 
 [rendering]
 
-renderer/rendering_method="mobile"
 textures/canvas_textures/default_texture_filter=2
+renderer/rendering_method="mobile"
 textures/vram_compression/import_etc2_astc=true
