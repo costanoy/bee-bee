@@ -1,11 +1,11 @@
-extends Area2D
+extends Node2D
 
 # A roseira: two bars (left and right of a gap), created entirely by code
-# from main.gd. Collision geometry is invisible rectangles (kept at the
-# tuned THICK from the prototype); the visual is a crop of the rose-bush
-# band drawn on top, scaled UNIFORMLY (same factor on both axes) — never
-# stretched on one axis only, which is what flattens the roses into
-# distorted-looking ovals.
+# from main.gd. Purely visual — main.gd tests the bee against gap_x,
+# gap_width and THICK directly each tick, so there are no physics shapes
+# here. The visual is a crop of the rose-bush band, scaled UNIFORMLY (same
+# factor on both axes) — never stretched on one axis only, which is what
+# flattens the roses into distorted-looking ovals.
 
 const THICK := 22.0
 const SCREEN_W := 400.0
@@ -36,22 +36,11 @@ func setup(p_gap_x: float, p_gap_width: float) -> void:
 	_add_bar(0.0, gap_left)
 	_add_bar(gap_right, SCREEN_W)
 
-	collision_layer = 0
-	collision_mask = 1  # the bee uses the default collision layer (1)
-	body_entered.connect(_on_body_entered)
-
 
 func _add_bar(x1: float, x2: float) -> void:
 	if x2 <= x1:
 		return
 	var width := x2 - x1
-
-	var shape := CollisionShape2D.new()
-	var rect := RectangleShape2D.new()
-	rect.size = Vector2(width, THICK)
-	shape.position = Vector2(x1 + width / 2.0, THICK / 2.0)
-	shape.shape = rect
-	add_child(shape)
 
 	var sprite := Sprite2D.new()
 	sprite.texture = rose_texture
@@ -69,8 +58,3 @@ func _add_bar(x1: float, x2: float) -> void:
 	# center the (taller) visual on the (thinner) collision band
 	sprite.position = Vector2(x1, (THICK - VISUAL_H) / 2.0)
 	add_child(sprite)
-
-
-func _on_body_entered(_body: Node) -> void:
-	if get_parent().has_method("on_bee_hit_obstacle"):
-		get_parent().on_bee_hit_obstacle(self)

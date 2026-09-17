@@ -7,7 +7,6 @@ extends Node2D
 enum State { START, STARTING, PLAYING, PAUSED, DYING, GAMEOVER }
 
 const SCREEN_W := 400.0
-const SCREEN_H := 800.0
 
 # Physics/gameplay constants ported verbatim from reference-prototype.html.
 const OBSTACLE_SPACING := 190.0
@@ -65,6 +64,11 @@ const SFX_VOICES := 8
 # rising figure rather than the same blip over and over.
 const COLLECT_PITCH_STEPS := [1.0, 1.1892, 1.3348, 1.4983, 1.7818]
 
+# Clouds and gulls are scenery, so they dim with the sky; left pure white
+# they glow against the night like cut-outs. Obstacles and flowers stay
+# untinted on purpose — they're what the player has to read at speed.
+const NIGHT_DECOR_TINT := Color(0.52, 0.57, 0.74)
+
 # Icons are drawn as pixel grids rather than imported art, so they match
 # the game's own resolution instead of being scaled-down smooth shapes.
 const ICON_PAUSE := [
@@ -120,6 +124,10 @@ const TREES_CANVAS_W := 1568.0
 const TREES_BOTTOM_Y := 636.0
 
 var state: State = State.START
+# The stretch mode is keep_width: the world is always 400 wide, and a phone
+# taller than 1:2 (nearly all of them) shows more sky instead of black bars.
+# So the visible height is only known at runtime.
+var screen_h := 800.0
 var world_moving := false
 var scrolling_started := false
 var launch_timer := 0.0
@@ -169,6 +177,8 @@ var music_slash: Control
 
 
 func _ready() -> void:
+	screen_h = get_viewport_rect().size.y
+
 	# Placeholder-era plain Label/Button text (spec 3.2/4.10) — swapped for
 	# a real arcade font (Karmatic Arcade, 1001fonts FFC license — free for
 	# commercial/embedded use) instead of the default UI font. Antialiasing/
@@ -228,6 +238,34 @@ func _ready() -> void:
 	start_screen.visible = true
 	start_screen.modulate.a = 1.0
 	game_over_screen.visible = false
+	# The title screen keeps the record (worth seeing before a run) but not
+	# the live score, a "0" that otherwise sits right on top of the logo.
+	score_label.visible = false
+	# The tutorial arrows belong to the ground scene, not the title — on
+	# top of it they cut straight through the logo and the Play button.
+	# They fade in with the title's fade-out instead.
+	direction_hint.visible = false
+
+
+func _notification(what: int) -> void:
+	match what:
+		# A call, the home button or the notification shade pulled down
+		# mid-run would otherwise leave the bee falling with nobody at the
+		# controls, or dropped into a fall the moment the app comes back.
+		NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_APPLICATION_PAUSED:
+			if state == State.PLAYING:
+				_on_pause_pressed()
+		# quit_on_go_back is off in project.godot, so back no longer kills
+		# the app mid-run: it pauses a run, resumes a paused one, and only
+		# leaves from the screens where there's nothing to lose.
+		NOTIFICATION_WM_GO_BACK_REQUEST:
+			match state:
+				State.PLAYING:
+					_on_pause_pressed()
+				State.PAUSED:
+					_on_resume_pressed()
+				State.START, State.GAMEOVER:
+					get_tree().quit()
 
 
 # ------------------------------------------------------------------
@@ -236,13 +274,10 @@ func _ready() -> void:
 
 func _clear_world() -> void:
 	for o in obstacles:
-		# queue_free() is deferred to end-of-frame — stop it from detecting
-		# overlaps immediately (the bee's respawn position could land right
-		# on top of where an old run's obstacle still physically sits for
-		# the rest of this frame).
-		o.monitoring = false
 		o.queue_free()
 	for f in flowers:
+		# queue_free() is deferred to end-of-frame — stop it detecting the
+		# bee in the meantime.
 		f.monitoring = false
 		f.queue_free()
 	for c in clouds:
@@ -307,7 +342,7 @@ func _reset_to_ground_scene() -> void:
 	# Frame the cold-start camera so the ground graphic's own bottom edge
 	# sits flush with the bottom of the screen (no floating gap beneath it).
 	var ground_bottom_world: float = ground_sprite.position.y + GROUND_GRASS_Y1 * ground_scale
-	camera_y = ground_bottom_world - SCREEN_H
+	camera_y = ground_bottom_world - screen_h
 	camera.position = Vector2(0.0, camera_y)
 
 	elapsed = 0.0
@@ -338,7 +373,7 @@ func _spawn_row() -> void:
 	var margin: float = gap_width / 2.0 + 24.0
 	var gap_x: float = margin + randf() * (SCREEN_W - margin * 2.0)
 
-	var obstacle := Area2D.new()
+	var obstacle := Node2D.new()
 	obstacle.set_script(ObstacleScript)
 	obstacle.position = Vector2(0, y)
 	add_child(obstacle)
@@ -369,6 +404,7 @@ func _spawn_row() -> void:
 		cloud.z_index = -1
 		add_child(cloud)
 		cloud.setup()
+		cloud.self_modulate = _decor_tint()
 		clouds.append(cloud)
 
 	if score < 75 and randf() < 0.15:
@@ -378,7 +414,14 @@ func _spawn_row() -> void:
 		gull.z_index = -1
 		add_child(gull)
 		gull.setup()
+		gull.self_modulate = _decor_tint()
 		seagulls.append(gull)
+
+
+func _decor_tint() -> Color:
+	# Set once at spawn: the sky takes ~80 flowers to go from day to night,
+	# so a cloud's tint never visibly lags in the few seconds it's on screen.
+	return Color.WHITE.lerp(NIGHT_DECOR_TINT, sky.darkness(score))
 
 
 # ------------------------------------------------------------------
@@ -420,7 +463,7 @@ func _update_playing(delta: float) -> void:
 		camera_y -= _current_scroll_speed() * delta
 		camera.position = Vector2(0.0, camera_y)
 
-		while highest_spawn_y > camera_y - SCREEN_H:
+		while highest_spawn_y > camera_y - screen_h:
 			_spawn_row()
 
 	# The bee is already flying/falling under normal physics from the first
@@ -428,7 +471,7 @@ func _update_playing(delta: float) -> void:
 	# obstacle, missed flower, falling past the bottom of what's currently
 	# visible) apply the whole time, same as they did before the 1s pause
 	# existed. The pause only delays the camera's own climb.
-	var screen_bottom := camera_y + SCREEN_H
+	var screen_bottom := camera_y + screen_h
 	var bottom_cull := screen_bottom + 200.0
 	for o in obstacles.duplicate():
 		if o.position.y > bottom_cull:
@@ -450,8 +493,11 @@ func _update_playing(delta: float) -> void:
 	# Every flower is mandatory — letting one scroll off the bottom
 	# uncollected ends the run, same as hitting an obstacle (spec change:
 	# missing a flower is now a game-over condition, not just a missed point).
+	# Only once it is *entirely* gone, though, matching the bee's own rule:
+	# half a flower still on screen is still reachable, and dying to it
+	# reads as the game cheating.
 	for f in flowers:
-		if f.position.y > screen_bottom:
+		if f.position.y - FlowerScript.FLOWER_R > screen_bottom:
 			_trigger_game_over()
 			return
 
@@ -491,7 +537,7 @@ func _circle_hits_rect(circle_center: Vector2, radius: float, rect_min: Vector2,
 
 func _update_dying(delta: float) -> void:
 	dying_timer += delta
-	if bee.position.y - BEE_R > camera_y + SCREEN_H or dying_timer > 1.4:
+	if bee.position.y - BEE_R > camera_y + screen_h or dying_timer > 1.4:
 		_end_game()
 
 
@@ -518,31 +564,17 @@ func on_flower_collected(flower: Area2D) -> void:
 	_update_score_label()
 
 
-func on_bee_hit_obstacle(obstacle: Area2D) -> void:
-	# An obstacle can still be mid-queue_free (deletion is deferred to end
-	# of frame) when a fresh run repositions the bee right on top of where
-	# it used to be — without this check, that stale, already-cleared
-	# obstacle could still fire a real game over on a brand new run.
-	if not obstacles.has(obstacle):
-		return
-	if not _bee_contacts_trustworthy():
-		return
-	_trigger_game_over()
-
-
 func _bee_contacts_trustworthy() -> bool:
-	# A reset teleports the bee, but the physics server only adopts the new
-	# position at the *end* of its next step — after that step has already
-	# tested every area against the old one, and those results are only
-	# delivered at the start of the step after. So for the first two ticks
-	# following a reset, a reported overlap describes wherever the last run
-	# ended. Rows always regenerate at the same heights (-390, -580, ...),
-	# so dying against a row left a new row waiting on that exact spot to
-	# kill a bee that was no longer there, and a flower there collected
-	# itself. Gating on ticks rather than on the first flap matters: a tap
-	# landing in the same frame as "Play Again" flaps before any step runs.
-	# Two ticks is ~33ms, far too short for any real contact — the nearest
-	# row starts ~370px above the grounded bee.
+	# Flower pickups come from the physics server, which lags a teleport: a
+	# reset moves the bee, but the server only adopts the new position at
+	# the *end* of its next step — after that step has already tested every
+	# flower against the old one, and those results arrive at the start of
+	# the step after. For those two ticks a reported overlap describes where
+	# the last run ended, and since rows regenerate at the same heights, a
+	# new flower on that spot would collect itself. Gated on ticks rather
+	# than the first flap because a tap in the same frame as "Play Again"
+	# flaps before any step runs. (Obstacles don't need this: they're tested
+	# directly against the bee's node position in _update_playing.)
 	return physics_ticks_since_reset >= 2
 
 
@@ -579,7 +611,15 @@ func _end_game() -> void:
 		_show_new_record_badge()
 	else:
 		_hide_new_record_badge()
+	# The game-over panel carries its own score and record, so the in-run
+	# HUD above it would just print both a second time.
+	_set_hud_visible(false)
 	game_over_screen.visible = true
+
+
+func _set_hud_visible(on: bool) -> void:
+	score_label.visible = on
+	record_label.visible = on
 
 
 func _show_new_record_badge() -> void:
@@ -590,9 +630,14 @@ func _show_new_record_badge() -> void:
 	var font_size: int = final_best_label.get_theme_font_size("font")
 	var text_w: float = font.get_string_size(
 		final_best_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-	new_record_badge.position = Vector2(
-		(SCREEN_W - text_w) / 2.0 - new_record_badge.size.x - 8.0,
-		final_best_label.position.y)
+	# Centre badge + text as one line; parking the badge beside text that
+	# stayed centred on its own pushed the whole line ~28px left of the
+	# score beneath it. The 8px gap also absorbs the pulse's growth.
+	const GAP := 8.0
+	var group_left: float = (SCREEN_W - (new_record_badge.size.x + GAP + text_w)) / 2.0
+	new_record_badge.position = Vector2(group_left, final_best_label.position.y)
+	var text_left: float = group_left + new_record_badge.size.x + GAP
+	final_best_label.position.x = text_left - (SCREEN_W - text_w) / 2.0
 	new_record_badge.scale = Vector2.ONE
 	new_record_badge.visible = true
 
@@ -609,6 +654,7 @@ func _show_new_record_badge() -> void:
 
 func _hide_new_record_badge() -> void:
 	new_record_badge.visible = false
+	final_best_label.position.x = 0.0
 	if record_pulse != null and record_pulse.is_valid():
 		record_pulse.kill()
 	record_pulse = null
@@ -635,8 +681,11 @@ func _begin_first_time_transition() -> void:
 	SaveData.seen_tutorial = true
 	SaveData.save_data()
 
+	direction_hint.modulate.a = 0.0
+	direction_hint.visible = hint_alpha > 0.0
 	var tween := create_tween()
 	tween.tween_property(start_screen, "modulate:a", 0.0, 1.0)
+	tween.parallel().tween_property(direction_hint, "modulate:a", hint_alpha, 1.0)
 	tween.tween_callback(func():
 		start_screen.visible = false
 		start_screen.modulate.a = 1.0
@@ -649,6 +698,7 @@ func _begin_playing() -> void:
 	start_screen.visible = false
 	game_over_screen.visible = false
 	pause_button.visible = true
+	_set_hud_visible(true)
 	# world_moving/bee.physics_enabled stay false here on the cold-start
 	# path — spec 4.3: gravity only turns on at the real first flap
 	# ("decolar" = "primeiro flap" = "início da partida", spec 4.3).
@@ -676,6 +726,7 @@ func _start_fresh_run() -> void:
 	# ticking for the whole next run if it isn't stopped here.
 	_hide_new_record_badge()
 	pause_button.visible = true
+	_set_hud_visible(true)
 
 
 func _on_pause_pressed() -> void:
@@ -876,7 +927,7 @@ func _build_direction_hint() -> Control:
 	var dash_h := 14.0
 	var gap_h := 10.0
 	var y := 0.0
-	while y < SCREEN_H:
+	while y < screen_h:
 		var dash := ColorRect.new()
 		dash.color = Color(1, 1, 1, 0.55)
 		dash.position = Vector2(SCREEN_W / 2.0 - 2, y)
@@ -892,7 +943,7 @@ func _build_direction_hint() -> Control:
 
 
 func _add_hint_side(parent: Control, cx: float, dir: int, text: String) -> void:
-	var mid_y := SCREEN_H * 0.5
+	var mid_y := screen_h * 0.5
 
 	var arrow := Polygon2D.new()
 	var pts := PackedVector2Array([
@@ -927,13 +978,18 @@ func _build_start_screen() -> Control:
 	logo.texture = logo_atlas
 	var logo_visual_w := 320.0
 	logo.scale = Vector2.ONE * (logo_visual_w / 822.0)
-	logo.position = Vector2(SCREEN_W / 2.0, 140.0)
+	# Anchored to the bottom like the world behind it (the ground sits flush
+	# with the bottom edge, rows stack up from there), so on taller phones
+	# the logo keeps the same slot between rows instead of a row running
+	# straight through it. Floored so short screens don't push it under the
+	# record label.
+	logo.position = Vector2(SCREEN_W / 2.0, maxf(140.0, screen_h - 660.0))
 	screen.add_child(logo)
 
 	# source is a 768x768 canvas; the actual button art is a 418x320 content
 	# box inside it.
 	play_button = _make_image_button("res://art/play_button.png", Rect2(174, 224, 418, 320), 110.0)
-	play_button.position = Vector2(SCREEN_W / 2.0 - play_button.size.x / 2.0, SCREEN_H - 140)
+	play_button.position = Vector2(SCREEN_W / 2.0 - play_button.size.x / 2.0, screen_h - 140)
 	play_button.pressed.connect(_on_play_pressed)
 	_add_press_feedback(play_button)
 	screen.add_child(play_button)
@@ -958,24 +1014,24 @@ func _build_pause_screen() -> Control:
 
 	var title := _make_label("Paused", 28, Color.WHITE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, SCREEN_H * 0.26)
+	title.position = Vector2(0, screen_h * 0.26)
 	title.size = Vector2(SCREEN_W, 50)
 	screen.add_child(title)
 
 	var resume_button := _make_text_button("Resume")
-	resume_button.position = Vector2(SCREEN_W / 2.0 - 115, SCREEN_H * 0.41)
+	resume_button.position = Vector2(SCREEN_W / 2.0 - 115, screen_h * 0.41)
 	resume_button.pressed.connect(_on_resume_pressed)
 	screen.add_child(resume_button)
 
 	var pause_restart_button := _make_text_button("Restart")
-	pause_restart_button.position = Vector2(SCREEN_W / 2.0 - 115, SCREEN_H * 0.41 + 86)
+	pause_restart_button.position = Vector2(SCREEN_W / 2.0 - 115, screen_h * 0.41 + 86)
 	pause_restart_button.pressed.connect(_on_pause_restart_pressed)
 	screen.add_child(pause_restart_button)
 
 	music_note = _build_pixel_icon(ICON_NOTE, 4.0, Color.WHITE)
 	var music_button := _make_icon_button(music_note, 58.0)
 	music_button.position = Vector2(
-		SCREEN_W / 2.0 - music_button.size.x / 2.0, SCREEN_H * 0.41 + 200)
+		SCREEN_W / 2.0 - music_button.size.x / 2.0, screen_h * 0.41 + 200)
 	music_button.pressed.connect(_on_music_toggle_pressed)
 	screen.add_child(music_button)
 
@@ -1051,13 +1107,13 @@ func _build_game_over_screen() -> Control:
 
 	var title := _make_label("Game Over", 28, Color.WHITE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, SCREEN_H * 0.32)
+	title.position = Vector2(0, screen_h * 0.32)
 	title.size = Vector2(SCREEN_W, 50)
 	screen.add_child(title)
 
 	final_best_label = _make_label("Record: 0", 15, Color(1, 0.88, 0.4))
 	final_best_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	final_best_label.position = Vector2(0, SCREEN_H * 0.32 + 56)
+	final_best_label.position = Vector2(0, screen_h * 0.32 + 56)
 	final_best_label.size = Vector2(SCREEN_W, 26)
 	screen.add_child(final_best_label)
 
@@ -1073,12 +1129,12 @@ func _build_game_over_screen() -> Control:
 
 	final_score_label = _make_label("Score: 0", 22, Color(1, 0.88, 0.4))
 	final_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	final_score_label.position = Vector2(0, SCREEN_H * 0.32 + 86)
+	final_score_label.position = Vector2(0, screen_h * 0.32 + 86)
 	final_score_label.size = Vector2(SCREEN_W, 36)
 	screen.add_child(final_score_label)
 
 	restart_button = _make_text_button("Play Again")
-	restart_button.position = Vector2(SCREEN_W / 2.0 - 115, SCREEN_H - 146)
+	restart_button.position = Vector2(SCREEN_W / 2.0 - 115, screen_h - 146)
 	restart_button.pressed.connect(_on_restart_pressed)
 	screen.add_child(restart_button)
 

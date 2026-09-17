@@ -84,6 +84,12 @@ func update(delta: float, is_start_phase: bool, score: int) -> void:
 	_check_triggers(score)
 
 
+func darkness(score: int) -> float:
+	# 0 in full day, 1 in full night, across the same window the backdrop
+	# crossfades over.
+	return clamp((score - DAY_TO_FADE_START) / (FADE_TO_NIGHT_END - DAY_TO_FADE_START), 0.0, 1.0)
+
+
 func _check_triggers(score: int) -> void:
 	if score >= SUN_SCORE and not sun_spawned:
 		sun_spawned = true
