@@ -56,7 +56,11 @@ func _process(delta: float) -> void:
 
 
 func play_collect_effect() -> void:
-	monitoring = false
+	# Reached from inside body_entered, and Godot refuses a direct write to
+	# monitoring during that callback — it errors and leaves it on, so the
+	# picked flower would keep detecting for the half second it lingers
+	# here for its burst.
+	set_deferred("monitoring", false)
 	sprite.visible = false
 
 	var particles := CPUParticles2D.new()

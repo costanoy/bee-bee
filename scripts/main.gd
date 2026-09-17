@@ -143,6 +143,7 @@ var bee: CharacterBody2D
 var music: AudioStreamPlayer
 var sfx_pool: Array[AudioStreamPlayer] = []
 var collect_step := 0
+var physics_ticks_since_reset := 0
 var camera: Camera2D
 var sky: Node
 var ground_sprite: Sprite2D
@@ -273,6 +274,7 @@ func _reset_to_ground_scene() -> void:
 	_clear_world()
 	sky.reset_run()
 	collect_step = 0
+	physics_ticks_since_reset = 0
 
 	var ground_y := 0.0
 	var ground_scale: float = SCREEN_W / GROUND_CANVAS_W
@@ -384,6 +386,7 @@ func _spawn_row() -> void:
 # ------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
+	physics_ticks_since_reset += 1
 	match state:
 		State.PLAYING:
 			_update_playing(delta)
@@ -505,6 +508,8 @@ func on_flower_collected(flower: Area2D) -> void:
 		return
 	if not flowers.has(flower):
 		return
+	if not _bee_contacts_trustworthy():
+		return
 	flowers.erase(flower)
 	flower.play_collect_effect()
 	_play_sfx(SFX_COLLECT, SFX_COLLECT_DB, COLLECT_PITCH_STEPS[collect_step])
@@ -520,7 +525,25 @@ func on_bee_hit_obstacle(obstacle: Area2D) -> void:
 	# obstacle could still fire a real game over on a brand new run.
 	if not obstacles.has(obstacle):
 		return
+	if not _bee_contacts_trustworthy():
+		return
 	_trigger_game_over()
+
+
+func _bee_contacts_trustworthy() -> bool:
+	# A reset teleports the bee, but the physics server only adopts the new
+	# position at the *end* of its next step — after that step has already
+	# tested every area against the old one, and those results are only
+	# delivered at the start of the step after. So for the first two ticks
+	# following a reset, a reported overlap describes wherever the last run
+	# ended. Rows always regenerate at the same heights (-390, -580, ...),
+	# so dying against a row left a new row waiting on that exact spot to
+	# kill a bee that was no longer there, and a flower there collected
+	# itself. Gating on ticks rather than on the first flap matters: a tap
+	# landing in the same frame as "Play Again" flaps before any step runs.
+	# Two ticks is ~33ms, far too short for any real contact — the nearest
+	# row starts ~370px above the grounded bee.
+	return physics_ticks_since_reset >= 2
 
 
 func _trigger_game_over() -> void:
