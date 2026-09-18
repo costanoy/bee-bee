@@ -42,25 +42,23 @@ const SPARKLE_GLYPH := [
 
 # The mountain (with its own painted sun) sits at "the horizon" — a
 # screen-space element, not a world sprite, so it doesn't scroll away at
-# the normal 1:1 rate the way ground/trees do. Small (a fraction of
-# screen width, not filling it) so it actually reads as distant rather
-# than as a nearby backdrop, and it creeps DOWN the screen as the bee
-# climbs at a fraction of the real climb rate — sinking below view over
-# a couple thousand px of climbing, gradually enough to watch happen
-# rather than a normal foreground element's quick few-hundred-px scroll
-# off. Also fades out across the DAY_TO_DUSK window as a backstop, so
-# it's never still hanging around once night visibly begins even if a
-# run barely climbs.
+# the normal 1:1 rate the way ground/trees do. It's a ground-covering
+# backdrop, not a floating object: full screen width with its bottom
+# edge flush against the true bottom of the viewport (that varies by
+# device under keep_width, so it's measured at runtime, not a constant),
+# so no blue shows below or beside it — only the open sky above the peak
+# is meant to show through. It creeps DOWN the screen as the bee climbs,
+# at a fraction of the real climb rate, sinking fully below view over a
+# couple thousand px — gradual enough to watch happen, unlike a normal
+# foreground element's quick few-hundred-px scroll off. Also fades out
+# across the DAY_TO_DUSK window as a backstop, so it's never still
+# hanging around once night visibly begins even if a run barely climbs.
 const MOUNTAIN_CANVAS_W := 1024.0
 const MOUNTAIN_CANVAS_H := 1024.0
-const MOUNTAIN_DISPLAY_W := 220.0  # ~55% of the 400-wide screen — reads as far away
-const MOUNTAIN_SCALE := MOUNTAIN_DISPLAY_W / MOUNTAIN_CANVAS_W
-const MOUNTAIN_BASE_BOTTOM_Y := 550.0
-# Climbing (MOUNTAIN_BASE_BOTTOM_Y - MOUNTAIN_CANVAS_H*MOUNTAIN_SCALE) / this
-# many px pushes the sprite's own top edge down to the bottom of a
-# 800-tall screen, i.e. fully sunk out of view — works out to ~2400px,
-# long enough to watch it happen, short enough to actually see it happen.
 const MOUNTAIN_PARALLAX := 0.2
+
+var mountain_scale := 1.0
+var mountain_base_top_y := 0.0
 
 var layer: CanvasLayer
 var start_rect: TextureRect
@@ -104,13 +102,19 @@ func _ready() -> void:
 	night_rect.modulate.a = 0.0
 	start_rect.modulate.a = 1.0
 
+	# Fills the width exactly (400 / canvas width) and sits with its
+	# bottom edge flush against the ACTUAL viewport bottom — keep_width
+	# stretch means that's not always 800, so it's read at runtime rather
+	# than assumed, same reasoning as the star scatter below.
+	var viewport_h: float = get_viewport().get_visible_rect().size.y
+	mountain_scale = 400.0 / MOUNTAIN_CANVAS_W
+	mountain_base_top_y = viewport_h - MOUNTAIN_CANVAS_H * mountain_scale
+
 	mountain = Sprite2D.new()
 	mountain.texture = load("res://art/mountain_day.png")
 	mountain.centered = false
-	mountain.scale = Vector2.ONE * MOUNTAIN_SCALE
-	mountain.position = Vector2(
-		(400.0 - MOUNTAIN_CANVAS_W * MOUNTAIN_SCALE) / 2.0,
-		MOUNTAIN_BASE_BOTTOM_Y - MOUNTAIN_CANVAS_H * MOUNTAIN_SCALE)
+	mountain.scale = Vector2.ONE * mountain_scale
+	mountain.position = Vector2(0.0, mountain_base_top_y)
 	layer.add_child(mountain)
 
 	_build_stars()
@@ -208,8 +212,7 @@ func update(delta: float, is_start_phase: bool, elapsed_time: float, score: int,
 		mountain_ref_camera_y = camera_y
 		mountain_ref_set = true
 	var climbed: float = mountain_ref_camera_y - camera_y
-	mountain.position.y = (MOUNTAIN_BASE_BOTTOM_Y - MOUNTAIN_CANVAS_H * MOUNTAIN_SCALE) \
-		+ MOUNTAIN_PARALLAX * climbed
+	mountain.position.y = mountain_base_top_y + MOUNTAIN_PARALLAX * climbed
 	mountain.modulate.a = 1.0 - t1
 
 	# Tied to the same t2 that drives the night backdrop, so stars are
