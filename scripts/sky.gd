@@ -42,18 +42,25 @@ const SPARKLE_GLYPH := [
 
 # The mountain (with its own painted sun) sits at "the horizon" — a
 # screen-space element, not a world sprite, so it doesn't scroll away at
-# the normal 1:1 rate the way ground/trees do. It creeps DOWN the screen
-# as the bee climbs, at a small fraction of the real climb rate: the
-# bee's own progress reads as if it's flying so high the horizon is
-# sinking away below it, rather than the mountain just being left behind
-# in the usual few hundred pixels. It fades out across the same
-# DAY_TO_DUSK window the sky itself starts dimming in, so it's gone by
-# the time night visibly begins rather than lingering into it.
-const MOUNTAIN_CANVAS_W := 768.0
-const MOUNTAIN_CANVAS_H := 1344.0
-const MOUNTAIN_SCALE := 400.0 / MOUNTAIN_CANVAS_W  # fills the 400-wide screen
-const MOUNTAIN_BASE_BOTTOM_Y := 750.0
-const MOUNTAIN_PARALLAX := 0.015
+# the normal 1:1 rate the way ground/trees do. Small (a fraction of
+# screen width, not filling it) so it actually reads as distant rather
+# than as a nearby backdrop, and it creeps DOWN the screen as the bee
+# climbs at a fraction of the real climb rate — sinking below view over
+# a couple thousand px of climbing, gradually enough to watch happen
+# rather than a normal foreground element's quick few-hundred-px scroll
+# off. Also fades out across the DAY_TO_DUSK window as a backstop, so
+# it's never still hanging around once night visibly begins even if a
+# run barely climbs.
+const MOUNTAIN_CANVAS_W := 1024.0
+const MOUNTAIN_CANVAS_H := 1024.0
+const MOUNTAIN_DISPLAY_W := 220.0  # ~55% of the 400-wide screen — reads as far away
+const MOUNTAIN_SCALE := MOUNTAIN_DISPLAY_W / MOUNTAIN_CANVAS_W
+const MOUNTAIN_BASE_BOTTOM_Y := 550.0
+# Climbing (MOUNTAIN_BASE_BOTTOM_Y - MOUNTAIN_CANVAS_H*MOUNTAIN_SCALE) / this
+# many px pushes the sprite's own top edge down to the bottom of a
+# 800-tall screen, i.e. fully sunk out of view — works out to ~2400px,
+# long enough to watch it happen, short enough to actually see it happen.
+const MOUNTAIN_PARALLAX := 0.2
 
 var layer: CanvasLayer
 var start_rect: TextureRect
@@ -101,7 +108,9 @@ func _ready() -> void:
 	mountain.texture = load("res://art/mountain_day.png")
 	mountain.centered = false
 	mountain.scale = Vector2.ONE * MOUNTAIN_SCALE
-	mountain.position = Vector2(0.0, MOUNTAIN_BASE_BOTTOM_Y - MOUNTAIN_CANVAS_H * MOUNTAIN_SCALE)
+	mountain.position = Vector2(
+		(400.0 - MOUNTAIN_CANVAS_W * MOUNTAIN_SCALE) / 2.0,
+		MOUNTAIN_BASE_BOTTOM_Y - MOUNTAIN_CANVAS_H * MOUNTAIN_SCALE)
 	layer.add_child(mountain)
 
 	_build_stars()
