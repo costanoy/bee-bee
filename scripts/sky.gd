@@ -1,21 +1,23 @@
 extends Node
 
-# Score-driven background crossfade (spec 4.9). Progression is keyed off
-# SCORE, not height/time, so the background gradient itself is a
-# screen-fixed layer (a CanvasLayer behind everything). The celestial
-# bodies (moon/Jupiter/UFO) are NOT part of this layer — they're
-# spawned by main.gd as static world-space objects that scroll down and
-# off-screen as the bee climbs, same as clouds, just without the drift.
-# This script only decides *when* (via signals) and lets main.gd own the
-# actual sprite/positioning since it already tracks camera_y.
+# The celestial bodies (moon/Jupiter/UFO) are NOT part of this layer —
+# they're spawned by main.gd as static world-space objects that scroll
+# down and off-screen as the bee climbs, same as clouds, just without the
+# drift. This script only decides *when* (via signals) and lets main.gd
+# own the actual sprite/positioning since it already tracks camera_y.
 
-# Wide, gradual ramp — since every flower is mandatory, score climbs
-# steadily just from normal play, so a narrow window made the sky change
-# feel fast/abrupt. Stretched way out for a slow, smooth fade instead.
-const DAY_TO_FADE_START := 50.0
-const DAY_TO_FADE_END := 90.0
-const FADE_TO_NIGHT_START := 90.0
-const FADE_TO_NIGHT_END := 130.0
+# The day->night crossfade runs on elapsed SCROLL TIME, not score. Every
+# flower is mandatory, so score is really just "how many rows you've
+# passed" — tying the sky's own darkness to that made it read as "the
+# light dims because I picked a flower," which isn't what nightfall is
+# supposed to mean, and it isn't a choice the player is making anyway.
+# Time is unconnected to how the run is going, and stretched this wide
+# (6.5 minutes end to end) the change is barely visible minute to minute
+# — exactly the "suave e pouco perceptível" this was asked to be.
+const DAY_TO_DUSK_START := 90.0
+const DAY_TO_DUSK_END := 270.0
+const DUSK_TO_NIGHT_START := 270.0
+const DUSK_TO_NIGHT_END := 480.0
 
 const MOON_SCORE := 100
 const JUPITER_SCORE := 200
@@ -152,12 +154,12 @@ func _make_bg_rect(path: String) -> TextureRect:
 	return rect
 
 
-func update(delta: float, is_start_phase: bool, score: int) -> void:
+func update(delta: float, is_start_phase: bool, elapsed_time: float, score: int) -> void:
 	var target_start: float = 1.0 if is_start_phase else 0.0
 	start_rect.modulate.a = move_toward(start_rect.modulate.a, target_start, delta * 2.0)
 
-	var t1: float = clamp((score - DAY_TO_FADE_START) / (DAY_TO_FADE_END - DAY_TO_FADE_START), 0.0, 1.0)
-	var t2: float = clamp((score - FADE_TO_NIGHT_START) / (FADE_TO_NIGHT_END - FADE_TO_NIGHT_START), 0.0, 1.0)
+	var t1: float = clamp((elapsed_time - DAY_TO_DUSK_START) / (DAY_TO_DUSK_END - DAY_TO_DUSK_START), 0.0, 1.0)
+	var t2: float = clamp((elapsed_time - DUSK_TO_NIGHT_START) / (DUSK_TO_NIGHT_END - DUSK_TO_NIGHT_START), 0.0, 1.0)
 
 	day_rect.modulate.a = 1.0 - t1
 	fade_rect.modulate.a = clamp(t1 - t2, 0.0, 1.0)
@@ -176,10 +178,10 @@ func update(delta: float, is_start_phase: bool, score: int) -> void:
 	_check_triggers(score)
 
 
-func darkness(score: int) -> float:
+func darkness(elapsed_time: float) -> float:
 	# 0 in full day, 1 in full night, across the same window the backdrop
 	# crossfades over.
-	return clamp((score - DAY_TO_FADE_START) / (FADE_TO_NIGHT_END - DAY_TO_FADE_START), 0.0, 1.0)
+	return clamp((elapsed_time - DAY_TO_DUSK_START) / (DUSK_TO_NIGHT_END - DAY_TO_DUSK_START), 0.0, 1.0)
 
 
 func _check_triggers(score: int) -> void:

@@ -120,6 +120,12 @@ const GROUND_GRASS_Y0 := 416.0
 const GROUND_GRASS_Y1 := 494.0
 const TREES_CANVAS_W := 1568.0
 const TREES_BOTTOM_Y := 636.0
+# The mountain is a plain painted rectangle (sky included), not a cropped
+# content box — it sits in world space like ground/trees so it scrolls
+# away and is gone for good once climbed past, instead of a screen-fixed
+# backdrop that would just sit there forever at the same spot on screen.
+const MOUNTAIN_CANVAS_W := 768.0
+const MOUNTAIN_CANVAS_H := 1344.0
 
 var state: State = State.START
 # The stretch mode is keep_width: the world is always 400 wide, and a phone
@@ -154,6 +160,7 @@ var camera: Camera2D
 var sky: Node
 var ground_sprite: Sprite2D
 var trees_sprite: Sprite2D
+var mountain_sprite: Sprite2D
 
 var pixel_font: FontFile
 
@@ -295,6 +302,9 @@ func _clear_world() -> void:
 	if trees_sprite:
 		trees_sprite.queue_free()
 		trees_sprite = null
+	if mountain_sprite:
+		mountain_sprite.queue_free()
+		mountain_sprite = null
 
 
 func _reset_to_ground_scene() -> void:
@@ -311,6 +321,19 @@ func _reset_to_ground_scene() -> void:
 
 	var ground_y := 0.0
 	var ground_scale: float = SCREEN_W / GROUND_CANVAS_W
+
+	# Sits behind trees, its own base flush with the ground so the climb
+	# reveals it the same way it reveals everything else, then leaves it
+	# behind for good — no parallax, no re-trigger, just one static sprite
+	# like ground/trees that scrolls out of view and stays gone.
+	mountain_sprite = Sprite2D.new()
+	mountain_sprite.texture = load("res://art/mountain_day.png")
+	mountain_sprite.centered = false
+	var mountain_scale: float = SCREEN_W / MOUNTAIN_CANVAS_W
+	mountain_sprite.scale = Vector2.ONE * mountain_scale
+	mountain_sprite.position = Vector2(0.0, ground_y - MOUNTAIN_CANVAS_H * mountain_scale)
+	mountain_sprite.z_index = -2
+	add_child(mountain_sprite)
 
 	trees_sprite = Sprite2D.new()
 	trees_sprite.texture = load("res://art/trees.png")
@@ -417,9 +440,9 @@ func _spawn_row() -> void:
 
 
 func _decor_tint() -> Color:
-	# Set once at spawn: the sky takes ~80 flowers to go from day to night,
-	# so a cloud's tint never visibly lags in the few seconds it's on screen.
-	return Color.WHITE.lerp(NIGHT_DECOR_TINT, sky.darkness(score))
+	# Set once at spawn: the fade to night takes minutes, so a cloud's tint
+	# never visibly lags in the few seconds it's on screen.
+	return Color.WHITE.lerp(NIGHT_DECOR_TINT, sky.darkness(elapsed))
 
 
 # ------------------------------------------------------------------
@@ -436,7 +459,7 @@ func _physics_process(delta: float) -> void:
 		_:
 			pass
 
-	sky.update(delta, state == State.START or state == State.STARTING, score)
+	sky.update(delta, state == State.START or state == State.STARTING, elapsed, score)
 
 
 func _update_playing(delta: float) -> void:
