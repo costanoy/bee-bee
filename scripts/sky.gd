@@ -3,7 +3,7 @@ extends Node
 # Score-driven background crossfade (spec 4.9). Progression is keyed off
 # SCORE, not height/time, so the background gradient itself is a
 # screen-fixed layer (a CanvasLayer behind everything). The celestial
-# bodies (sun/moon/Jupiter/UFO) are NOT part of this layer — they're
+# bodies (moon/Jupiter/UFO) are NOT part of this layer — they're
 # spawned by main.gd as static world-space objects that scroll down and
 # off-screen as the bee climbs, same as clouds, just without the drift.
 # This script only decides *when* (via signals) and lets main.gd own the
@@ -17,7 +17,6 @@ const DAY_TO_FADE_END := 90.0
 const FADE_TO_NIGHT_START := 90.0
 const FADE_TO_NIGHT_END := 130.0
 
-const SUN_SCORE := 20
 const MOON_SCORE := 100
 const JUPITER_SCORE := 200
 const SHIP_SCORE := 250
@@ -51,13 +50,11 @@ var star_phases: Array[float] = []
 var star_speeds: Array[float] = []
 var sky_time := 0.0
 
-var sun_spawned := false
 var moon_spawned := false
 var jupiter_spawned := false
 var ship_spawned := false
 var shining_bee_unlocked := false
 
-signal sun_spawn_requested
 signal moon_spawn_requested
 signal jupiter_spawn_requested
 signal ship_spawn_requested
@@ -138,6 +135,16 @@ func _make_bg_rect(path: String) -> TextureRect:
 	var rect := TextureRect.new()
 	rect.texture = load(path)
 	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	# TextureRect's default expand_mode treats the texture's own pixel size
+	# as a floor under the anchors, so the full-rect anchors below only
+	# ever won when a background happened to be smaller than the screen in
+	# both axes. Every background so far was a flat fill or gradient, so
+	# being cropped to the wrong (oversized) rect was never visible; the
+	# first background with real content in it (a painted mountain
+	# narrower and taller than the viewport) showed only a sliver of the
+	# art in one corner instead of a centered cover-crop. Ignoring the
+	# texture size lets stretch_mode actually govern the final size.
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rect.clip_contents = true
@@ -176,9 +183,6 @@ func darkness(score: int) -> float:
 
 
 func _check_triggers(score: int) -> void:
-	if score >= SUN_SCORE and not sun_spawned:
-		sun_spawned = true
-		sun_spawn_requested.emit()
 	if score >= MOON_SCORE and not moon_spawned:
 		moon_spawned = true
 		moon_spawn_requested.emit()
@@ -197,7 +201,6 @@ func reset_run() -> void:
 	# Spec 4.9: these are "evento único NA PARTIDA" — one-time per RUN, not
 	# per app session — so every fresh run needs to see them again.
 	# shining_bee_unlocked stays untouched: that unlock is permanent.
-	sun_spawned = false
 	moon_spawned = false
 	jupiter_spawned = false
 	ship_spawned = false

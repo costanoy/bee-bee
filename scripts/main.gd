@@ -190,7 +190,6 @@ func _ready() -> void:
 	sky = SkyScript.new()
 	add_child(sky)
 	sky.shining_bee_unlock_requested.connect(_on_shining_bee_unlock_requested)
-	sky.sun_spawn_requested.connect(_on_sun_spawn_requested)
 	sky.moon_spawn_requested.connect(_on_moon_spawn_requested)
 	sky.jupiter_spawn_requested.connect(_on_jupiter_spawn_requested)
 	sky.ship_spawn_requested.connect(_on_ship_spawn_requested)
@@ -791,7 +790,7 @@ func _on_shining_bee_unlock_requested() -> void:
 
 
 # ------------------------------------------------------------------
-# Celestial bodies (sun/moon/Jupiter/UFO) — static world-space objects,
+# Celestial bodies (moon/Jupiter/UFO) — static world-space objects,
 # same as a cloud but without the drift: they spawn once near the top of
 # the current view and just sit there, so the climb naturally scrolls
 # them down and off the bottom of the screen.
@@ -810,10 +809,6 @@ func _spawn_celestial(path: String, content_w: float, visual_w: float, y_offset_
 	body.z_index = -1
 	add_child(body)
 	celestials.append(body)
-
-
-func _on_sun_spawn_requested() -> void:
-	_spawn_celestial("res://art/sun.png", 597.0, 90.0, 120.0)
 
 
 func _on_moon_spawn_requested() -> void:
