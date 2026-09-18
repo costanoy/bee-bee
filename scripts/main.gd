@@ -67,16 +67,6 @@ const COLLECT_PITCH_STEPS := [1.0, 1.1892, 1.3348, 1.4983, 1.7818]
 # untinted on purpose — they're what the player has to read at speed.
 const NIGHT_DECOR_TINT := Color(0.52, 0.57, 0.74)
 
-# A distant, flattened cloud bank sitting behind everything else — the sky
-# itself (bg_day/bg_night) turned out to be completely flat color with
-# nothing in it, which is most of why the world reads as an empty void
-# once the sparse foreground clouds/gulls aren't around. Tinted paler than
-# the foreground clouds and re-tinted toward night the same way, so it
-# reads as "further away" through haze rather than just "smaller".
-const HORIZON_TINT := Color(0.78, 0.88, 0.98)
-const HORIZON_EVERY_N_ROWS := 2
-const HORIZON_COLUMNS := 8
-
 # Icons are drawn as pixel grids rather than imported art, so they match
 # the game's own resolution instead of being scaled-down smooth shapes.
 const ICON_PAUSE := [
@@ -154,8 +144,6 @@ var flowers: Array = []
 var clouds: Array = []
 var seagulls: Array = []
 var celestials: Array = []
-var horizon_bands: Array = []
-var row_index := 0
 
 var bee: CharacterBody2D
 var music: AudioStreamPlayer
@@ -297,14 +285,11 @@ func _clear_world() -> void:
 		g.queue_free()
 	for c in celestials:
 		c.queue_free()
-	for h in horizon_bands:
-		h.queue_free()
 	obstacles.clear()
 	flowers.clear()
 	clouds.clear()
 	seagulls.clear()
 	celestials.clear()
-	horizon_bands.clear()
 	if ground_sprite:
 		ground_sprite.queue_free()
 		ground_sprite = null
@@ -324,7 +309,6 @@ func _reset_to_ground_scene() -> void:
 	sky.reset_run()
 	collect_step = 0
 	physics_ticks_since_reset = 0
-	row_index = 0
 
 	var ground_y := 0.0
 	var ground_scale: float = SCREEN_W / GROUND_CANVAS_W
@@ -382,9 +366,6 @@ func _reset_to_ground_scene() -> void:
 func _spawn_row() -> void:
 	var y: float = highest_spawn_y - OBSTACLE_SPACING
 	highest_spawn_y = y
-	row_index += 1
-	if row_index % HORIZON_EVERY_N_ROWS == 0:
-		_spawn_horizon_band(y - randf() * 60.0)
 
 	var diff: float = _difficulty()
 	var gap_width: float = 175.0 - diff * 75.0
@@ -434,36 +415,6 @@ func _spawn_row() -> void:
 		gull.setup()
 		gull.self_modulate = _decor_tint()
 		seagulls.append(gull)
-
-
-func _spawn_horizon_band(y: float) -> void:
-	# A stepped, two-tier silhouette per column — not a single flat rect —
-	# reads as a soft rounded bump instead of a jagged skyscraper skyline,
-	# closer to a cloud bank than a mountain range.
-	var band := Node2D.new()
-	band.position = Vector2(0.0, y)
-	band.z_index = -2  # behind the closer, crisper foreground clouds (-1)
-	band.modulate = _decor_tint()
-	add_child(band)
-
-	var col_w: float = SCREEN_W / HORIZON_COLUMNS
-	for i in HORIZON_COLUMNS:
-		var base_h: float = randf_range(40.0, 70.0)
-		var base := ColorRect.new()
-		base.color = HORIZON_TINT
-		base.position = Vector2(i * col_w, -base_h)
-		base.size = Vector2(col_w, base_h)
-		band.add_child(base)
-
-		var cap_w: float = col_w * 0.6
-		var cap_h: float = randf_range(18.0, 30.0)
-		var cap := ColorRect.new()
-		cap.color = HORIZON_TINT
-		cap.position = Vector2(i * col_w + (col_w - cap_w) / 2.0, -base_h - cap_h)
-		cap.size = Vector2(cap_w, cap_h)
-		band.add_child(cap)
-
-	horizon_bands.append(band)
 
 
 func _decor_tint() -> Color:
@@ -537,10 +488,6 @@ func _update_playing(delta: float) -> void:
 		if c.position.y > bottom_cull:
 			celestials.erase(c)
 			c.queue_free()
-	for h in horizon_bands.duplicate():
-		if h.position.y > bottom_cull:
-			horizon_bands.erase(h)
-			h.queue_free()
 
 	# Every flower is mandatory — letting one scroll off the bottom
 	# uncollected ends the run, same as hitting an obstacle (spec change:
