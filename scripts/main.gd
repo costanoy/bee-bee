@@ -120,22 +120,9 @@ const GROUND_GRASS_Y0 := 416.0
 const GROUND_GRASS_Y1 := 494.0
 const TREES_CANVAS_W := 1568.0
 const TREES_BOTTOM_Y := 636.0
-# The mountain is a plain painted rectangle (sky included), not a cropped
-# content box — it sits in world space like ground/trees so it scrolls
-# away and is gone for good once climbed past, instead of a screen-fixed
-# backdrop that would just sit there forever at the same spot on screen.
-const MOUNTAIN_CANVAS_W := 768.0
-const MOUNTAIN_CANVAS_H := 1344.0
-# Tried scaling the whole image up so the painted sun lines up with
-# score 25's altitude (score 25 -> world y -4855, worked out the same
-# way as below) — reverted. At the ~5.17x that took, the cold-start view
-# landed on the image's own dark, noisy rock-shadow base blown up into a
-# blocky mess, and the "reached" sun turned into a flat blob nearly as
-# tall as the screen, since its size scales right along with distance.
-# One static image can't both sit at a normal size AND be reached at a
-# specific altitude — that needs either a separate sun element or a
-# looser target. Back to a plain, screen-width scale for now.
-const MOUNTAIN_SCALE := SCREEN_W / MOUNTAIN_CANVAS_W
+# The mountain (with its own sun) now lives in sky.gd instead — a
+# screen-space horizon element that sinks slowly as the bee climbs
+# rather than a world sprite that scrolls away at the normal 1:1 rate.
 
 var state: State = State.START
 # The stretch mode is keep_width: the world is always 400 wide, and a phone
@@ -170,7 +157,6 @@ var camera: Camera2D
 var sky: Node
 var ground_sprite: Sprite2D
 var trees_sprite: Sprite2D
-var mountain_sprite: Sprite2D
 
 var pixel_font: FontFile
 
@@ -312,9 +298,6 @@ func _clear_world() -> void:
 	if trees_sprite:
 		trees_sprite.queue_free()
 		trees_sprite = null
-	if mountain_sprite:
-		mountain_sprite.queue_free()
-		mountain_sprite = null
 
 
 func _reset_to_ground_scene() -> void:
@@ -331,18 +314,6 @@ func _reset_to_ground_scene() -> void:
 
 	var ground_y := 0.0
 	var ground_scale: float = SCREEN_W / GROUND_CANVAS_W
-
-	# Sits behind trees, its own base flush with the ground so the climb
-	# reveals it the same way it reveals everything else, then leaves it
-	# behind for good — no parallax, no re-trigger, just one static sprite
-	# like ground/trees that scrolls out of view and stays gone.
-	mountain_sprite = Sprite2D.new()
-	mountain_sprite.texture = load("res://art/mountain_day.png")
-	mountain_sprite.centered = false
-	mountain_sprite.scale = Vector2.ONE * MOUNTAIN_SCALE
-	mountain_sprite.position = Vector2(0.0, ground_y - MOUNTAIN_CANVAS_H * MOUNTAIN_SCALE)
-	mountain_sprite.z_index = -2
-	add_child(mountain_sprite)
 
 	trees_sprite = Sprite2D.new()
 	trees_sprite.texture = load("res://art/trees.png")
@@ -468,7 +439,7 @@ func _physics_process(delta: float) -> void:
 		_:
 			pass
 
-	sky.update(delta, state == State.START or state == State.STARTING, elapsed, score)
+	sky.update(delta, state == State.START or state == State.STARTING, elapsed, score, camera_y)
 
 
 func _update_playing(delta: float) -> void:

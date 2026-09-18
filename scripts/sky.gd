@@ -40,6 +40,21 @@ const SPARKLE_GLYPH := [
 	".X.",
 ]
 
+# The mountain (with its own painted sun) sits at "the horizon" — a
+# screen-space element, not a world sprite, so it doesn't scroll away at
+# the normal 1:1 rate the way ground/trees do. It creeps DOWN the screen
+# as the bee climbs, at a small fraction of the real climb rate: the
+# bee's own progress reads as if it's flying so high the horizon is
+# sinking away below it, rather than the mountain just being left behind
+# in the usual few hundred pixels. It fades out across the same
+# DAY_TO_DUSK window the sky itself starts dimming in, so it's gone by
+# the time night visibly begins rather than lingering into it.
+const MOUNTAIN_CANVAS_W := 768.0
+const MOUNTAIN_CANVAS_H := 1344.0
+const MOUNTAIN_SCALE := 400.0 / MOUNTAIN_CANVAS_W  # fills the 400-wide screen
+const MOUNTAIN_BASE_BOTTOM_Y := 750.0
+const MOUNTAIN_PARALLAX := 0.015
+
 var layer: CanvasLayer
 var start_rect: TextureRect
 var day_rect: TextureRect
@@ -51,6 +66,10 @@ var star_nodes: Array[Node] = []
 var star_phases: Array[float] = []
 var star_speeds: Array[float] = []
 var sky_time := 0.0
+
+var mountain: Sprite2D
+var mountain_ref_camera_y := 0.0
+var mountain_ref_set := false
 
 var moon_spawned := false
 var jupiter_spawned := false
@@ -77,6 +96,13 @@ func _ready() -> void:
 	fade_rect.modulate.a = 0.0
 	night_rect.modulate.a = 0.0
 	start_rect.modulate.a = 1.0
+
+	mountain = Sprite2D.new()
+	mountain.texture = load("res://art/mountain_day.png")
+	mountain.centered = false
+	mountain.scale = Vector2.ONE * MOUNTAIN_SCALE
+	mountain.position = Vector2(0.0, MOUNTAIN_BASE_BOTTOM_Y - MOUNTAIN_CANVAS_H * MOUNTAIN_SCALE)
+	layer.add_child(mountain)
 
 	_build_stars()
 
@@ -154,7 +180,7 @@ func _make_bg_rect(path: String) -> TextureRect:
 	return rect
 
 
-func update(delta: float, is_start_phase: bool, elapsed_time: float, score: int) -> void:
+func update(delta: float, is_start_phase: bool, elapsed_time: float, score: int, camera_y: float) -> void:
 	var target_start: float = 1.0 if is_start_phase else 0.0
 	start_rect.modulate.a = move_toward(start_rect.modulate.a, target_start, delta * 2.0)
 
@@ -164,6 +190,18 @@ func update(delta: float, is_start_phase: bool, elapsed_time: float, score: int)
 	day_rect.modulate.a = 1.0 - t1
 	fade_rect.modulate.a = clamp(t1 - t2, 0.0, 1.0)
 	night_rect.modulate.a = t2
+
+	# Captured lazily rather than in reset_run(), which fires before
+	# main.gd has settled on this run's actual cold-start camera_y — first
+	# call after a reset just adopts whatever camera_y it sees as "no
+	# climb yet" and every later call measures against that.
+	if not mountain_ref_set:
+		mountain_ref_camera_y = camera_y
+		mountain_ref_set = true
+	var climbed: float = mountain_ref_camera_y - camera_y
+	mountain.position.y = (MOUNTAIN_BASE_BOTTOM_Y - MOUNTAIN_CANVAS_H * MOUNTAIN_SCALE) \
+		+ MOUNTAIN_PARALLAX * climbed
+	mountain.modulate.a = 1.0 - t1
 
 	# Tied to the same t2 that drives the night backdrop, so stars are
 	# always exactly as visible as the sky they're sitting in front of —
@@ -206,3 +244,4 @@ func reset_run() -> void:
 	moon_spawned = false
 	jupiter_spawned = false
 	ship_spawned = false
+	mountain_ref_set = false
