@@ -126,6 +126,16 @@ const TREES_BOTTOM_Y := 636.0
 # backdrop that would just sit there forever at the same spot on screen.
 const MOUNTAIN_CANVAS_W := 768.0
 const MOUNTAIN_CANVAS_H := 1344.0
+# Tried scaling the whole image up so the painted sun lines up with
+# score 25's altitude (score 25 -> world y -4855, worked out the same
+# way as below) — reverted. At the ~5.17x that took, the cold-start view
+# landed on the image's own dark, noisy rock-shadow base blown up into a
+# blocky mess, and the "reached" sun turned into a flat blob nearly as
+# tall as the screen, since its size scales right along with distance.
+# One static image can't both sit at a normal size AND be reached at a
+# specific altitude — that needs either a separate sun element or a
+# looser target. Back to a plain, screen-width scale for now.
+const MOUNTAIN_SCALE := SCREEN_W / MOUNTAIN_CANVAS_W
 
 var state: State = State.START
 # The stretch mode is keep_width: the world is always 400 wide, and a phone
@@ -329,9 +339,8 @@ func _reset_to_ground_scene() -> void:
 	mountain_sprite = Sprite2D.new()
 	mountain_sprite.texture = load("res://art/mountain_day.png")
 	mountain_sprite.centered = false
-	var mountain_scale: float = SCREEN_W / MOUNTAIN_CANVAS_W
-	mountain_sprite.scale = Vector2.ONE * mountain_scale
-	mountain_sprite.position = Vector2(0.0, ground_y - MOUNTAIN_CANVAS_H * mountain_scale)
+	mountain_sprite.scale = Vector2.ONE * MOUNTAIN_SCALE
+	mountain_sprite.position = Vector2(0.0, ground_y - MOUNTAIN_CANVAS_H * MOUNTAIN_SCALE)
 	mountain_sprite.z_index = -2
 	add_child(mountain_sprite)
 
