@@ -39,6 +39,10 @@ const SPARKLE_GLYPH := [
 	"XXX",
 	".X.",
 ]
+# A handful visible ALL the time, day included — outside stars_layer so
+# they aren't caught by its night-only fade. The big field above still
+# only comes in at dusk; these just keep a few stars around by daylight.
+const DAY_STAR_COUNT := 5
 
 # The mountain (with its own painted sun) sits at "the horizon" — a
 # screen-space element, not a world sprite, so it doesn't scroll away at
@@ -71,6 +75,10 @@ var star_nodes: Array[Node] = []
 var star_phases: Array[float] = []
 var star_speeds: Array[float] = []
 var sky_time := 0.0
+
+var day_star_nodes: Array[Node] = []
+var day_star_phases: Array[float] = []
+var day_star_speeds: Array[float] = []
 
 var mountain: Sprite2D
 var mountain_ref_camera_y := 0.0
@@ -140,6 +148,17 @@ func _build_stars() -> void:
 		star_nodes.append(star)
 		star_phases.append(randf() * TAU)
 		star_speeds.append(1.4 + randf() * 1.8)
+
+	# Direct children of `layer`, not `stars_layer` — that Control's own
+	# alpha is what the night fade animates, so anything inside it is
+	# invisible by day regardless of its own modulate.
+	for i in DAY_STAR_COUNT:
+		var pos := Vector2(randf() * size.x, randf() * size.y)
+		var star := _make_dot(pos)
+		layer.add_child(star)
+		day_star_nodes.append(star)
+		day_star_phases.append(randf() * TAU)
+		day_star_speeds.append(1.4 + randf() * 1.8)
 
 
 func _make_dot(pos: Vector2) -> Control:
@@ -219,11 +238,16 @@ func update(delta: float, is_start_phase: bool, elapsed_time: float, score: int,
 	# always exactly as visible as the sky they're sitting in front of —
 	# no separate fade window to keep in sync.
 	stars_layer.modulate.a = t2
+	sky_time += delta
 	if t2 > 0.0:
-		sky_time += delta
 		for i in star_nodes.size():
 			var twinkle: float = 0.55 + 0.45 * sin(sky_time * star_speeds[i] + star_phases[i])
 			star_nodes[i].modulate.a = twinkle
+	# The day stars twinkle the same way at all times, day included — sky_time
+	# already advances unconditionally above so this stays in sync with them.
+	for i in day_star_nodes.size():
+		var twinkle: float = 0.55 + 0.45 * sin(sky_time * day_star_speeds[i] + day_star_phases[i])
+		day_star_nodes[i].modulate.a = twinkle
 
 	_check_triggers(score)
 
