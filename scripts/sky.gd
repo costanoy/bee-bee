@@ -27,11 +27,11 @@ const SHINING_BEE_SCORE := 300
 # The flat bg_day/bg_night fills (each is a single solid color, confirmed by
 # sampling the actual files) left the sky reading as an empty void once the
 # sparse, slow-drifting clouds weren't around — worse at night, which had
-# nothing else at all. Stars are the fix: a fixed scatter across the screen
-# (this layer doesn't scroll with the camera, same as the color fills
-# behind it), most just a single pixel-art dot, a few a small sparkle glyph
-# for variety, all fading in and out in lockstep with the night backdrop
-# itself so there's no separate threshold to tune.
+# nothing else at all. Stars are the fix: a scatter across the screen, most
+# just a single pixel-art dot, a few a small sparkle glyph for variety, all
+# fading in and out in lockstep with the night backdrop itself so there's
+# no separate threshold to tune, and drifting down with the rest of the sky
+# (see STAR_PARALLAX below) rather than sitting frozen in place.
 const STAR_COUNT := 34
 const SPARKLE_COUNT := 6
 const SPARKLE_GLYPH := [
@@ -43,6 +43,12 @@ const SPARKLE_GLYPH := [
 # they aren't caught by its night-only fade. The big field above still
 # only comes in at dusk; these just keep a few stars around by daylight.
 const DAY_STAR_COUNT := 5
+# Stars drift down at the same rate as the mountain/city horizon so the
+# whole sky reads as one backdrop receding together, rather than a
+# horizon that sinks past a starfield that's just sitting still. Each
+# star wraps back to the top once it scrolls past the bottom instead of
+# draining the sky empty over a long climb.
+const STAR_PARALLAX := 0.2
 
 # The mountain (with its own painted sun) sits at "the horizon" — a
 # screen-space element, not a world sprite, so it doesn't scroll away at
@@ -72,15 +78,15 @@ var night_rect: TextureRect
 
 var stars_layer: Control
 var star_nodes: Array[Node] = []
+var star_base_pos: Array[Vector2] = []
 var star_phases: Array[float] = []
 var star_speeds: Array[float] = []
-var star_cycles: Array[int] = []
 var sky_time := 0.0
 
 var day_star_nodes: Array[Node] = []
+var day_star_base_pos: Array[Vector2] = []
 var day_star_phases: Array[float] = []
 var day_star_speeds: Array[float] = []
-var day_star_cycles: Array[int] = []
 
 var mountain: Sprite2D
 var mountain_ref_camera_y := 0.0
@@ -148,9 +154,9 @@ func _build_stars() -> void:
 		var star: Control = _make_sparkle(pos) if is_sparkle else _make_dot(pos)
 		stars_layer.add_child(star)
 		star_nodes.append(star)
+		star_base_pos.append(pos)
 		star_phases.append(randf() * TAU)
 		star_speeds.append(1.4 + randf() * 1.8)
-		star_cycles.append(0)
 
 	# Direct children of `layer`, not `stars_layer` — that Control's own
 	# alpha is what the night fade animates, so anything inside it is
@@ -160,9 +166,9 @@ func _build_stars() -> void:
 		var star := _make_dot(pos)
 		layer.add_child(star)
 		day_star_nodes.append(star)
+		day_star_base_pos.append(pos)
 		day_star_phases.append(randf() * TAU)
 		day_star_speeds.append(1.4 + randf() * 1.8)
-		day_star_cycles.append(0)
 
 
 func _make_dot(pos: Vector2) -> Control:
@@ -244,28 +250,21 @@ func update(delta: float, is_start_phase: bool, elapsed_time: float, score: int,
 	stars_layer.modulate.a = t2
 	sky_time += delta
 	var size: Vector2 = get_viewport().get_visible_rect().size
+	var star_drop: float = fposmod(STAR_PARALLAX * climbed, size.y)
 	if t2 > 0.0:
 		for i in star_nodes.size():
-			var phase_val: float = sky_time * star_speeds[i] + star_phases[i]
-			# A star hops to a new spot once per twinkle cycle, timed to the
-			# dip near the bottom of its sine so the jump lands while it's
-			# nearly invisible — reads as stars coming and going around the
-			# sky rather than a handful of fixed points just pulsing.
-			var cycle: int = int(floor(phase_val / TAU))
-			if cycle != star_cycles[i]:
-				star_cycles[i] = cycle
-				star_nodes[i].position = Vector2(randf() * size.x, randf() * size.y)
-			var twinkle: float = 0.55 + 0.45 * sin(phase_val)
+			star_nodes[i].position = Vector2(
+				star_base_pos[i].x, fposmod(star_base_pos[i].y + star_drop, size.y)
+			)
+			var twinkle: float = 0.55 + 0.45 * sin(sky_time * star_speeds[i] + star_phases[i])
 			star_nodes[i].modulate.a = twinkle
 	# The day stars twinkle the same way at all times, day included — sky_time
 	# already advances unconditionally above so this stays in sync with them.
 	for i in day_star_nodes.size():
-		var phase_val: float = sky_time * day_star_speeds[i] + day_star_phases[i]
-		var cycle: int = int(floor(phase_val / TAU))
-		if cycle != day_star_cycles[i]:
-			day_star_cycles[i] = cycle
-			day_star_nodes[i].position = Vector2(randf() * size.x, randf() * size.y)
-		var twinkle: float = 0.55 + 0.45 * sin(phase_val)
+		day_star_nodes[i].position = Vector2(
+			day_star_base_pos[i].x, fposmod(day_star_base_pos[i].y + star_drop, size.y)
+		)
+		var twinkle: float = 0.55 + 0.45 * sin(sky_time * day_star_speeds[i] + day_star_phases[i])
 		day_star_nodes[i].modulate.a = twinkle
 
 	_check_triggers(score)
