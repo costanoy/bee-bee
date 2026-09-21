@@ -63,12 +63,21 @@ const STAR_PARALLAX := 0.2
 # foreground element's quick few-hundred-px scroll off. Also fades out
 # across the DAY_TO_DUSK window as a backstop, so it's never still
 # hanging around once night visibly begins even if a run barely climbs.
-const MOUNTAIN_CANVAS_W := 768.0
-const MOUNTAIN_CANVAS_H := 920.0
+#
+# Two variants exist and reset_run() picks one at random each run: the
+# city skyline (no ground-level trees — the buildings read as the tree
+# line) and the older sunset mountain, which pairs with the tree sprite
+# main.gd draws behind the ground (its "trees" flag here is what tells
+# main.gd whether to spawn that sprite for the run).
+const MOUNTAIN_VARIANTS := [
+	{"path": "res://art/mountain_day.png", "canvas_w": 768.0, "canvas_h": 920.0, "trees": false},
+	{"path": "res://art/mountain_sunset.png", "canvas_w": 1024.0, "canvas_h": 1024.0, "trees": true},
+]
 const MOUNTAIN_PARALLAX := 0.2
 
 var mountain_scale := 1.0
 var mountain_base_top_y := 0.0
+var mountain_has_trees := false
 
 var layer: CanvasLayer
 var start_rect: TextureRect
@@ -118,22 +127,33 @@ func _ready() -> void:
 	night_rect.modulate.a = 0.0
 	start_rect.modulate.a = 1.0
 
+	mountain = Sprite2D.new()
+	mountain.centered = false
+	layer.add_child(mountain)
+	# reset_run() (called before the very first cold-start scene too) picks
+	# the actual variant; this just gives the sprite a texture so nothing's
+	# briefly blank before that first call.
+	_apply_mountain_variant(0)
+
+	_build_stars()
+
+
+func _apply_mountain_variant(index: int) -> void:
+	var variant: Dictionary = MOUNTAIN_VARIANTS[index]
+	mountain_has_trees = variant["trees"]
 	# Fills the width exactly (400 / canvas width) and sits with its
 	# bottom edge flush against the ACTUAL viewport bottom — keep_width
 	# stretch means that's not always 800, so it's read at runtime rather
 	# than assumed, same reasoning as the star scatter below.
 	var viewport_h: float = get_viewport().get_visible_rect().size.y
-	mountain_scale = 400.0 / MOUNTAIN_CANVAS_W
-	mountain_base_top_y = viewport_h - MOUNTAIN_CANVAS_H * mountain_scale
+	var canvas_w: float = variant["canvas_w"]
+	var canvas_h: float = variant["canvas_h"]
+	mountain_scale = 400.0 / canvas_w
+	mountain_base_top_y = viewport_h - canvas_h * mountain_scale
 
-	mountain = Sprite2D.new()
-	mountain.texture = load("res://art/mountain_day.png")
-	mountain.centered = false
+	mountain.texture = load(variant["path"])
 	mountain.scale = Vector2.ONE * mountain_scale
 	mountain.position = Vector2(0.0, mountain_base_top_y)
-	layer.add_child(mountain)
-
-	_build_stars()
 
 
 func _build_stars() -> void:
@@ -299,3 +319,4 @@ func reset_run() -> void:
 	jupiter_spawned = false
 	ship_spawned = false
 	mountain_ref_set = false
+	_apply_mountain_variant(randi() % MOUNTAIN_VARIANTS.size())

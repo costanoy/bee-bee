@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://jx8nggi6vtnw"
-path="res://.godot/imported/mountain_day_sunset_previous.png-9a217c80c4bd86b18db1911fefe588a4.ctex"
+uid="uid://2ed4ipgxyey5"
+path="res://.godot/imported/trees.png-deae96b00bfc06acb1b1b035a1d91d80.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/mountain_candidates/mountain_day_sunset_previous.png"
-dest_files=["res://.godot/imported/mountain_day_sunset_previous.png-9a217c80c4bd86b18db1911fefe588a4.ctex"]
+source_file="res://art/trees.png"
+dest_files=["res://.godot/imported/trees.png-deae96b00bfc06acb1b1b035a1d91d80.ctex"]
 
 [params]
 
@@ -23,7 +23,7 @@ compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=false
+mipmaps/generate=true
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""

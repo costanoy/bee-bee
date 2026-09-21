@@ -1,6 +1,6 @@
 extends Node2D
 
-# Bee Bee — root game script. Everything (camera, bee, UI, ground,
+# Bee Bee — root game script. Everything (camera, bee, UI, ground/trees,
 # obstacles, flowers, clouds) is built here by code rather than laid out by
 # hand in the editor — see HANDOFF_Claude_Code.md section 2 for why.
 
@@ -124,6 +124,8 @@ const BeeScript := preload("res://scripts/bee.gd")
 const GROUND_CANVAS_W := 1568.0
 const GROUND_GRASS_Y0 := 416.0
 const GROUND_GRASS_Y1 := 494.0
+const TREES_CANVAS_W := 1568.0
+const TREES_BOTTOM_Y := 636.0
 # The mountain (with its own sun) now lives in sky.gd instead — a
 # screen-space horizon element that sinks slowly as the bee climbs
 # rather than a world sprite that scrolls away at the normal 1:1 rate.
@@ -160,6 +162,7 @@ var physics_ticks_since_reset := 0
 var camera: Camera2D
 var sky: Node
 var ground_sprite: Sprite2D
+var trees_sprite: Sprite2D
 
 var pixel_font: FontFile
 
@@ -298,6 +301,9 @@ func _clear_world() -> void:
 	if ground_sprite:
 		ground_sprite.queue_free()
 		ground_sprite = null
+	if trees_sprite:
+		trees_sprite.queue_free()
+		trees_sprite = null
 
 
 func _reset_to_ground_scene() -> void:
@@ -314,6 +320,20 @@ func _reset_to_ground_scene() -> void:
 
 	var ground_y := 0.0
 	var ground_scale: float = SCREEN_W / GROUND_CANVAS_W
+
+	# Only the sunset-mountain background variant (sky.reset_run(), just
+	# above, is what rolls the pick) pairs with a tree line behind the
+	# ground — the city variant's own skyline already reads as the
+	# ground-level backdrop, so a second tree sprite would just clash.
+	if sky.mountain_has_trees:
+		trees_sprite = Sprite2D.new()
+		trees_sprite.texture = load("res://art/trees.png")
+		trees_sprite.centered = false
+		var trees_scale: float = SCREEN_W / TREES_CANVAS_W
+		trees_sprite.scale = Vector2.ONE * trees_scale
+		trees_sprite.position = Vector2(0.0, ground_y - TREES_BOTTOM_Y * trees_scale)
+		trees_sprite.z_index = -1
+		add_child(trees_sprite)
 
 	ground_sprite = Sprite2D.new()
 	ground_sprite.texture = load("res://art/ground.png")
