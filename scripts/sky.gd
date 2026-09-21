@@ -57,8 +57,8 @@ const DAY_STAR_COUNT := 5
 # foreground element's quick few-hundred-px scroll off. Also fades out
 # across the DAY_TO_DUSK window as a backstop, so it's never still
 # hanging around once night visibly begins even if a run barely climbs.
-const MOUNTAIN_CANVAS_W := 1024.0
-const MOUNTAIN_CANVAS_H := 1024.0
+const MOUNTAIN_CANVAS_W := 768.0
+const MOUNTAIN_CANVAS_H := 920.0
 const MOUNTAIN_PARALLAX := 0.2
 
 var mountain_scale := 1.0
