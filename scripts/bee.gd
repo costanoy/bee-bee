@@ -6,7 +6,9 @@ extends CharacterBody2D
 const GRAVITY := 1500.0
 const FLAP_VELOCITY := -480.0
 const MAX_FALL := 700.0
-const H_SPEED := 230.0
+# TEST — bumped for a faster-feeling bee, requested to see if it makes the
+# game more addictive. Previous (validated, long-standing) value: 230.0.
+const H_SPEED := 275.0
 const H_DAMPING := 2.0
 const BEE_R := 16.0
 const SCREEN_W := 400.0
