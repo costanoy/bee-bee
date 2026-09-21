@@ -10,10 +10,14 @@ const SCREEN_W := 400.0
 
 # Physics/gameplay constants ported verbatim from reference-prototype.html.
 const OBSTACLE_SPACING := 190.0
-const SCROLL_BASE := 78.0
+# TEST — speed bump requested to see how a faster game feels. Previous
+# (long-standing) values, to restore if this doesn't stick:
+#   SCROLL_BASE := 78.0
+#   SCROLL_MAX := 148.0
+const SCROLL_BASE := 90.0
 # Prototype's original ramp topped out at 165 (too punishing with mandatory
 # flowers + shrinking gaps); 110 was too tame, 135 still felt easy.
-const SCROLL_MAX := 148.0
+const SCROLL_MAX := 170.0
 const DIFFICULTY_RAMP_TIME := 50.0
 const BEE_R := 16.0
 
