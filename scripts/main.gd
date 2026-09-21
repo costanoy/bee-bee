@@ -1,6 +1,6 @@
 extends Node2D
 
-# Bee Bee — root game script. Everything (camera, bee, UI, ground/trees,
+# Bee Bee — root game script. Everything (camera, bee, UI, ground,
 # obstacles, flowers, clouds) is built here by code rather than laid out by
 # hand in the editor — see HANDOFF_Claude_Code.md section 2 for why.
 
@@ -66,6 +66,11 @@ const COLLECT_PITCH_STEPS := [1.0, 1.1892, 1.3348, 1.4983, 1.7818]
 # they glow against the night like cut-outs. Obstacles and flowers stay
 # untinted on purpose — they're what the player has to read at speed.
 const NIGHT_DECOR_TINT := Color(0.52, 0.57, 0.74)
+# Clouds read a little washed-out against the bright day sky at their
+# baseline alpha; night keeps that baseline since the darker tint above
+# already gives them enough presence against the night backdrop.
+const DAY_CLOUD_ALPHA := 0.95
+const NIGHT_CLOUD_ALPHA := 0.85
 
 # Icons are drawn as pixel grids rather than imported art, so they match
 # the game's own resolution instead of being scaled-down smooth shapes.
@@ -118,8 +123,6 @@ const BeeScript := preload("res://scripts/bee.gd")
 const GROUND_CANVAS_W := 1568.0
 const GROUND_GRASS_Y0 := 416.0
 const GROUND_GRASS_Y1 := 494.0
-const TREES_CANVAS_W := 1568.0
-const TREES_BOTTOM_Y := 636.0
 # The mountain (with its own sun) now lives in sky.gd instead — a
 # screen-space horizon element that sinks slowly as the bee climbs
 # rather than a world sprite that scrolls away at the normal 1:1 rate.
@@ -156,7 +159,6 @@ var physics_ticks_since_reset := 0
 var camera: Camera2D
 var sky: Node
 var ground_sprite: Sprite2D
-var trees_sprite: Sprite2D
 
 var pixel_font: FontFile
 
@@ -295,18 +297,15 @@ func _clear_world() -> void:
 	if ground_sprite:
 		ground_sprite.queue_free()
 		ground_sprite = null
-	if trees_sprite:
-		trees_sprite.queue_free()
-		trees_sprite = null
 
 
 func _reset_to_ground_scene() -> void:
-	# Builds a fresh grounded start: bee resting on the ground, trees behind
-	# it, world regenerated. Used both at app cold-start and on every
-	# "Play Again" after a game over. Per spec 4.8, the one thing this must
-	# NOT do is re-randomize the world that's already visible behind the
-	# start screen the very first time the player presses Play — callers
-	# handle that by only calling this once before that first press.
+	# Builds a fresh grounded start: bee resting on the ground, world
+	# regenerated. Used both at app cold-start and on every "Play Again"
+	# after a game over. Per spec 4.8, the one thing this must NOT do is
+	# re-randomize the world that's already visible behind the start screen
+	# the very first time the player presses Play — callers handle that by
+	# only calling this once before that first press.
 	_clear_world()
 	sky.reset_run()
 	collect_step = 0
@@ -314,15 +313,6 @@ func _reset_to_ground_scene() -> void:
 
 	var ground_y := 0.0
 	var ground_scale: float = SCREEN_W / GROUND_CANVAS_W
-
-	trees_sprite = Sprite2D.new()
-	trees_sprite.texture = load("res://art/trees.png")
-	trees_sprite.centered = false
-	var trees_scale: float = SCREEN_W / TREES_CANVAS_W
-	trees_sprite.scale = Vector2.ONE * trees_scale
-	trees_sprite.position = Vector2(0.0, ground_y - TREES_BOTTOM_Y * trees_scale)
-	trees_sprite.z_index = -1
-	add_child(trees_sprite)
 
 	ground_sprite = Sprite2D.new()
 	ground_sprite.texture = load("res://art/ground.png")
@@ -406,6 +396,7 @@ func _spawn_row() -> void:
 		add_child(cloud)
 		cloud.setup()
 		cloud.self_modulate = _decor_tint()
+		cloud.modulate.a = lerp(DAY_CLOUD_ALPHA, NIGHT_CLOUD_ALPHA, sky.darkness(elapsed))
 		clouds.append(cloud)
 
 	if score < 75 and randf() < 0.15:
