@@ -66,11 +66,8 @@ const COLLECT_PITCH_STEPS := [1.0, 1.1892, 1.3348, 1.4983, 1.7818]
 # they glow against the night like cut-outs. Obstacles and flowers stay
 # untinted on purpose — they're what the player has to read at speed.
 const NIGHT_DECOR_TINT := Color(0.52, 0.57, 0.74)
-# Clouds read a little washed-out against the bright day sky at their
-# baseline alpha; night keeps that baseline since the darker tint above
-# already gives them enough presence against the night backdrop.
-const DAY_CLOUD_ALPHA := 0.95
-const NIGHT_CLOUD_ALPHA := 0.85
+const DAY_CLOUD_ALPHA := 0.55
+const NIGHT_CLOUD_ALPHA := 0.45
 
 # Icons are drawn as pixel grids rather than imported art, so they match
 # the game's own resolution instead of being scaled-down smooth shapes.
