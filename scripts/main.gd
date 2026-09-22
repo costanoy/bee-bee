@@ -54,7 +54,7 @@ const SFX_NEAR_MISS := preload("res://audio/sfx_near_miss.wav")
 # within one run.
 const SFX_FLAP_DB := -16.0
 const SFX_COLLECT_DB := -7.0
-const SFX_HIT_DB := -5.0
+const SFX_HIT_DB := -3.0
 const SFX_RECORD_DB := -5.0
 const SFX_UI_DB := -12.0
 const SFX_NEAR_MISS_DB := -10.0
@@ -66,6 +66,12 @@ const SFX_NEAR_MISS_DB := -10.0
 const NEAR_MISS_MARGIN := 8.0
 const CAMERA_SHAKE_DURATION := 0.18
 const CAMERA_SHAKE_MAGNITUDE := 4.0
+# Death gets a bigger jolt than a near miss — it's the bigger event of the
+# two. Reuses the same SFX_HIT that already plays on every game over; no
+# second sound layered on top, just nudged up a touch (below) so it reads
+# clearly alongside the new shake instead of blending into the fall.
+const DEATH_SHAKE_DURATION := 0.3
+const DEATH_SHAKE_MAGNITUDE := 7.0
 
 # Enough voices that a flap, a pickup and a jingle can overlap without
 # any of them being cut short.
@@ -155,6 +161,8 @@ var hint_alpha := 0.0
 var elapsed := 0.0
 var camera_y := 0.0
 var camera_shake_time := 0.0
+var camera_shake_total := 0.0
+var camera_shake_magnitude := 0.0
 var highest_spawn_y := 0.0
 var score := 0
 var dying_timer := 0.0
@@ -463,7 +471,29 @@ func _physics_process(delta: float) -> void:
 		_:
 			pass
 
+	# camera_y itself only moves inside _update_playing's scroll branch, so
+	# re-deriving the base position here every frame is a no-op outside
+	# PLAYING — which is exactly "frozen" during DYING, letting a shake
+	# (near miss or death) jitter around that fixed point without drifting.
+	camera.position = Vector2(0.0, camera_y)
+	_apply_camera_shake(delta)
+
 	sky.update(delta, state == State.START or state == State.STARTING, elapsed, score, camera_y)
+
+
+func _start_camera_shake(duration: float, magnitude: float) -> void:
+	camera_shake_time = duration
+	camera_shake_total = duration
+	camera_shake_magnitude = magnitude
+
+
+func _apply_camera_shake(delta: float) -> void:
+	if camera_shake_time <= 0.0:
+		return
+	camera_shake_time = max(0.0, camera_shake_time - delta)
+	var t: float = camera_shake_time / camera_shake_total if camera_shake_total > 0.0 else 0.0
+	var mag: float = camera_shake_magnitude * t
+	camera.position += Vector2(randf_range(-mag, mag), randf_range(-mag, mag))
 
 
 func _update_playing(delta: float) -> void:
@@ -489,8 +519,6 @@ func _update_playing(delta: float) -> void:
 
 		while highest_spawn_y > camera_y - screen_h:
 			_spawn_row()
-
-	camera.position = Vector2(0.0, camera_y)
 
 	# The bee is already flying/falling under normal physics from the first
 	# flap onward, camera frozen or not — so the usual rules (missed
@@ -552,11 +580,6 @@ func _update_playing(delta: float) -> void:
 	if time_since_first_flap >= FALL_DEATH_GRACE and bee.position.y - BEE_R > screen_bottom:
 		_trigger_game_over()
 
-	if camera_shake_time > 0.0:
-		camera_shake_time = max(0.0, camera_shake_time - delta)
-		var mag: float = CAMERA_SHAKE_MAGNITUDE * (camera_shake_time / CAMERA_SHAKE_DURATION)
-		camera.position += Vector2(randf_range(-mag, mag), randf_range(-mag, mag))
-
 
 func _circle_rect_clearance(circle_center: Vector2, radius: float, rect_min: Vector2, rect_max: Vector2) -> float:
 	# Standard circle-vs-AABB distance: find the closest point on the rect to
@@ -574,7 +597,7 @@ func _circle_rect_clearance(circle_center: Vector2, radius: float, rect_min: Vec
 
 
 func _trigger_near_miss() -> void:
-	camera_shake_time = CAMERA_SHAKE_DURATION
+	_start_camera_shake(CAMERA_SHAKE_DURATION, CAMERA_SHAKE_MAGNITUDE)
 	_play_sfx(SFX_NEAR_MISS, SFX_NEAR_MISS_DB)
 
 
@@ -627,6 +650,7 @@ func _trigger_game_over() -> void:
 	state = State.DYING
 	dying_timer = 0.0
 	pause_button.visible = false
+	_start_camera_shake(DEATH_SHAKE_DURATION, DEATH_SHAKE_MAGNITUDE)
 	_play_sfx(SFX_HIT, SFX_HIT_DB)
 	bee.die()
 	# The bee keeps falling under its own gravity — no impact effect, no
