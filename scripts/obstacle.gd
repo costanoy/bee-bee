@@ -25,6 +25,13 @@ static var rose_texture: Texture2D = load("res://art/rose_bush.png")
 var gap_x: float
 var gap_width: float
 
+# Tracked by main.gd's collision pass while the bee is transiting this
+# row, to fire a one-time "near miss" cue (screen shake + whoosh) if it
+# grazed a bar edge without hitting it. INF until the bee actually enters
+# the row's vertical band at least once.
+var near_miss_min_clearance := INF
+var near_miss_checked := false
+
 
 func setup(p_gap_x: float, p_gap_width: float) -> void:
 	gap_x = p_gap_x

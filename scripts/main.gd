@@ -46,6 +46,7 @@ const SFX_COLLECT := preload("res://audio/sfx_collect.wav")
 const SFX_HIT := preload("res://audio/sfx_hit.wav")
 const SFX_RECORD := preload("res://audio/sfx_record.wav")
 const SFX_UI_TAP := preload("res://audio/sfx_ui_tap.wav")
+const SFX_NEAR_MISS := preload("res://audio/sfx_near_miss.wav")
 
 # Levels live here rather than baked into the files so the mix can be
 # balanced without re-rendering. The flap sits lowest by a wide margin:
@@ -56,6 +57,15 @@ const SFX_COLLECT_DB := -7.0
 const SFX_HIT_DB := -5.0
 const SFX_RECORD_DB := -5.0
 const SFX_UI_DB := -12.0
+const SFX_NEAR_MISS_DB := -10.0
+
+# TEST — a "near miss" cue (screen shake + whoosh) when the bee grazes past
+# a gap edge within this many px without hitting it, requested to see if
+# that close-call thrill makes the game more addictive. Margin is on top
+# of BEE_R, i.e. how much closer than "just barely fits" still counts.
+const NEAR_MISS_MARGIN := 8.0
+const CAMERA_SHAKE_DURATION := 0.18
+const CAMERA_SHAKE_MAGNITUDE := 4.0
 
 # Enough voices that a flap, a pickup and a jingle can overlap without
 # any of them being cut short.
@@ -144,6 +154,7 @@ var hint_alpha := 0.0
 
 var elapsed := 0.0
 var camera_y := 0.0
+var camera_shake_time := 0.0
 var highest_spawn_y := 0.0
 var score := 0
 var dying_timer := 0.0
@@ -350,6 +361,7 @@ func _reset_to_ground_scene() -> void:
 	scrolling_started = false
 	launch_timer = 0.0
 	time_since_first_flap = 0.0
+	camera_shake_time = 0.0
 
 	# Frame the cold-start camera so the ground graphic's own bottom edge
 	# sits flush with the bottom of the screen (no floating gap beneath it).
@@ -474,10 +486,11 @@ func _update_playing(delta: float) -> void:
 		elapsed += delta
 
 		camera_y -= _current_scroll_speed() * delta
-		camera.position = Vector2(0.0, camera_y)
 
 		while highest_spawn_y > camera_y - screen_h:
 			_spawn_row()
+
+	camera.position = Vector2(0.0, camera_y)
 
 	# The bee is already flying/falling under normal physics from the first
 	# flap onward, camera frozen or not — so the usual rules (missed
@@ -517,35 +530,52 @@ func _update_playing(delta: float) -> void:
 	for o in obstacles:
 		var band_top: float = o.position.y
 		var band_bottom: float = band_top + ObstacleScript.THICK
-		if bee.position.y + BEE_R < band_top or bee.position.y - BEE_R > band_bottom:
-			continue  # cheap reject before the precise per-bar circle test
-
-		var gap_left: float = o.gap_x - o.gap_width / 2.0
-		var gap_right: float = o.gap_x + o.gap_width / 2.0
-		var hit := false
-		if gap_left > 0.0:
-			hit = _circle_hits_rect(bee.position, BEE_R, Vector2(0.0, band_top), Vector2(gap_left, band_bottom))
-		if not hit and gap_right < SCREEN_W:
-			hit = _circle_hits_rect(bee.position, BEE_R, Vector2(gap_right, band_top), Vector2(SCREEN_W, band_bottom))
-		if hit:
-			_trigger_game_over()
-			return
+		var in_band: bool = bee.position.y + BEE_R >= band_top and bee.position.y - BEE_R <= band_bottom
+		if in_band:
+			var gap_left: float = o.gap_x - o.gap_width / 2.0
+			var gap_right: float = o.gap_x + o.gap_width / 2.0
+			var clearance := INF
+			if gap_left > 0.0:
+				clearance = _circle_rect_clearance(bee.position, BEE_R, Vector2(0.0, band_top), Vector2(gap_left, band_bottom))
+			if gap_right < SCREEN_W:
+				clearance = min(clearance, _circle_rect_clearance(bee.position, BEE_R, Vector2(gap_right, band_top), Vector2(SCREEN_W, band_bottom)))
+			if clearance < 0.0:
+				_trigger_game_over()
+				return
+			# Track the closest the bee gets to either bar while it's in this
+			# row's band — checked once the bee has fully cleared it, below.
+			o.near_miss_min_clearance = min(o.near_miss_min_clearance, clearance)
+		elif not o.near_miss_checked and o.near_miss_min_clearance <= NEAR_MISS_MARGIN:
+			o.near_miss_checked = true
+			_trigger_near_miss()
 
 	if time_since_first_flap >= FALL_DEATH_GRACE and bee.position.y - BEE_R > screen_bottom:
 		_trigger_game_over()
 
+	if camera_shake_time > 0.0:
+		camera_shake_time = max(0.0, camera_shake_time - delta)
+		var mag: float = CAMERA_SHAKE_MAGNITUDE * (camera_shake_time / CAMERA_SHAKE_DURATION)
+		camera.position += Vector2(randf_range(-mag, mag), randf_range(-mag, mag))
 
-func _circle_hits_rect(circle_center: Vector2, radius: float, rect_min: Vector2, rect_max: Vector2) -> bool:
-	# Standard circle-vs-AABB test: find the closest point on the rect to
-	# the circle's center and check if it's within the radius. This treats
-	# the bee as the circle it actually looks like, instead of the square
-	# bounding box the old check used — which let corners of the invisible
-	# hitbox clip the roseira before the round bee sprite visually touched it.
+
+func _circle_rect_clearance(circle_center: Vector2, radius: float, rect_min: Vector2, rect_max: Vector2) -> float:
+	# Standard circle-vs-AABB distance: find the closest point on the rect to
+	# the circle's center. Negative means overlap (a hit) — this treats the
+	# bee as the circle it actually looks like, instead of the square
+	# bounding box the old check used, which let corners of the invisible
+	# hitbox clip the roseira before the round bee sprite visually touched
+	# it. The actual (non-negative) distance doubles as the near-miss
+	# clearance so both checks share one geometry test.
 	var closest := Vector2(
 		clamp(circle_center.x, rect_min.x, rect_max.x),
 		clamp(circle_center.y, rect_min.y, rect_max.y)
 	)
-	return circle_center.distance_squared_to(closest) < radius * radius
+	return circle_center.distance_to(closest) - radius
+
+
+func _trigger_near_miss() -> void:
+	camera_shake_time = CAMERA_SHAKE_DURATION
+	_play_sfx(SFX_NEAR_MISS, SFX_NEAR_MISS_DB)
 
 
 func _update_dying(delta: float) -> void:
