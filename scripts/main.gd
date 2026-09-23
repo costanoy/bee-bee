@@ -18,12 +18,20 @@ const SCROLL_BASE := 90.0
 # Prototype's original ramp topped out at 165 (too punishing with mandatory
 # flowers + shrinking gaps); 110 was too tame, 135 still felt easy.
 const SCROLL_MAX := 170.0
-const DIFFICULTY_RAMP_TIME := 50.0
+# TEST — shortened from 50 so every run gets tense sooner; top speed and
+# narrowest gap are unchanged, they're just reached earlier.
+const DIFFICULTY_RAMP_TIME := 35.0
 const BEE_R := 16.0
 
 # How long after the first flap the camera waits before it starts climbing
 # (the bee itself is already flying/falling normally during this pause).
+# Replays get the shorter one (TEST, was 1.0 for every run): by then the
+# player already knows the controls and just wants back into the action.
 const SCROLL_START_DELAY := 1.0
+const REPLAY_SCROLL_START_DELAY := 0.5
+# TEST — how long the dead bee falls before the game-over panel (was 1.4).
+# Still long enough to watch the fall and the death shake land.
+const DEATH_FALL_TIME := 0.8
 # Short grace window after the first flap where falling off the bottom of
 # the (still tightly-framed) cold-start view can't end the run — a rapid
 # extra tap right after "Play Again" (e.g. an impatient double-press) could
@@ -155,6 +163,7 @@ var world_moving := false
 var scrolling_started := false
 var launch_timer := 0.0
 var time_since_first_flap := 0.0
+var has_finished_a_run := false
 var has_tapped_once := false
 var hint_alpha := 0.0
 
@@ -566,7 +575,8 @@ func _update_playing(delta: float) -> void:
 
 	if not scrolling_started:
 		launch_timer += delta
-		if launch_timer >= SCROLL_START_DELAY:
+		var start_delay: float = REPLAY_SCROLL_START_DELAY if has_finished_a_run else SCROLL_START_DELAY
+		if launch_timer >= start_delay:
 			scrolling_started = true
 	else:
 		elapsed += delta
@@ -662,7 +672,7 @@ func _trigger_near_miss() -> void:
 
 func _update_dying(delta: float) -> void:
 	dying_timer += delta
-	if bee.position.y - BEE_R > camera_y + screen_h or dying_timer > 1.4:
+	if bee.position.y - BEE_R > camera_y + screen_h or dying_timer > DEATH_FALL_TIME:
 		_end_game()
 
 
@@ -722,6 +732,7 @@ func _trigger_game_over() -> void:
 
 func _end_game() -> void:
 	state = State.GAMEOVER
+	has_finished_a_run = true
 	bee.physics_enabled = false
 
 	var beat_record := score > SaveData.best_score
