@@ -164,8 +164,10 @@ var camera_shake_time := 0.0
 var camera_shake_total := 0.0
 var camera_shake_magnitude := 0.0
 var highest_spawn_y := 0.0
+var rows_spawned := 0
 var score := 0
 var dying_timer := 0.0
+var record_line: Node2D
 
 var obstacles: Array = []
 var flowers: Array = []
@@ -317,6 +319,9 @@ func _clear_world() -> void:
 	clouds.clear()
 	seagulls.clear()
 	celestials.clear()
+	if record_line:
+		record_line.queue_free()
+		record_line = null
 	if ground_sprite:
 		ground_sprite.queue_free()
 		ground_sprite = null
@@ -383,6 +388,7 @@ func _reset_to_ground_scene() -> void:
 	# obstacles start comfortably above the ground/trees so they don't
 	# overlap the cold-start framing.
 	highest_spawn_y = -200.0
+	rows_spawned = 0
 
 	has_tapped_once = SaveData.seen_tutorial
 	hint_alpha = 0.0 if SaveData.seen_tutorial else 1.0
@@ -426,6 +432,14 @@ func _spawn_row() -> void:
 	flower.setup()
 	flowers.append(flower)
 
+	# Every row carries exactly one mandatory flower, collected in order, so
+	# row N's flower is always the one that takes the score to N — the row
+	# numbered best+1 holds the flower that breaks the record.
+	rows_spawned += 1
+	if SaveData.best_score > 0 and rows_spawned == SaveData.best_score + 1:
+		_spawn_record_line(fy, fx)
+		move_child(record_line, flower.get_index())
+
 	# Clouds keep appearing through the night, just less often once the sky
 	# has started turning (day->fade now begins at score 50 — see sky.gd).
 	var cloud_chance: float = 0.85 if score < 50 else 0.35
@@ -449,6 +463,48 @@ func _spawn_row() -> void:
 		gull.setup()
 		gull.self_modulate = _decor_tint()
 		seagulls.append(gull)
+
+
+const RECORD_LINE_COLOR := Color(1.0, 0.82, 0.25, 0.8)
+const RECORD_DASH_W := 10.0
+const RECORD_DASH_GAP := 6.0
+const RECORD_DASH_H := 2.0
+
+
+func _spawn_record_line(y: float, flower_x: float) -> void:
+	record_line = Node2D.new()
+	record_line.position = Vector2(0.0, y)
+	add_child(record_line)
+
+	var x := 0.0
+	while x < SCREEN_W:
+		var dash := ColorRect.new()
+		dash.color = RECORD_LINE_COLOR
+		dash.position = Vector2(x, -RECORD_DASH_H / 2.0)
+		dash.size = Vector2(min(RECORD_DASH_W, SCREEN_W - x), RECORD_DASH_H)
+		dash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		record_line.add_child(dash)
+		x += RECORD_DASH_W + RECORD_DASH_GAP
+
+	# Label goes on the side away from the flower so the two never overlap.
+	var label := _make_label("RECORD", 10, RECORD_LINE_COLOR)
+	label.size = Vector2(90.0, 14.0)
+	label.position.y = -16.0
+	if flower_x > SCREEN_W / 2.0:
+		label.position.x = 6.0
+	else:
+		label.position.x = SCREEN_W - 96.0
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	record_line.add_child(label)
+
+
+func _flash_record_line() -> void:
+	var line := record_line
+	record_line = null
+	var tween := create_tween()
+	tween.tween_property(line, "modulate", Color(1.8, 1.8, 1.8, 1.0), 0.08)
+	tween.tween_property(line, "modulate", Color(1.8, 1.8, 1.8, 0.0), 0.5)
+	tween.tween_callback(line.queue_free)
 
 
 func _decor_tint() -> Color:
@@ -543,6 +599,9 @@ func _update_playing(delta: float) -> void:
 		if c.position.y > bottom_cull:
 			celestials.erase(c)
 			c.queue_free()
+	if record_line and record_line.position.y > bottom_cull:
+		record_line.queue_free()
+		record_line = null
 
 	# Every flower is mandatory — letting one scroll off the bottom
 	# uncollected ends the run, same as hitting an obstacle (spec change:
@@ -628,6 +687,8 @@ func on_flower_collected(flower: Area2D) -> void:
 	collect_step = (collect_step + 1) % COLLECT_PITCH_STEPS.size()
 	score += 1
 	_update_score_label()
+	if record_line and score == SaveData.best_score + 1:
+		_flash_record_line()
 
 
 func _bee_contacts_trustworthy() -> bool:
