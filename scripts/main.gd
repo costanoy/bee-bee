@@ -22,6 +22,9 @@ const SCROLL_MAX := 170.0
 # narrowest gap are unchanged, they're just reached earlier.
 const DIFFICULTY_RAMP_TIME := 35.0
 const BEE_R := 16.0
+# Widest sideways distance, at max difficulty, between a gap and the next
+# flower or between a flower and the next gap (see _spawn_row).
+const MAX_LEG_HARD := 200.0
 
 # How long after the first flap the camera waits before it starts climbing
 # (the bee itself is already flying/falling normally during this pause).
@@ -173,6 +176,7 @@ var camera_shake_time := 0.0
 var camera_shake_total := 0.0
 var camera_shake_magnitude := 0.0
 var highest_spawn_y := 0.0
+var last_gap_x := 0.0
 var rows_spawned := 0
 var score := 0
 var dying_timer := 0.0
@@ -397,6 +401,7 @@ func _reset_to_ground_scene() -> void:
 	# obstacles start comfortably above the ground/trees so they don't
 	# overlap the cold-start framing.
 	highest_spawn_y = -200.0
+	last_gap_x = SCREEN_W / 2.0   # the bee starts centred on the ground
 	rows_spawned = 0
 
 	has_tapped_once = SaveData.seen_tutorial
@@ -418,7 +423,29 @@ func _spawn_row() -> void:
 	var diff: float = _difficulty()
 	var gap_width: float = 175.0 - diff * 75.0
 	var margin: float = gap_width / 2.0 + 24.0
-	var gap_x: float = margin + randf() * (SCREEN_W - margin * 2.0)
+	var flower_clear: float = gap_width / 2.0 + 20.0
+
+	# The climb goes previous gap -> this row's flower -> this row's gap, and
+	# at top speed there's only ~0.55s per leg. Fully random placement could
+	# put a flower on the far side of both gaps, a sideways run past what the
+	# bee can physically make in that time (~1 row in 35 at max speed), so
+	# each leg is capped, tightening with difficulty. Measured against the
+	# bee's own flap physics, the worst row at the cap is ~130% of its
+	# sustained sideways speed (was 213%), while the average still asks for
+	# nearly half of it.
+	var max_leg: float = lerp(SCREEN_W, MAX_LEG_HARD, diff)
+	var gap_x: float
+	var fx: float
+	for _attempt in 64:
+		gap_x = margin + randf() * (SCREEN_W - margin * 2.0)
+		fx = 30.0 + randf() * (SCREEN_W - 60.0)
+		if abs(fx - gap_x) < flower_clear:
+			continue
+		if abs(fx - last_gap_x) <= max_leg and abs(fx - gap_x) <= max_leg:
+			break
+	if abs(fx - gap_x) < flower_clear:
+		fx = gap_x - flower_clear if gap_x - flower_clear >= 30.0 else gap_x + flower_clear
+	last_gap_x = gap_x
 
 	var obstacle := Node2D.new()
 	obstacle.set_script(ObstacleScript)
@@ -427,11 +454,6 @@ func _spawn_row() -> void:
 	obstacle.setup(gap_x, gap_width)
 	obstacles.append(obstacle)
 
-	var fx: float
-	while true:
-		fx = 30.0 + randf() * (SCREEN_W - 60.0)
-		if abs(fx - gap_x) >= gap_width / 2.0 + 20.0:
-			break
 	var fy: float = y + OBSTACLE_SPACING / 2.0 + (randf() * 40.0 - 20.0)
 
 	var flower := Area2D.new()
