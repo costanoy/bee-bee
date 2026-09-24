@@ -3,15 +3,28 @@ extends Area2D
 # A collectible flower. Created entirely by code from main.gd.
 
 const FLOWER_R := 14.0
+const PixelArt := preload("res://scripts/pixel_art.gd")
 
-# Each texture's own content-box width inside its canvas — not all three
-# share the same canvas size/padding (the blue one is a different source
-# than red/yellow), so each needs its own reference width to scale correctly.
+# Content-box width of the original (non-pixel) flower art inside its canvas.
+const LEGACY_CONTENT_W := 346.0
+
 static var textures: Array = [
-	{"tex": load("res://art/flower_red.png"), "content_w": 346.0, "burst_color": Color(0.94, 0.2, 0.2)},
-	{"tex": load("res://art/flower_yellow.png"), "content_w": 346.0, "burst_color": Color(1.0, 0.82, 0.25)},
-	{"tex": load("res://art/flower_blue.png"), "content_w": 346.0, "burst_color": Color(0.35, 0.2, 0.95)},
+	_entry("flower_red.png", Color(0.94, 0.2, 0.2)),
+	_entry("flower_yellow.png", Color(1.0, 0.82, 0.25)),
+	_entry("flower_blue.png", Color(0.35, 0.2, 0.95)),
 ]
+
+
+static func _entry(file_name: String, burst_color: Color) -> Dictionary:
+	var pixel := PixelArt.texture(file_name)
+	if pixel:
+		return {"tex": pixel, "scale": PixelArt.SCALE, "pixel": true, "burst_color": burst_color}
+	return {
+		"tex": load("res://art/" + file_name),
+		"scale": FLOWER_R * 2.4 / LEGACY_CONTENT_W,
+		"pixel": false,
+		"burst_color": burst_color,
+	}
 
 var sway_phase := 0.0
 var _time := 0.0
@@ -30,8 +43,8 @@ func setup() -> void:
 	var entry: Dictionary = textures[randi() % textures.size()]
 	sprite.texture = entry["tex"]
 	burst_color = entry["burst_color"]
-	var visual_span := FLOWER_R * 2.4
-	sprite.scale = Vector2.ONE * (visual_span / entry["content_w"])
+	sprite.scale = Vector2.ONE * entry["scale"]
+	PixelArt.apply_filter(sprite, entry["pixel"])
 
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()

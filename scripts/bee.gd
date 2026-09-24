@@ -37,8 +37,12 @@ const DEAD_TEXTURE := "res://art/bee_dead.png"
 const FLAP_CONTENT_W := 494.0
 const DEAD_CONTENT_W := 558.0
 
+const PixelArt := preload("res://scripts/pixel_art.gd")
+
 var flap_scale_mag: float
 var dead_scale_mag: float
+var flap_is_pixel := false
+var dead_is_pixel := false
 
 
 func _ready() -> void:
@@ -48,16 +52,27 @@ func _ready() -> void:
 	shape.shape = circle
 	add_child(shape)
 
+	# The flap only switches to pixel art once all four frames exist — a
+	# half-swapped cycle would jump between two art styles every tap.
+	var pixel_flaps: Array[Texture2D] = []
+	for i in FLAP_FRAMES.size():
+		var tex := PixelArt.texture("bee_flap_%d.png" % i)
+		if tex:
+			pixel_flaps.append(tex)
+	flap_is_pixel = pixel_flaps.size() == FLAP_FRAMES.size()
+	var pixel_dead := PixelArt.texture("bee_dead.png")
+	dead_is_pixel = pixel_dead != null
+
 	var sprite_frames := SpriteFrames.new()
 	sprite_frames.add_animation("flap")
 	sprite_frames.set_animation_loop("flap", false)
 	sprite_frames.set_animation_speed("flap", 22.0)
-	for path in FLAP_FRAMES:
-		sprite_frames.add_frame("flap", load(path))
+	for i in FLAP_FRAMES.size():
+		sprite_frames.add_frame("flap", pixel_flaps[i] if flap_is_pixel else load(FLAP_FRAMES[i]))
 
 	sprite_frames.add_animation("dead")
 	sprite_frames.set_animation_loop("dead", false)
-	sprite_frames.add_frame("dead", load(DEAD_TEXTURE))
+	sprite_frames.add_frame("dead", pixel_dead if dead_is_pixel else load(DEAD_TEXTURE))
 
 	sprite = AnimatedSprite2D.new()
 	sprite.sprite_frames = sprite_frames
@@ -66,9 +81,10 @@ func _ready() -> void:
 	add_child(sprite)
 
 	var visual_span := BEE_R * 2.6
-	flap_scale_mag = visual_span / FLAP_CONTENT_W
-	dead_scale_mag = visual_span / DEAD_CONTENT_W
+	flap_scale_mag = PixelArt.SCALE if flap_is_pixel else visual_span / FLAP_CONTENT_W
+	dead_scale_mag = PixelArt.SCALE if dead_is_pixel else visual_span / DEAD_CONTENT_W
 	sprite.scale = Vector2.ONE * flap_scale_mag
+	PixelArt.apply_filter(sprite, flap_is_pixel)
 
 
 func _physics_process(delta: float) -> void:
@@ -120,6 +136,7 @@ func die() -> void:
 	sprite.animation = "dead"
 	sprite.frame = 0
 	sprite.scale = Vector2(dead_scale_mag * -facing, dead_scale_mag)
+	PixelArt.apply_filter(sprite, dead_is_pixel)
 
 
 func reset_bee(start_position: Vector2) -> void:
@@ -130,5 +147,6 @@ func reset_bee(start_position: Vector2) -> void:
 	sprite.animation = "flap"
 	sprite.frame = REST_FRAME_INDEX
 	sprite.scale = Vector2(flap_scale_mag * -facing, flap_scale_mag)
+	PixelArt.apply_filter(sprite, flap_is_pixel)
 	sprite.rotation = 0.0
 	physics_enabled = false
