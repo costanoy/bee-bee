@@ -11,6 +11,8 @@ const DIR := "res://art/3d/"
 # pose's full content width (antenna tip to stinger) is ~211px; it's sized
 # as if it were 185 so the body reads as big as the old, chunkier bee.
 const BEE_CONTENT_W := 185.0
+# 8-frame wingbeat -> ~0.25s per tap, about the old 4-frame beat's length.
+const FLAP_FPS := 32.0
 
 
 static func texture(file_name: String) -> Texture2D:
