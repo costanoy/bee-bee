@@ -15,6 +15,19 @@ const BEE_CONTENT_W := 185.0
 const FLAP_FPS := 32.0
 
 
+# The seagull's four frames share one crop (so the body holds still);
+# this is its height scaled so the bird comes out about as big as before.
+const GULL_CONTENT_H := 170.0
+
+
+# res:// path of `file_name`: the 3D render if there is one, otherwise the
+# original art. Every render is fitted into the original's canvas and
+# content box (tools/blender/conform.py), so no scale constant changes.
+static func path(file_name: String) -> String:
+	var p := DIR + file_name
+	return p if ResourceLoader.exists(p) else "res://art/" + file_name
+
+
 static func texture(file_name: String) -> Texture2D:
 	var path := DIR + file_name
 	if ResourceLoader.exists(path):

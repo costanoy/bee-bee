@@ -4,7 +4,9 @@ extends Sprite2D
 # score < 75 (spec: clouds stop spawning at the day->night transition, but
 # existing ones are left to drift off naturally).
 
-static var cloud_texture: Texture2D = load("res://art/cloud.png")
+const PrerenderedArt := preload("res://scripts/prerendered_art.gd")
+
+static var cloud_texture: Texture2D = load(PrerenderedArt.path("cloud.png"))
 
 var drift_speed := 0.0
 

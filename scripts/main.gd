@@ -143,6 +143,7 @@ const FlowerScript := preload("res://scripts/flower.gd")
 const CloudScript := preload("res://scripts/cloud.gd")
 const SeagullScript := preload("res://scripts/seagull.gd")
 const SkyScript := preload("res://scripts/sky.gd")
+const PrerenderedArt := preload("res://scripts/prerendered_art.gd")
 const BeeScript := preload("res://scripts/bee.gd")
 
 # Ground/trees content bounding boxes inside their source canvases (see
@@ -364,7 +365,7 @@ func _reset_to_ground_scene() -> void:
 	# ground-level backdrop, so a second tree sprite would just clash.
 	if sky.mountain_has_trees:
 		trees_sprite = Sprite2D.new()
-		trees_sprite.texture = load("res://art/trees.png")
+		trees_sprite.texture = load(PrerenderedArt.path("trees.png"))
 		trees_sprite.centered = false
 		var trees_scale: float = SCREEN_W / TREES_CANVAS_W
 		trees_sprite.scale = Vector2.ONE * trees_scale
@@ -373,7 +374,7 @@ func _reset_to_ground_scene() -> void:
 		add_child(trees_sprite)
 
 	ground_sprite = Sprite2D.new()
-	ground_sprite.texture = load("res://art/ground.png")
+	ground_sprite.texture = load(PrerenderedArt.path("ground.png"))
 	ground_sprite.centered = false
 	ground_sprite.scale = Vector2.ONE * ground_scale
 	# Align world y=0 with the TOP edge of the grass (GROUND_GRASS_Y0) —
@@ -975,15 +976,15 @@ func _spawn_celestial(path: String, content_w: float, visual_w: float, y_offset_
 
 
 func _on_moon_spawn_requested() -> void:
-	_spawn_celestial("res://art/moon.png", 435.0, 80.0, 120.0)
+	_spawn_celestial(PrerenderedArt.path("moon.png"), 435.0, 80.0, 120.0)
 
 
 func _on_jupiter_spawn_requested() -> void:
-	_spawn_celestial("res://art/jupiter.png", 690.0, 100.0, 140.0)
+	_spawn_celestial(PrerenderedArt.path("jupiter.png"), 690.0, 100.0, 140.0)
 
 
 func _on_ship_spawn_requested() -> void:
-	_spawn_celestial("res://art/ufo.png", 492.0, 80.0, 100.0)
+	_spawn_celestial(PrerenderedArt.path("ufo.png"), 492.0, 80.0, 100.0)
 
 
 # ------------------------------------------------------------------
@@ -1128,7 +1129,7 @@ func _build_start_screen() -> Control:
 	# content box inside it.
 	var logo := Sprite2D.new()
 	var logo_atlas := AtlasTexture.new()
-	logo_atlas.atlas = load("res://art/logo.png")
+	logo_atlas.atlas = load(PrerenderedArt.path("logo.png"))
 	logo_atlas.region = Rect2(264, 264, 822, 254)
 	logo.texture = logo_atlas
 	var logo_visual_w := 320.0
@@ -1143,7 +1144,7 @@ func _build_start_screen() -> Control:
 
 	# source is a 768x768 canvas; the actual button art is a 418x320 content
 	# box inside it.
-	play_button = _make_image_button("res://art/play_button.png", Rect2(174, 224, 418, 320), 110.0)
+	play_button = _make_image_button(PrerenderedArt.path("play_button.png"), Rect2(174, 224, 418, 320), 110.0)
 	play_button.position = Vector2(SCREEN_W / 2.0 - play_button.size.x / 2.0, screen_h - 140)
 	play_button.pressed.connect(_on_play_pressed)
 	_add_press_feedback(play_button)
@@ -1348,7 +1349,7 @@ func _make_text_button(text: String) -> Button:
 	# 598x262 box inside it) — same technique as the other assets. Only one
 	# image exists so hover/pressed reuse it with a modulate tint instead
 	# of separate art.
-	var plate: Texture2D = load("res://art/button_plate.png")
+	var plate: Texture2D = load(PrerenderedArt.path("button_plate.png"))
 	var style := StyleBoxTexture.new()
 	style.texture = plate
 	style.region_rect = Rect2(84, 252, 598, 262)

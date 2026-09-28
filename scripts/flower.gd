@@ -4,6 +4,7 @@ extends Area2D
 
 const FLOWER_R := 14.0
 const PixelArt := preload("res://scripts/pixel_art.gd")
+const PrerenderedArt := preload("res://scripts/prerendered_art.gd")
 
 # Content-box width of the original (non-pixel) flower art inside its canvas.
 const LEGACY_CONTENT_W := 346.0
@@ -20,7 +21,7 @@ static func _entry(file_name: String, burst_color: Color) -> Dictionary:
 	if pixel:
 		return {"tex": pixel, "scale": PixelArt.SCALE, "pixel": true, "burst_color": burst_color}
 	return {
-		"tex": load("res://art/" + file_name),
+		"tex": load(PrerenderedArt.path(file_name)),
 		"scale": FLOWER_R * 2.4 / LEGACY_CONTENT_W,
 		"pixel": false,
 		"burst_color": burst_color,

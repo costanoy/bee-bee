@@ -14,6 +14,8 @@ extends Node
 # Time is unconnected to how the run is going, and stretched this wide
 # (6.5 minutes end to end) the change is barely visible minute to minute
 # — exactly the "suave e pouco perceptível" this was asked to be.
+const PrerenderedArt := preload("res://scripts/prerendered_art.gd")
+
 const DAY_TO_DUSK_START := 90.0
 const DAY_TO_DUSK_END := 270.0
 const DUSK_TO_NIGHT_START := 270.0
@@ -70,8 +72,8 @@ const STAR_PARALLAX := 0.2
 # main.gd draws behind the ground (its "trees" flag here is what tells
 # main.gd whether to spawn that sprite for the run).
 const MOUNTAIN_VARIANTS := [
-	{"path": "res://art/mountain_day.png", "canvas_w": 768.0, "canvas_h": 920.0, "trees": false},
-	{"path": "res://art/mountain_sunset.png", "canvas_w": 1024.0, "canvas_h": 1024.0, "trees": true},
+	{"file": "mountain_day.png", "canvas_w": 768.0, "canvas_h": 920.0, "trees": false},
+	{"file": "mountain_sunset.png", "canvas_w": 1024.0, "canvas_h": 1024.0, "trees": true},
 ]
 const MOUNTAIN_PARALLAX := 0.2
 
@@ -117,10 +119,10 @@ func _ready() -> void:
 	layer.layer = -10
 	add_child(layer)
 
-	start_rect = _make_bg_rect("res://art/bg_start.png")
-	day_rect = _make_bg_rect("res://art/bg_day.png")
-	fade_rect = _make_bg_rect("res://art/bg_fade.png")
-	night_rect = _make_bg_rect("res://art/bg_night.png")
+	start_rect = _make_bg_rect(PrerenderedArt.path("bg_start.png"))
+	day_rect = _make_bg_rect(PrerenderedArt.path("bg_day.png"))
+	fade_rect = _make_bg_rect(PrerenderedArt.path("bg_fade.png"))
+	night_rect = _make_bg_rect(PrerenderedArt.path("bg_night.png"))
 
 	day_rect.modulate.a = 1.0
 	fade_rect.modulate.a = 0.0
@@ -151,7 +153,7 @@ func _apply_mountain_variant(index: int) -> void:
 	mountain_scale = 400.0 / canvas_w
 	mountain_base_top_y = viewport_h - canvas_h * mountain_scale
 
-	mountain.texture = load(variant["path"])
+	mountain.texture = load(PrerenderedArt.path(variant["file"]))
 	mountain.scale = Vector2.ONE * mountain_scale
 	mountain.position = Vector2(0.0, mountain_base_top_y)
 

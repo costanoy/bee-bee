@@ -5,6 +5,7 @@ extends AnimatedSprite2D
 # loops continuously since a gull in flight never stops flapping.
 
 const SHEET := "res://art/seagull_sheet.png"
+const PrerenderedArt := preload("res://scripts/prerendered_art.gd")
 # Hand-measured regions in the sprite sheet — the source frames aren't on a
 # clean grid, so each region is its own rect rather than a sliced grid.
 # Numbered 1-4 in the sheet's own reading order (top-left, top-right,
@@ -27,13 +28,25 @@ var drift_speed := 0.0
 
 
 func setup() -> void:
-	var sheet: Texture2D = load(SHEET)
+	# 3D renders come as four separate frames sharing one crop; the original
+	# is a hand-measured sheet.
 	var atlases: Array = []
-	for rect in FRAME_RECTS:
-		var atlas := AtlasTexture.new()
-		atlas.atlas = sheet
-		atlas.region = rect
-		atlases.append(atlas)
+	var content_h := CONTENT_H
+	for i in FRAME_RECTS.size():
+		var tex := PrerenderedArt.texture("seagull_%d.png" % i)
+		if tex == null:
+			atlases.clear()
+			break
+		atlases.append(tex)
+	if not atlases.is_empty():
+		content_h = PrerenderedArt.GULL_CONTENT_H
+	else:
+		var sheet: Texture2D = load(SHEET)
+		for rect in FRAME_RECTS:
+			var atlas := AtlasTexture.new()
+			atlas.atlas = sheet
+			atlas.region = rect
+			atlases.append(atlas)
 
 	var sprite_frames := SpriteFrames.new()
 	sprite_frames.add_animation("fly")
@@ -46,7 +59,7 @@ func setup() -> void:
 	play("fly")
 
 	var visual_span: float = 20.0 + randf() * 8.0
-	scale = Vector2.ONE * (visual_span / CONTENT_H)
+	scale = Vector2.ONE * (visual_span / content_h)
 
 	var direction := 1.0 if randf() < 0.5 else -1.0
 	drift_speed = (18.0 + randf() * 14.0) * direction
