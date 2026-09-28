@@ -147,6 +147,10 @@ const CloudScript := preload("res://scripts/cloud.gd")
 const SeagullScript := preload("res://scripts/seagull.gd")
 const SkyScript := preload("res://scripts/sky.gd")
 const PrerenderedArt := preload("res://scripts/prerendered_art.gd")
+const View3DScript := preload("res://scripts/view3d.gd")
+# Real-time 3D view (view3d.gd) on top of the unchanged 2D simulation;
+# false brings back the 2D sprites.
+const USE_3D_VIEW := true
 const BeeScript := preload("res://scripts/bee.gd")
 
 # Ground/trees content bounding boxes inside their source canvases (see
@@ -276,6 +280,17 @@ func _ready() -> void:
 	_apply_music_mute()
 
 	_reset_to_ground_scene()
+
+	# Everything the player sees of the world is drawn in 3D by view3d.gd,
+	# which mirrors this node's 2D simulation. The 2D world (and the 2D sky
+	# layer) stays in the tree purely as simulation; the UI layers are
+	# CanvasLayers and aren't affected by hiding it.
+	if USE_3D_VIEW:
+		var view := View3DScript.new()
+		add_child(view)
+		view.setup(self)
+		visible = false
+		sky.layer.visible = false
 
 	state = State.START
 	start_screen.visible = true
