@@ -97,6 +97,9 @@ const COLLECT_PITCH_STEPS := [1.0, 1.1892, 1.3348, 1.4983, 1.7818]
 # they glow against the night like cut-outs. Obstacles and flowers stay
 # untinted on purpose — they're what the player has to read at speed.
 const NIGHT_DECOR_TINT := Color(0.52, 0.57, 0.74)
+# Deep plum used for text outlines and UI backing — the UI's share of the
+# art's tinted-ink look.
+const UI_INK := Color(0.24, 0.13, 0.32)
 const DAY_CLOUD_ALPHA := 0.55
 const NIGHT_CLOUD_ALPHA := 0.45
 
@@ -199,7 +202,7 @@ var sky: Node
 var ground_sprite: Sprite2D
 var trees_sprite: Sprite2D
 
-var pixel_font: FontFile
+var ui_font: Font
 
 var score_label: Label
 var record_label: Label
@@ -221,15 +224,13 @@ var music_slash: Control
 func _ready() -> void:
 	screen_h = get_viewport_rect().size.y
 
-	# Placeholder-era plain Label/Button text (spec 3.2/4.10) — swapped for
-	# a real arcade font (Karmatic Arcade, 1001fonts FFC license — free for
-	# commercial/embedded use) instead of the default UI font. Antialiasing/
-	# subpixel positioning off so it renders crisp instead of blurry at
-	# these small sizes.
-	pixel_font = load("res://fonts/KarmaticArcade.ttf")
-	pixel_font.antialiasing = TextServer.FONT_ANTIALIASING_NONE
-	pixel_font.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
-	pixel_font.oversampling = 1.0
+	# Inter (SIL OFL 1.1, see fonts/Inter-OFL.txt) at its extra-bold weight:
+	# a round, chunky face that sits with the 3D candy-toy art, where the
+	# old pixel arcade font clashed.
+	var inter := FontVariation.new()
+	inter.base_font = load("res://fonts/Inter.woff2")
+	inter.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 800}
+	ui_font = inter
 
 	sky = SkyScript.new()
 	add_child(sky)
@@ -1065,12 +1066,16 @@ func _make_label(text: String, font_size: int, color: Color) -> Label:
 	var label := Label.new()
 	label.text = text
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	label.add_theme_font_override("font", pixel_font)
+	label.add_theme_font_override("font", ui_font)
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
-	label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.5))
+	# Tinted ink outline, same idea as the art's per-material outlines,
+	# plus a soft drop so text still reads over busy scenery.
+	label.add_theme_color_override("font_outline_color", UI_INK)
+	label.add_theme_constant_override("outline_size", maxi(4, font_size / 4))
+	label.add_theme_color_override("font_shadow_color", Color(UI_INK, 0.45))
 	label.add_theme_constant_override("shadow_offset_x", 0)
-	label.add_theme_constant_override("shadow_offset_y", 2)
+	label.add_theme_constant_override("shadow_offset_y", 3)
 	return label
 
 
@@ -1235,18 +1240,21 @@ func _make_icon_button(icon: Control, side: float) -> Button:
 	# No plate art exists at this shape, and the in-game one sits over live
 	# gameplay, so these carry their own backing instead.
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0, 0, 0, 0.42)
-	style.set_corner_radius_all(9)
-	style.set_border_width_all(2)
-	style.border_color = Color(1, 1, 1, 0.5)
+	style.bg_color = Color(UI_INK, 0.55)
+	style.set_corner_radius_all(int(side * 0.3))
+	style.set_border_width_all(3)
+	style.border_color = Color(1, 1, 1, 0.8)
+	style.shadow_color = Color(UI_INK, 0.35)
+	style.shadow_size = 2
+	style.shadow_offset = Vector2(0, 3)
 	btn.add_theme_stylebox_override("normal", style)
 
 	var style_hover: StyleBoxFlat = style.duplicate()
-	style_hover.bg_color = Color(0, 0, 0, 0.55)
+	style_hover.bg_color = Color(UI_INK, 0.68)
 	btn.add_theme_stylebox_override("hover", style_hover)
 
 	var style_pressed: StyleBoxFlat = style.duplicate()
-	style_pressed.bg_color = Color(0.25, 0.25, 0.25, 0.65)
+	style_pressed.bg_color = Color(UI_INK.lightened(0.25), 0.72)
 	btn.add_theme_stylebox_override("pressed", style_pressed)
 
 	icon.position = ((btn.size - icon.size) / 2.0).floor()
@@ -1278,7 +1286,7 @@ func _build_game_over_screen() -> Control:
 	# any slack would read as a crooked gap.
 	new_record_badge = _make_label("NEW", 15, Color(1, 0.82, 0.18))
 	new_record_badge.size = Vector2(
-		pixel_font.get_string_size("NEW", HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x, 26)
+		ui_font.get_string_size("NEW", HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x, 26)
 	new_record_badge.pivot_offset = new_record_badge.size / 2.0
 	new_record_badge.visible = false
 	screen.add_child(new_record_badge)
@@ -1341,7 +1349,7 @@ func _make_text_button(text: String) -> Button:
 	btn.focus_mode = Control.FOCUS_NONE
 	btn.custom_minimum_size = Vector2(230, 66)
 	btn.size = Vector2(230, 66)
-	btn.add_theme_font_override("font", pixel_font)
+	btn.add_theme_font_override("font", ui_font)
 	btn.add_theme_font_size_override("font_size", 17)
 	btn.add_theme_color_override("font_color", Color(0.1, 0.16, 0.07))
 

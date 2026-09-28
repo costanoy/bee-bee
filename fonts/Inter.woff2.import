@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://bpbf021qhoo2v"
-path="res://.godot/imported/KarmaticArcade.ttf-a599b4b94ae73d33c54634590b9eb63f.fontdata"
+uid="uid://cjv5mxjalug4s"
+path="res://.godot/imported/Inter.woff2-75406d1655cfaac0e85699c0833a9c0a.fontdata"
 
 [deps]
 
-source_file="res://fonts/KarmaticArcade.ttf"
-dest_files=["res://.godot/imported/KarmaticArcade.ttf-a599b4b94ae73d33c54634590b9eb63f.fontdata"]
+source_file="res://fonts/Inter.woff2"
+dest_files=["res://.godot/imported/Inter.woff2-75406d1655cfaac0e85699c0833a9c0a.fontdata"]
 
 [params]
 
