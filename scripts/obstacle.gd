@@ -21,10 +21,13 @@ const CONTENT_H := 190.0
 const VISUAL_H := 34.0
 
 const PixelArt := preload("res://scripts/pixel_art.gd")
+const PrerenderedArt := preload("res://scripts/prerendered_art.gd")
 
 static var rose_texture: Texture2D = load("res://art/rose_bush.png")
-# Pixel version: a horizontally tileable strip, repeated to any bar width.
+# Replacement versions: horizontally tileable strips, repeated to any bar
+# width. The 3D render (a test) wins over the pixel one.
 static var pixel_texture: Texture2D = PixelArt.texture("rose_bush.png")
+static var prerendered_texture: Texture2D = PrerenderedArt.texture("rose_bush.png")
 
 var gap_x: float
 var gap_width: float
@@ -52,8 +55,12 @@ func _add_bar(x1: float, x2: float) -> void:
 	if x2 <= x1:
 		return
 	var width := x2 - x1
+	if prerendered_texture:
+		# 3D render: same full visual height as the original art
+		_add_tiled_bar(prerendered_texture, VISUAL_H / prerendered_texture.get_height(), false, x1, x2, width)
+		return
 	if pixel_texture:
-		_add_pixel_bar(x1, x2, width)
+		_add_tiled_bar(pixel_texture, PixelArt.SCALE, true, x1, x2, width)
 		return
 
 	var sprite := Sprite2D.new()
@@ -74,22 +81,23 @@ func _add_bar(x1: float, x2: float) -> void:
 	add_child(sprite)
 
 
-func _add_pixel_bar(x1: float, x2: float, width: float) -> void:
-	var tile_w: int = pixel_texture.get_width()
-	var tile_h: int = pixel_texture.get_height()
-	# Whole art pixels only, rounded up — then anchored at the gap-side end
-	# so the rounding spills off-screen instead of into the gap.
-	var art_w: float = ceil(width / PixelArt.SCALE)
-	var drawn_w: float = art_w * PixelArt.SCALE
+# A horizontally tiling strip repeated to the bar's width.
+func _add_tiled_bar(tex: Texture2D, tex_scale: float, is_pixel: bool, x1: float, x2: float, width: float) -> void:
+	var tile_w: int = tex.get_width()
+	var tile_h: int = tex.get_height()
+	# Whole texels only, rounded up — then anchored at the gap-side end so
+	# the rounding spills off-screen instead of into the gap.
+	var tex_w: float = ceil(width / tex_scale)
+	var drawn_w: float = tex_w * tex_scale
 	var left: float = x1 if x1 > 0.0 else x2 - drawn_w
 
 	var sprite := Sprite2D.new()
-	sprite.texture = pixel_texture
+	sprite.texture = tex
 	sprite.centered = false
 	sprite.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	sprite.region_enabled = true
-	sprite.region_rect = Rect2(randi() % tile_w, 0, art_w, tile_h)
-	sprite.scale = Vector2.ONE * PixelArt.SCALE
-	sprite.position = Vector2(left, (THICK - tile_h * PixelArt.SCALE) / 2.0)
-	PixelArt.apply_filter(sprite, true)
+	sprite.region_rect = Rect2(randi() % tile_w, 0, tex_w, tile_h)
+	sprite.scale = Vector2.ONE * tex_scale
+	sprite.position = Vector2(left, (THICK - tile_h * tex_scale) / 2.0)
+	PixelArt.apply_filter(sprite, is_pixel)
 	add_child(sprite)

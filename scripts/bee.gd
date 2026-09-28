@@ -38,6 +38,7 @@ const FLAP_CONTENT_W := 494.0
 const DEAD_CONTENT_W := 558.0
 
 const PixelArt := preload("res://scripts/pixel_art.gd")
+const PrerenderedArt := preload("res://scripts/prerendered_art.gd")
 
 var flap_scale_mag: float
 var dead_scale_mag: float
@@ -52,27 +53,46 @@ func _ready() -> void:
 	shape.shape = circle
 	add_child(shape)
 
-	# The flap only switches to pixel art once all four frames exist — a
-	# half-swapped cycle would jump between two art styles every tap.
-	var pixel_flaps: Array[Texture2D] = []
-	for i in FLAP_FRAMES.size():
-		var tex := PixelArt.texture("bee_flap_%d.png" % i)
-		if tex:
-			pixel_flaps.append(tex)
-	flap_is_pixel = pixel_flaps.size() == FLAP_FRAMES.size()
-	var pixel_dead := PixelArt.texture("bee_dead.png")
-	dead_is_pixel = pixel_dead != null
+	var visual_span := BEE_R * 2.6
+
+	# Each set (flap cycle, dead pose) picks the first complete source among
+	# the 3D renders, the pixel art, and the original art. The flap only
+	# switches once all four frames exist — a half-swapped cycle would jump
+	# between two art styles every tap.
+	var flap_frames: Array = _frame_set(PrerenderedArt, FLAP_FRAMES.size())
+	if not flap_frames.is_empty():
+		flap_scale_mag = visual_span / PrerenderedArt.BEE_CONTENT_W
+	else:
+		flap_frames = _frame_set(PixelArt, FLAP_FRAMES.size())
+		flap_is_pixel = not flap_frames.is_empty()
+		if flap_is_pixel:
+			flap_scale_mag = PixelArt.SCALE
+		else:
+			flap_frames = FLAP_FRAMES.map(func(p): return load(p))
+			flap_scale_mag = visual_span / FLAP_CONTENT_W
+
+	var dead_tex := PrerenderedArt.texture("bee_dead.png")
+	if dead_tex:
+		dead_scale_mag = visual_span / PrerenderedArt.BEE_CONTENT_W
+	else:
+		dead_tex = PixelArt.texture("bee_dead.png")
+		dead_is_pixel = dead_tex != null
+		if dead_is_pixel:
+			dead_scale_mag = PixelArt.SCALE
+		else:
+			dead_tex = load(DEAD_TEXTURE)
+			dead_scale_mag = visual_span / DEAD_CONTENT_W
 
 	var sprite_frames := SpriteFrames.new()
 	sprite_frames.add_animation("flap")
 	sprite_frames.set_animation_loop("flap", false)
 	sprite_frames.set_animation_speed("flap", 22.0)
-	for i in FLAP_FRAMES.size():
-		sprite_frames.add_frame("flap", pixel_flaps[i] if flap_is_pixel else load(FLAP_FRAMES[i]))
+	for tex in flap_frames:
+		sprite_frames.add_frame("flap", tex)
 
 	sprite_frames.add_animation("dead")
 	sprite_frames.set_animation_loop("dead", false)
-	sprite_frames.add_frame("dead", pixel_dead if dead_is_pixel else load(DEAD_TEXTURE))
+	sprite_frames.add_frame("dead", dead_tex)
 
 	sprite = AnimatedSprite2D.new()
 	sprite.sprite_frames = sprite_frames
@@ -80,11 +100,19 @@ func _ready() -> void:
 	sprite.frame = REST_FRAME_INDEX
 	add_child(sprite)
 
-	var visual_span := BEE_R * 2.6
-	flap_scale_mag = PixelArt.SCALE if flap_is_pixel else visual_span / FLAP_CONTENT_W
-	dead_scale_mag = PixelArt.SCALE if dead_is_pixel else visual_span / DEAD_CONTENT_W
 	sprite.scale = Vector2.ONE * flap_scale_mag
 	PixelArt.apply_filter(sprite, flap_is_pixel)
+
+
+# bee_flap_0..n-1 from `source`, or empty unless every frame exists.
+func _frame_set(source, count: int) -> Array:
+	var frames := []
+	for i in count:
+		var tex: Texture2D = source.texture("bee_flap_%d.png" % i)
+		if tex == null:
+			return []
+		frames.append(tex)
+	return frames
 
 
 func _physics_process(delta: float) -> void:
