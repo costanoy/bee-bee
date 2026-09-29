@@ -122,26 +122,28 @@ def _front(vox, y, z):
 
 
 def antenna_voxels():
+    """Stalk + knob, every cube sharing a face with the next: cubes that only
+    touch at an edge or corner read as separate floating bits."""
     vox = {}
     for side in (-1, 1):
-        pts = [(9, 2 * side, 9), (10, 2 * side, 10), (11, 3 * side, 11), (12, 3 * side, 12), (13, 3 * side, 13), (15, 4 * side, 14)]
-        for p in pts:
-            vox[p] = DARK
-        tx, ty, tz = 16, 4 * side, 15
-        for dx in (-1, 0):
+        waypoints = [(9, 2 * side, 8), (9, 2 * side, 10), (11, 2 * side, 12), (13, 3 * side, 13), (15, 3 * side, 14)]
+        x, y, z = waypoints[0]
+        vox[(x, y, z)] = DARK
+        for tx, ty, tz in waypoints[1:]:
+            # walk one axis at a time so the path stays face-connected
+            while (x, y, z) != (tx, ty, tz):
+                if x != tx:
+                    x += 1 if tx > x else -1
+                elif z != tz:
+                    z += 1 if tz > z else -1
+                else:
+                    y += 1 if ty > y else -1
+                vox[(x, y, z)] = DARK
+        # 2x2x2 knob butted right against the end of the stalk
+        for dx in (1, 2):
             for dy in (0, side):
-                for dz in (-1, 0):
-                    vox[(tx + dx, ty + dy, tz + dz)] = DARK
-    return vox
-
-
-def leg_voxels():
-    vox = {}
-    for side in (-1, 1):
-        for x in (-6, -2, 2):
-            for z in (-8, -7):
-                vox[(x, 4 * side, z)] = DARK
-            vox[(x + 1, 4 * side, -8)] = DARK
+                for dz in (0, 1):
+                    vox[(x + dx, y + dy, z + dz)] = DARK
     return vox
 
 
@@ -230,7 +232,6 @@ root = empty("Bee")
 body = bee_voxels()
 live, dead = face_voxels(body)
 body.update(antenna_voxels())
-body.update(leg_voxels())
 build_mesh("Body", body, solid, root)
 eyes = empty("LiveEyes", parent=root)
 build_mesh("Eyes", {p: c for p, c in live.items()}, solid, eyes, offset=(0, 0, 0))
