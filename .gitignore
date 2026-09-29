@@ -9,3 +9,4 @@ build/
 # OS/editor cruft
 .DS_Store
 Thumbs.db
+__pycache__/
