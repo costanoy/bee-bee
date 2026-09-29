@@ -7,7 +7,9 @@ extends Node3D
 # shadow and a perspective camera (so far-away scenery gets its parallax
 # for free instead of being faked). The 2D world is hidden; the 2D UI stays.
 #
-# Models: models/*.glb, built by tools/blender/make_lowpoly_models.py.
+# Models: models/*.glb, built by tools/blender/make_lowpoly_models.py —
+# being replaced one by one by voxel-art versions (make_voxel_*.py); `voxel`
+# maps a model slot to its voxel file once that asset is approved.
 
 const PX := 40.0                 # game px per 3D unit (the screen is 10 units wide)
 const FOV := 50.0
@@ -15,6 +17,7 @@ const BEE_SCALE := 0.8
 const FLOWER_SCALE := 1.25
 const CAM_PITCH := 7.0           # degrees, looking slightly down onto the play plane
 const HEDGE_VARIANTS := ["hedge_a", "hedge_b", "hedge_c"]
+var voxel := {"bee": "bee_voxel"}
 const BACKDROP_DEPTH := 95.0     # far enough to scroll at ~1/5 of the climb rate
 const SUN_Y := 26.0
 
@@ -32,6 +35,9 @@ var stars: MultiMeshInstance3D
 var star_mat: StandardMaterial3D
 
 var mirrors := {}                # 2D node instance id -> Node3D
+# hedge tile models and the width (3D units) of one tile
+var hedge_models: Array = HEDGE_VARIANTS
+var hedge_seg_w := 1.0
 var bee3d: Node3D
 var wing_l: Node3D
 var wing_r: Node3D
@@ -54,7 +60,7 @@ func setup(p_main: Node2D) -> void:
 	for f in ["bee", "hedge_a", "hedge_b", "hedge_c", "flower_red", "flower_yellow", "flower_blue",
 			"cloud_a", "cloud_b", "gull", "moon", "jupiter", "ufo", "ground", "tree_round", "tree_pine",
 			"backdrop_hills", "backdrop_city"]:
-		models[f] = load("res://models/%s.glb" % f)
+		models[f] = load("res://models/%s.glb" % voxel.get(f, f))
 
 	cam = Camera3D.new()
 	cam.fov = FOV
@@ -113,7 +119,19 @@ func to3(p: Vector2, z := 0.0) -> Vector3:
 func spawn(model: String, parent: Node = self) -> Node3D:
 	var n: Node3D = models[model].instantiate()
 	parent.add_child(n)
+	if voxel.has(model) or model.contains("voxel"):
+		_use_vertex_colours(n)
 	return n
+
+
+# Voxel models carry their colour per cube as vertex colours; Godot's glTF
+# import leaves vertex_color_use_as_albedo off, which renders them white.
+func _use_vertex_colours(n: Node) -> void:
+	for m: MeshInstance3D in _meshes(n):
+		for i in m.mesh.get_surface_count():
+			var mat: Material = m.mesh.surface_get_material(i)
+			if mat is StandardMaterial3D and not mat.vertex_color_use_as_albedo:
+				mat.vertex_color_use_as_albedo = true
 
 
 func _meshes(n: Node) -> Array:
@@ -305,11 +323,11 @@ func _build_hedge_row(o) -> Node3D:
 		if x2 <= x1 + 1.0:
 			continue
 		var width_u: float = (x2 - x1) / PX
-		var n := maxi(1, int(ceil(width_u)))
+		var n := maxi(1, int(ceil(width_u / hedge_seg_w)))
 		var seg_w := width_u / n
 		for i in n:
-			var h := spawn(HEDGE_VARIANTS[randi() % HEDGE_VARIANTS.size()], row)
-			h.scale = Vector3(seg_w, 1, 1)
+			var h := spawn(hedge_models[randi() % hedge_models.size()], row)
+			h.scale = Vector3(seg_w / hedge_seg_w, 1, 1)
 			h.position = Vector3((x1 - main.SCREEN_W / 2.0) / PX + i * seg_w, 0, 0)
 	return row
 
@@ -468,10 +486,14 @@ func _build_bee() -> void:
 	wing_l = bee3d.find_child("WingPivotL", true, false)
 	wing_r = bee3d.find_child("WingPivotR", true, false)
 	dead_eyes = bee3d.find_child("DeadEyes", true, false)
-	for n in bee3d.find_children("Eye*", "", true, false):
-		live_eyes.append(n)
-	for n in bee3d.find_children("Shine*", "", true, false):
-		live_eyes.append(n)
+	var eyes: Node3D = bee3d.find_child("LiveEyes", true, false)
+	if eyes:
+		live_eyes.append(eyes)
+	else:
+		for n in bee3d.find_children("Eye*", "", true, false):
+			live_eyes.append(n)
+		for n in bee3d.find_children("Shine*", "", true, false):
+			live_eyes.append(n)
 
 
 func _sync_bee(delta: float) -> void:
