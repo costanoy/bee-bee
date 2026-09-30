@@ -24,6 +24,8 @@ ROSE = (1.0, 0.36, 0.48)
 ROSE_LIGHT = (1.0, 0.62, 0.70)
 ROSE_DEEP = (0.80, 0.12, 0.30)
 BUD = (0.95, 0.22, 0.36)
+THORN = (0.52, 0.34, 0.20)
+THORN_TIP = (0.96, 0.88, 0.70)
 
 
 def _bumps(x, seed, amp):
@@ -72,9 +74,35 @@ def hedge_tile(seed):
     for _ in range(7):
         x = rng.randrange(TILE)
         vox[(x, rng.randint(-4, 0), top(x, seed) + 1)] = LEAF_LIGHT
-    # roses: a plus of petals with a deep centre and one light petal
-    for _ in range(rng.choice([2, 3, 3])):
-        cx, cz = rng.randint(2, TILE - 3), rng.randint(-4, 4)
+    # thorns: two-cube spikes (brown base, pale tip) poking up from the top,
+    # down from the bottom, and out of the front
+    for _ in range(3):
+        x = rng.randint(1, TILE - 2)
+        zt = top(x, seed)
+        yy = rng.randint(-5, -1)
+        vox[(x, yy, zt + 1)] = THORN
+        vox[(x, yy, zt + 2)] = THORN_TIP
+    for _ in range(3):
+        x = rng.randint(1, TILE - 2)
+        zb = bottom(x, seed)
+        yy = rng.randint(-5, -1)
+        vox[(x, yy, zb - 1)] = THORN
+        vox[(x, yy, zb - 2)] = THORN_TIP
+    for _ in range(4):
+        x, z = rng.randint(1, TILE - 2), rng.randint(-6, 6)
+        if (x, z) in fronts:
+            vox[(x, fronts[(x, z)] - 1, z)] = THORN
+            vox[(x, fronts[(x, z)] - 2, z)] = THORN_TIP
+    # roses: a plus of petals with a deep centre and one light petal,
+    # spread out so they don't clump
+    centres = []
+    tries = 0
+    while len(centres) < rng.choice([5, 6]) and tries < 200:
+        tries += 1
+        c = (rng.randint(2, TILE - 3), rng.randint(-5, 5))
+        if all(abs(c[0] - o[0]) + abs(c[1] - o[1]) >= 5 for o in centres):
+            centres.append(c)
+    for cx, cz in centres:
         y = min(fronts.get((cx + dx, cz + dz), -2) for dx in (-1, 0, 1) for dz in (-1, 0, 1)) - 1
         for dx in (-1, 0, 1):
             for dz in (-1, 0, 1):
