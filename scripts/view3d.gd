@@ -16,7 +16,9 @@ const FOV := 50.0
 const BEE_SCALE := 0.8
 const FLOWER_SCALE := 1.25
 const CAM_PITCH := 7.0           # degrees, looking slightly down onto the play plane
-const HEDGE_VARIANTS := ["hedge_a", "hedge_b", "hedge_c"]
+# voxel hedge tiles (make_voxel_hedge.py): 24 cubes = 0.96 units wide
+const HEDGE_VARIANTS := ["hedge_voxel_a", "hedge_voxel_b", "hedge_voxel_c"]
+const HEDGE_TILE_W := 0.96
 var voxel := {"bee": "bee_voxel"}
 const BACKDROP_DEPTH := 95.0     # far enough to scroll at ~1/5 of the climb rate
 const SUN_Y := 26.0
@@ -37,7 +39,7 @@ var star_mat: StandardMaterial3D
 var mirrors := {}                # 2D node instance id -> Node3D
 # hedge tile models and the width (3D units) of one tile
 var hedge_models: Array = HEDGE_VARIANTS
-var hedge_seg_w := 1.0
+var hedge_seg_w := HEDGE_TILE_W
 var bee3d: Node3D
 var wing_l: Node3D
 var wing_r: Node3D
@@ -57,7 +59,7 @@ var record_for: Object
 
 func setup(p_main: Node2D) -> void:
 	main = p_main
-	for f in ["bee", "hedge_a", "hedge_b", "hedge_c", "flower_red", "flower_yellow", "flower_blue",
+	for f in ["bee", "hedge_voxel_a", "hedge_voxel_b", "hedge_voxel_c", "flower_red", "flower_yellow", "flower_blue",
 			"cloud_a", "cloud_b", "gull", "moon", "jupiter", "ufo", "ground", "tree_round", "tree_pine",
 			"backdrop_hills", "backdrop_city"]:
 		models[f] = load("res://models/%s.glb" % voxel.get(f, f))
