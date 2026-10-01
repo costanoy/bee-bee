@@ -25,6 +25,7 @@ var voxel := {
 	"flower_yellow": "flower_voxel_yellow",
 	"flower_blue": "flower_voxel_blue",
 	"gull": "gull_voxel",
+	"ground": "ground_voxel",
 }
 const BACKDROP_DEPTH := 95.0     # far enough to scroll at ~1/5 of the climb rate
 const SUN_Y := 26.0
