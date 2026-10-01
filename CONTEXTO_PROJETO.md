@@ -41,7 +41,7 @@ Pipeline: `tools/blender/voxel_kit.py` (grade compartilhada `VOX = 0.04` = 1,6 p
 | Abelha | `make_voxel_bee.py` → `bee_voxel.glb` (grade própria 0.05, usada em escala 0.8) | ✅ no jogo (sem patinhas, antena contínua; `LiveEyes`/`DeadEyes`, `WingPivotL/R`) |
 | Roseira | `make_voxel_hedge.py` → `hedge_voxel_a/b/c.glb` (tiles de 24 cubos = 0.96 un., emendáveis) | ✅ no jogo (mais rosas + espinhos) |
 | Flores | `make_voxel_flower.py` → `flower_voxel_red/yellow/blue.glb` (mesma forma, só muda a cor; usar escala 1.0) | ✅ no jogo (aprovadas como estavam; `FLOWER_SCALE 1.0`) |
-| Nuvens | `make_voxel_cloud.py` → `cloud_voxel_a/b/c.glb` (grande/média/pequena = 45/35/25 cubos; usar escala 1.0) | ⏳ **aguardando aprovação** do usuário. Para ligar: em `view3d.gd` `_sync_decor` escolher o modelo pelo tamanho da nuvem 2D (`c.scale.x * 538` = largura em px: ≥65 → a, ≥55 → b, senão c) e fixar `m.scale` em 1 |
+| Nuvens | `make_voxel_cloud.py` → `cloud_voxel_a/b/c.glb` (grande/média/pequena = 45/35/25 cubos; usar escala 1.0) | ⏳ **aguardando aprovação** do usuário. Para ligar: em `view3d.gd` `_sync_decor` escolher o modelo pelo tamanho da nuvem 2D (`c.scale.x * 538` = largura em px: ≥65 → a, ≥55 → b, senão c), fixar `m.scale` em 1 e pôr `depth_draw_mode = DEPTH_DRAW_ALWAYS` no material (as nuvens são translúcidas, `ALPHA = 0.6` no script; sem isso as camadas internas aparecem como riscos) |
 | Próximos (um por vez) | gaivota, chão, árvores, lua, Júpiter, OVNI, fundos (colinas/montanhas e cidade) | ainda low poly (`make_lowpoly_models.py`) |
 
 ## Estado da jogabilidade (valores atuais)

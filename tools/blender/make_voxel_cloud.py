@@ -5,7 +5,8 @@
 Each cloud is a union of rounded puffs sitting on a flat-bottomed slab, so
 it reads as the classic cartoon cloud from the front. Pure white where a
 cube faces the sky, a touch of blue on the body and a blue-grey underside
-give it volume without any texture. The game used to stretch one model to
+give it volume without any texture. They are see-through (ALPHA), so the
+sky and the sun show through them. The game used to stretch one model to
 every cloud size; a scaled voxel model would break the shared cube size,
 so there is one model per size instead (large / medium / small = a / b / c),
 all used unscaled. Exports cloud_voxel_a/b/c.glb and review renders (with
@@ -23,6 +24,8 @@ TOP = (1.0, 1.0, 1.0)
 BODY = (0.93, 0.96, 1.0)
 LOW = (0.86, 0.92, 1.0)
 UNDER = (0.72, 0.82, 0.96)
+# see-through, like the wings: the sky (and the sun) show through the cloud
+ALPHA = 0.6
 
 # variant: (slab half-width, [(cx, cz, rx, rz, ry) per puff]) — all in cubes
 CLOUDS = {
@@ -51,7 +54,8 @@ def cloud(half_w, puffs):
                     if ((x + 0.5 - cx) / rx) ** 2 + ((z + 0.5 - cz) / rz) ** 2 + ((y + 0.5) / ry) ** 2 <= 1.0:
                         cells.add((x, y, z))
     vox = {}
-    for (x, y, z) in cells:
+    # nearest cubes first (the camera is always on the -Y side): see cloud_material
+    for (x, y, z) in sorted(cells, key=lambda c: (c[1], c[2], c[0])):
         if z == 0:
             c = UNDER
         elif z == 1:
@@ -62,6 +66,17 @@ def cloud(half_w, puffs):
             c = BODY
         vox[(x, y, z)] = c
     return vox
+
+
+def cloud_material():
+    # Single-sided: with the default double-sided export the far side of the
+    # cloud shows through the near side as a grid of streaks, and the layers
+    # add up until it is nearly opaque again. For the same reason the cubes
+    # are emitted nearest-first and the game draws the cloud with
+    # depth_draw_mode ALWAYS, so only its nearest surface gets blended.
+    m = vk.material("Voxel", alpha=ALPHA, rough=0.9)
+    m.use_backface_culling = True
+    return m
 
 
 def centre(vox):
@@ -75,7 +90,7 @@ for name, (half_w, puffs) in CLOUDS.items():
     root = vk.empty("Cloud")
     vox = cloud(half_w, puffs)
     built[name] = vox
-    vk.build_mesh("Cloud", vox, vk.material("Voxel", rough=0.9), root, origin=centre(vox), seed=11, jitter=0.03)
+    vk.build_mesh("Cloud", vox, cloud_material(), root, origin=centre(vox), seed=11, jitter=0.03, alpha=ALPHA)
     vk.export(os.path.join(MODELS, "cloud_voxel_%s.glb" % name))
     xs = [x for x, _, _ in vox]
     zs = [z for _, _, z in vox]
@@ -83,10 +98,10 @@ for name, (half_w, puffs) in CLOUDS.items():
 
 # ---------------------------------------------------------------- review renders
 vk.reset()
-mat = vk.material("Voxel", rough=0.9)
+mat = cloud_material()
 xpos = {"a": -1.75, "b": 0.05, "c": 1.45}
 for name, vox in built.items():
-    o = vk.build_mesh("Cloud_" + name, vox, mat, None, origin=centre(vox), seed=11, jitter=0.03)
+    o = vk.build_mesh("Cloud_" + name, vox, mat, None, origin=centre(vox), seed=11, jitter=0.03, alpha=ALPHA)
     o.location = (xpos[name], 0, 0)
 try:
     bpy.ops.import_scene.gltf(filepath=os.path.join(MODELS, "bee_voxel.glb"))
