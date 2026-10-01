@@ -30,7 +30,7 @@ grep -q "deaths 0 " build/promo/render.log || { echo "the autopilot died during 
 LEAD=$(grep -o "first frame at engine frame [0-9]*" build/promo/render.log | grep -o "[0-9]*$")
 OFFSET=$(python -c "print($LEAD / 60.0)")
 ffmpeg -v error -y -framerate 60 -i build/promo/frames/f%05d.jpg -ss "$OFFSET" -i build/promo/audio.avi -i store/promo/music.wav \
-	-filter_complex "[1:a]volume=1.6[sfx];[2:a]volume=0.62[music];[music][sfx]amix=inputs=2:normalize=0,alimiter=limit=0.84[a]" \
+	-filter_complex "[1:a]volume=1.6[sfx];[2:a]volume=0.62[music];[music][sfx]amix=inputs=2:normalize=0,alimiter=limit=0.84:level=disabled[a]" \
 	-map 0:v -map "[a]" -t 30 -c:v libx264 -preset slow -crf 17 -pix_fmt yuv420p -r 60 \
 	-c:a aac -b:a 192k -movflags +faststart build/promo/BeeBee-promo.mp4
 ls -la build/promo/BeeBee-promo.mp4
