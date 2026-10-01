@@ -66,7 +66,7 @@ var record_for: Object
 func setup(p_main: Node2D) -> void:
 	main = p_main
 	for f in ["bee", "hedge_voxel_a", "hedge_voxel_b", "hedge_voxel_c", "flower_red", "flower_yellow", "flower_blue",
-			"cloud_a", "cloud_b", "gull", "moon", "jupiter", "ufo", "ground", "tree_round", "tree_pine",
+			"cloud_voxel_a", "cloud_voxel_b", "cloud_voxel_c", "gull", "moon", "jupiter", "ufo", "ground", "tree_round", "tree_pine",
 			"backdrop_hills", "backdrop_city"]:
 		models[f] = load("res://models/%s.glb" % voxel.get(f, f))
 
@@ -406,9 +406,8 @@ func _sync_decor(delta: float) -> void:
 	for c in main.clouds:
 		if not is_instance_valid(c):
 			continue
-		var m := _mirror(c, func(n): return spawn("cloud_a" if n.get_instance_id() % 2 == 0 else "cloud_b"))
+		var m := _mirror(c, _build_cloud)
 		m.position = to3(c.position, -2.2)
-		m.scale = Vector3.ONE * (c.scale.x * 538.0 / 80.0)
 	for g in main.seagulls:
 		if not is_instance_valid(g):
 			continue
@@ -426,6 +425,22 @@ func _sync_decor(delta: float) -> void:
 		var m := _mirror(b, _build_celestial)
 		m.position = to3(b.position, -6.0)
 		m.rotation.y += delta * 0.3
+
+
+# One voxel model per cloud size (large / medium / small), used unscaled:
+# stretching a single model would give clouds cubes of different sizes.
+func _build_cloud(c) -> Node3D:
+	var span: float = c.scale.x * 538.0     # cloud.gd CONTENT_W: its width in game px
+	var n := spawn("cloud_voxel_a" if span >= 65.0 else ("cloud_voxel_b" if span >= 55.0 else "cloud_voxel_c"))
+	# The clouds are see-through. Writing depth as they draw (their cubes are
+	# stored nearest-first) keeps a cloud's own inner steps from blending in
+	# behind its front as streaks.
+	for m: MeshInstance3D in _meshes(n):
+		for i in m.mesh.get_surface_count():
+			var mat: Material = m.mesh.surface_get_material(i)
+			if mat is StandardMaterial3D:
+				mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_ALWAYS
+	return n
 
 
 func _build_celestial(b) -> Node3D:
