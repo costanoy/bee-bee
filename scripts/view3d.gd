@@ -44,12 +44,14 @@ const GLYPHS := {
 	"D": ["XXXX.", "X...X", "X...X", "X...X", "X...X", "X...X", "XXXX."],
 }
 const BACKDROP_DEPTH := 95.0     # far enough to scroll at ~1/5 of the climb rate
-const SUN_Y := 26.0
-# TEST — how fast the sun slides down the screen as the bee climbs, as a
-# share of the hedges' own scroll rate. Hung at its real depth it moved at
-# about 0.14, which next to everything rushing past read as a sun pinned to
-# the screen. Previous behaviour: no extra drift (see _sync_sky).
-const SUN_SCROLL := 0.35
+# The sun sits low over the horizon of the start scene and is left behind
+# there as the bee climbs, scrolling off at the same rate as the moon,
+# Jupiter and the UFO (CELESTIAL_DEPTH) — asked for after two earlier tries:
+# hung at its real depth it barely moved and looked pinned to the screen
+# (SUN_Y 26.0, no drift), and at 0.35 of the hedges' rate it still lingered
+# in the middle of the play field.
+const SUN_Y := -34.0
+const CELESTIAL_DEPTH := -6.0
 
 # Day sky deepened (was top 0.30/0.60/0.95, horizon 0.72/0.88/1.0): the
 # camera looks almost level, so nearly the whole screen is the horizon
@@ -289,12 +291,14 @@ func _sync_sky() -> void:
 	env.ambient_light_energy = lerpf(0.9, 0.8, d)
 	# the sun sets: sinks and fades out as the sky turns
 	if sun_disc:
-		# Sinking it by hand as the camera rises makes it scroll faster than
-		# its depth alone would, while it still sets behind the backdrop.
+		# It hangs far behind the backdrop, where its depth alone would make
+		# it scroll at a fraction of the moon's rate; sinking it by hand as
+		# the camera rises makes up the difference.
 		var climb: float = (main.GROUND_DEPTH - main.screen_h - main.camera_y) / PX
 		var dist := _cam_dist()
 		var depth_ratio := (dist + BACKDROP_DEPTH + 40.0) / dist
-		sun_disc.position.y = SUN_Y - d * 70.0 + climb * (1.0 - SUN_SCROLL * depth_ratio)
+		var rate := dist / (dist - CELESTIAL_DEPTH)
+		sun_disc.position.y = SUN_Y - d * 70.0 + climb * (1.0 - rate * depth_ratio)
 		sun_mat.albedo_color.a = clampf(1.0 - d * 2.2, 0.0, 1.0)
 		sun_disc.visible = sun_mat.albedo_color.a > 0.01
 	star_mat.albedo_color.a = clampf((d - 0.45) * 2.0, 0.0, 1.0)
@@ -550,7 +554,7 @@ func _sync_decor(delta: float) -> void:
 		if not is_instance_valid(b):
 			continue
 		var m := _mirror(b, _build_celestial)
-		m.position = to3(b.position, -6.0)
+		m.position = to3(b.position, CELESTIAL_DEPTH)
 		m.rotation.y += delta * 0.3
 
 
