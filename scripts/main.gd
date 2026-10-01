@@ -194,6 +194,7 @@ const FlowerScript := preload("res://scripts/flower.gd")
 const CloudScript := preload("res://scripts/cloud.gd")
 const SeagullScript := preload("res://scripts/seagull.gd")
 const SkyScript := preload("res://scripts/sky.gd")
+const AdsScript := preload("res://scripts/ads.gd")
 const View3DScript := preload("res://scripts/view3d.gd")
 const VoxelPlate := preload("res://scripts/voxel_plate.gd")
 const VoxelLogo := preload("res://scripts/voxel_logo.gd")
@@ -241,6 +242,9 @@ var celestials: Array = []
 
 var bee: CharacterBody2D
 var music: AudioStreamPlayer
+var ads: Node
+# "Play Again" was pressed and an ad is up: the run starts when it closes.
+var restart_after_ad := false
 var sfx_pool: Array[AudioStreamPlayer] = []
 var collect_step := 0
 var physics_ticks_since_reset := 0
@@ -269,6 +273,7 @@ var music_note: Control
 var music_slash: Control
 var vibrate_icon: Control
 var vibrate_slash: Control
+var privacy_button: Button
 var view3d: Node3D
 var applied_bee_skin := ""
 var bee_menu: Control
@@ -330,6 +335,13 @@ func _ready() -> void:
 	music.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(music)
 	music.play()
+
+	ads = AdsScript.new()
+	add_child(ads)
+	# an ad plays its own sound, and the music would run on underneath it
+	ads.ad_opened.connect(func(): music.stream_paused = true)
+	ads.ad_closed.connect(_on_ad_closed)
+	ads.start()
 	_apply_music_mute()
 
 	_reset_to_ground_scene()
@@ -777,6 +789,7 @@ func _end_game() -> void:
 	# HUD above it would just print both a second time.
 	_set_hud_visible(false)
 	game_over_screen.visible = true
+	ads.run_finished()
 
 
 func _set_hud_visible(on: bool) -> void:
@@ -855,9 +868,23 @@ func _on_restart_pressed() -> void:
 	# already live (reported bug: mashing "play again" could occasionally
 	# leave the bee looking dead right at the start of the new run) — only
 	# a press from an actual game-over screen should ever reset anything.
-	if state != State.GAMEOVER:
+	if state != State.GAMEOVER or restart_after_ad:
+		return
+	# Between runs is the one place an ad may appear, and only every few
+	# runs (ads.gd). The new run then waits for the ad to close; it starts
+	# with the bee on the ground either way, so nothing is lost to the ad.
+	if ads.show_between_runs():
+		restart_after_ad = true
 		return
 	_start_fresh_run()
+
+
+func _on_ad_closed() -> void:
+	music.stream_paused = false
+	if restart_after_ad:
+		restart_after_ad = false
+		if state == State.GAMEOVER:
+			_start_fresh_run()
 
 
 func _start_fresh_run() -> void:
@@ -880,6 +907,7 @@ func _on_pause_pressed() -> void:
 		return
 	state = State.PAUSED
 	pause_button.visible = false
+	privacy_button.visible = ads.privacy_options_required()
 	pause_screen.visible = true
 	# Freezing the tree is what actually stops the run: the bee's physics,
 	# the drifting clouds and gulls and their wing animations all advance
@@ -1453,6 +1481,22 @@ func _build_pause_screen() -> Control:
 	# the two toggles side by side under the buttons
 	music_button.position.x = SCREEN_W / 2.0 - music_button.size.x - 9.0
 	vibrate_button.position = Vector2(SCREEN_W / 2.0 + 9.0, music_button.position.y)
+
+	# Only shown where privacy law requires a way back to the ad-consent
+	# choices (see ads.gd); elsewhere there is nothing to choose.
+	privacy_button = Button.new()
+	privacy_button.text = "Ad privacy"
+	privacy_button.flat = true
+	privacy_button.focus_mode = Control.FOCUS_NONE
+	privacy_button.add_theme_font_override("font", ui_font)
+	privacy_button.add_theme_font_size_override("font_size", 22)
+	privacy_button.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
+	privacy_button.size = Vector2(160, 36)
+	privacy_button.position = Vector2((SCREEN_W - 160.0) / 2.0, music_button.position.y + 76)
+	privacy_button.visible = false
+	privacy_button.pressed.connect(func(): ads.show_privacy_options())
+	_add_tap_sound(privacy_button)
+	screen.add_child(privacy_button)
 
 	return screen
 

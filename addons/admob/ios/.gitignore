@@ -1,0 +1,2 @@
+# bin/ holds only package.gd: its presence stops the addon from downloading
+# the iOS binaries again on every headless run. This game is Android only.
