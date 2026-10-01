@@ -97,6 +97,14 @@ Pipeline: `tools/blender/voxel_kit.py` (grade compartilhada `VOX = 0.04` = 1,6 p
 - **Hospedagem: `https://beebee.cyberhat.com.br`, na Hostinger** (decisão do usuário). O script também gera `build/BeeBee-site.zip` para enviar e extrair na pasta do subdomínio; `site/.htaccess` cuida dos tipos MIME (`.wasm`, `.apk`), compressão e cache. **Ainda não foi enviado**: não há acesso à Hostinger nesta máquina (em 01/10 o subdomínio ainda não resolvia).
 - Quem instalar esse APK e depois for instalar pela Google Play vai precisar desinstalar antes (assinaturas diferentes, por causa do Play App Signing).
 
+## Vídeo de divulgação
+- `bash tools/build_promo.sh` gera `build/promo/BeeBee-promo.mp4` (1080x1920, 60 fps, 30 s) em ~4 min. Abre uma janela do jogo enquanto grava.
+- `tools/godot/render_promo.gd` é o "diretor": roda o jogo de verdade dentro de um SubViewport, encena cada cena (`_stage_run`, como no `render_store_shots.gd`), e um **piloto automático** joga com a física real (busca ~0,9 s à frente sobre as sequências de toques; `_plan`/`_search`). Por cima vão os textos animados, as cortinas de blocos, o desfile das 7 abelhas e o cartão final (logo, "JOGUE GRÁTIS", `beebee.cyberhat.com.br`). Os quadros são salvos pelo script; o `--write-movie` só serve para capturar os efeitos sonoros do jogo.
+- Cenas cortadas nos compassos da música (160 BPM, 90 quadros por compasso). A música é a faixa original inteira de 30 s (`store/promo/music.wav`), cujos 4 últimos compassos são o final; é somada depois, com o ffmpeg.
+- Ensaio sem gravar: acrescentar `-- --dry` (salva só algumas imagens em `build/promo/stills/` e diz se o piloto morreu). Na dificuldade máxima o piloto não sobrevive a qualquer sorteio de fileiras: `--seeds=dia,entardecer,noite` troca os sorteios e `--span=de,até` roda só um trecho. Sementes atuais: 11, 5, 1.
+- Qualquer coisa que o script ajuste no `SaveData` tem de vir **depois** do primeiro quadro (o save é lido no primeiro quadro e sobrescreve). O script de build guarda e devolve o save.
+- As cenas usam só o fundo de colinas, porque a cidade nova ainda não foi aprovada.
+
 ## Pendências
 1. O usuário precisa testar no celular: anúncios de teste (aparecem no 3º "Play Again"), vibração, tela de abertura, skins novas.
 2. Decidir os valores marcados `TEST` (tamanho/velocidade da abelha, rolagem, rampa, queda na morte, replay, near miss): continuam nos valores que o usuário pediu.
