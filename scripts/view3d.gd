@@ -27,6 +27,7 @@ var voxel := {
 	"gull": "gull_voxel",
 	"ground": "ground_voxel",
 	"moon": "moon_voxel",
+	"jupiter": "jupiter_voxel",
 }
 const BACKDROP_DEPTH := 95.0     # far enough to scroll at ~1/5 of the climb rate
 const SUN_Y := 26.0
@@ -466,9 +467,7 @@ func _build_celestial(b) -> Node3D:
 	if "moon" in path:
 		return _glowing(spawn("moon"))
 	if "jupiter" in path:
-		var j := spawn("jupiter")
-		j.scale = Vector3.ONE * 1.25
-		return j
+		return _glowing(spawn("jupiter"))     # modelled at its in-game size
 	var u := spawn("ufo")
 	u.scale = Vector3.ONE * 0.7
 	return u
