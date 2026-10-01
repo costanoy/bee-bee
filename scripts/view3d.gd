@@ -80,6 +80,8 @@ var bee_scale := BEE_SCALE
 var wing_l: Node3D
 var wing_r: Node3D
 var dead_eyes: Node3D
+# the little stars around the silver bee (none on the other skins)
+var sparkles: Array = []
 var live_eyes: Array[Node3D] = []
 var bee_roll_x := 0.0
 # The simulation moves in fixed physics ticks, which don't line up with the
@@ -100,7 +102,9 @@ var bursts_warmed := false
 # the gull model's materials, tinted toward the sky every frame (_sync_sky)
 var gull_mats: Array = []
 
-var sun_disc: MeshInstance3D
+var sun_disc: Node3D
+# the sun's turning ball, when its model has one (the flat disc doesn't)
+var sun_ball: Node3D
 var sun_mat: StandardMaterial3D
 var scenery_for := -1            # main.scenery_id this scenery was built for
 var scenery: Node3D
@@ -301,6 +305,8 @@ func _sync_sky() -> void:
 		sun_disc.position.y = SUN_Y - d * 70.0 + climb * (1.0 - rate * depth_ratio)
 		sun_mat.albedo_color.a = clampf(1.0 - d * 2.2, 0.0, 1.0)
 		sun_disc.visible = sun_mat.albedo_color.a > 0.01
+		if sun_ball and is_instance_valid(sun_ball):
+			sun_ball.rotation.y = idle_time * 0.3
 	star_mat.albedo_color.a = clampf((d - 0.45) * 2.0, 0.0, 1.0)
 
 
@@ -350,23 +356,28 @@ func _sync_scenery() -> void:
 	base.material_override = bmat
 	base.position = Vector3(0, foot_y - 45.0 + 0.5, -BACKDROP_DEPTH + 4.0)
 	scenery.add_child(base)
-	# A glowing sun hung behind everything: the voxel sun's flat disc, with a
-	# material made here rather than the model's own, so it can fade out as
-	# the sun sets (its colours come from the model's vertex colours).
-	var sun := MeshInstance3D.new()
-	var sun_model: Node3D = models["sun"].instantiate()
-	sun.mesh = (_meshes(sun_model)[0] as MeshInstance3D).mesh
-	sun_model.free()
+	# A glowing sun hung behind everything, with a material made here rather
+	# than the model's own, so it can fade out as the sun sets (its colours
+	# come from the model's vertex colours). The model is either a flat disc
+	# or a ball of cubes under a "Ball" node with its rays beside it; the
+	# ball is turned slowly, like the moon, which is what shows it is a ball.
+	var sun: Node3D = models["sun"].instantiate()
+	sun_ball = sun.find_child("Ball", true, false)
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.vertex_color_use_as_albedo = true
 	mat.albedo_color = Color.WHITE
 	mat.emission_enabled = true
 	mat.emission = Color(1.0, 0.82, 0.35)
-	mat.emission_energy_multiplier = 1.6
+	# a strong glow blooms the disc into a soft blob; on the ball it would
+	# wash out the surface that makes it read as cubes
+	mat.emission_energy_multiplier = 0.35 if sun_ball else 1.6
 	mat.disable_fog = true
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	sun.material_override = mat
+	if sun_ball:
+		mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_ALWAYS
+	for m: MeshInstance3D in _meshes(sun):
+		m.material_override = mat
 	sun.position = Vector3(14, SUN_Y, -BACKDROP_DEPTH - 40)
 	sun.name = "Sun"
 	scenery.add_child(sun)
@@ -696,6 +707,8 @@ func _build_bee(model := "bee") -> void:
 	wing_l = bee3d.find_child("WingPivotL", true, false)
 	wing_r = bee3d.find_child("WingPivotR", true, false)
 	dead_eyes = bee3d.find_child("DeadEyes", true, false)
+	var stars: Node = bee3d.find_child("Sparkles", true, false)
+	sparkles = stars.get_children() if stars else []
 	var eyes: Node3D = bee3d.find_child("LiveEyes", true, false)
 	if eyes:
 		live_eyes.append(eyes)
@@ -713,6 +726,11 @@ func _sync_bee(delta: float) -> void:
 	dead_eyes.visible = dead
 	for e in live_eyes:
 		e.visible = not dead
+	# The silver bee's stars twinkle: each one blinks on its own beat, so
+	# the shine travels round the bee instead of sitting still (asked for).
+	# On and off rather than fading or growing, which keeps every cube whole.
+	for i in sparkles.size():
+		sparkles[i].visible = not dead and fmod(idle_time * 1.5 + i * 0.37, 1.0) < 0.55
 
 	# TEST — faces the way the last tap sent it at once, with no turn in
 	# between: asked for so a change of direction reads as instant and the
