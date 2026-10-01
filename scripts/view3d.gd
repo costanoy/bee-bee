@@ -90,6 +90,13 @@ var bee_now := Vector2.ZERO
 var cam_prev := Vector2.ZERO
 var cam_now := Vector2.ZERO
 var idle_time := 0.0
+# Pickup bursts, built once and reused (see _build_bursts).
+var bursts: Array = []           # [[big-cube emitter, small-cube emitter], ...]
+var burst_mats := {}             # burst colour -> [material, lighter material]
+var burst_next := 0
+var bursts_warmed := false
+# the gull model's materials, tinted toward the sky every frame (_sync_sky)
+var gull_mats: Array = []
 
 var sun_disc: MeshInstance3D
 var sun_mat: StandardMaterial3D
@@ -150,6 +157,12 @@ func setup(p_main: Node2D) -> void:
 
 	_build_bee()
 	_build_stars()
+	_build_bursts()
+	var gull: Node3D = models["gull"].instantiate()
+	for m: MeshInstance3D in _meshes(gull):
+		for i in m.mesh.get_surface_count():
+			gull_mats.append(m.mesh.surface_get_material(i))
+	gull.free()
 	# sample the tick positions after main.gd and the bee have moved
 	process_physics_priority = 100
 
@@ -225,6 +238,8 @@ func _process(delta: float) -> void:
 	_sync_camera()
 	_sync_sky()
 	_sync_scenery()
+	if not bursts_warmed:
+		_warm_bursts()
 	_sync_obstacles()
 	_sync_flowers(delta)
 	_sync_decor(delta)
@@ -264,6 +279,10 @@ func _sync_sky() -> void:
 	sky_mat.ground_horizon_color = horizon
 	sky_mat.ground_bottom_color = horizon
 	env.fog_light_color = horizon
+	# gulls take on some of the sky's colour, like anything seen at a distance
+	for mat in gull_mats:
+		if mat is StandardMaterial3D:
+			mat.albedo_color = Color.WHITE.lerp(horizon, GULL_HAZE)
 	# night stays bright enough to read the flowers — they're the goal
 	sun_light.light_energy = lerpf(1.25, 0.6, d)
 	sun_light.light_color = Color(1.0, 0.96, 0.88).lerp(Color(0.66, 0.74, 1.0), d)
@@ -418,8 +437,10 @@ func _sync_flowers(delta: float) -> void:
 			continue
 		var m := _mirror(f, _build_flower)
 		m.position = to3(f.position, 0.1)
-		# a gentle sway rather than a full spin, which turned them edge-on
-		m.rotation.y = sin(idle_time * 1.8 + f.sway_phase) * 0.55
+		# a gentle sway rather than a full spin, which turned them edge-on.
+		# Calmed down on request (was sin(idle_time * 1.8 ...) * 0.55): the
+		# flowers are the targets, and they read better holding still.
+		m.rotation.y = sin(idle_time * 1.2 + f.sway_phase) * 0.2
 	# collected: the flower gives way to its burst
 	for id in mirrors.keys():
 		var n = instance_from_id(id)
@@ -438,31 +459,74 @@ func _build_flower(f) -> Node3D:
 
 # A flower's pickup burst: cubes of two exact grid sizes (two cubes across
 # and one), never scaled in between, the small ones in a lighter tint.
-func _burst(at: Vector3, color: Color) -> void:
-	for spec in [[10, 0.08, color], [8, 0.04, color.lightened(0.45)]]:
-		var p := CPUParticles3D.new()
-		p.one_shot = true
-		p.amount = spec[0]
-		p.lifetime = 0.55
-		p.explosiveness = 1.0
-		p.direction = Vector3.UP
-		p.spread = 180.0
-		p.gravity = Vector3(0, -4, 0)
-		p.initial_velocity_min = 2.0
-		p.initial_velocity_max = 5.0
+#
+# The emitters, their meshes and a material per flower colour are all made
+# here, once. Building them at the moment of the pickup cost a frame several
+# times too long on the first flower (the renderer preparing for a kind of
+# object it had not drawn yet) and a smaller stumble on every one after.
+const BURST_POOL := 4            # a burst lasts 0.55 s, so a few can overlap
+const BURST_SPECS := [[10, 0.08], [8, 0.04]]     # [cubes, cube size]
+
+
+func _build_bursts() -> void:
+	var meshes := []
+	for spec in BURST_SPECS:
 		var mesh := BoxMesh.new()
 		mesh.size = Vector3.ONE * spec[1]
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = spec[2]
-		mat.emission_enabled = true
-		mat.emission = spec[2]
-		mat.emission_energy_multiplier = 0.6
-		mesh.material = mat
-		p.mesh = mesh
+		meshes.append(mesh)
+	for i in BURST_POOL:
+		var pair := []
+		for s in BURST_SPECS.size():
+			var p := CPUParticles3D.new()
+			p.one_shot = true
+			p.emitting = false
+			p.amount = BURST_SPECS[s][0]
+			p.lifetime = 0.55
+			p.explosiveness = 1.0
+			p.direction = Vector3.UP
+			p.spread = 180.0
+			p.gravity = Vector3(0, -4, 0)
+			p.initial_velocity_min = 2.0
+			p.initial_velocity_max = 5.0
+			p.mesh = meshes[s]
+			add_child(p)
+			pair.append(p)
+		bursts.append(pair)
+	for kind in main.FlowerScript.KINDS:
+		_burst_materials(kind[1])
+
+
+func _burst_materials(color: Color) -> Array:
+	if not burst_mats.has(color):
+		var pair := []
+		for c in [color, color.lightened(0.45)]:
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = c
+			mat.emission_enabled = true
+			mat.emission = c
+			mat.emission_energy_multiplier = 0.6
+			pair.append(mat)
+		burst_mats[color] = pair
+	return burst_mats[color]
+
+
+func _burst(at: Vector3, color: Color) -> void:
+	var mats := _burst_materials(color)
+	var pair: Array = bursts[burst_next]
+	burst_next = (burst_next + 1) % bursts.size()
+	for s in pair.size():
+		var p: CPUParticles3D = pair[s]
+		p.material_override = mats[s]
 		p.position = at
-		add_child(p)
+		p.restart()
 		p.emitting = true
-		get_tree().create_timer(1.0).timeout.connect(p.queue_free)
+
+
+# One burst let off during start-up, far behind the backdrop where it is
+# hidden, so the first real one has nothing left to prepare.
+func _warm_bursts() -> void:
+	bursts_warmed = true
+	_burst(cam.position + Vector3(0, -30, -(_cam_dist() + BACKDROP_DEPTH + 20.0)), main.FlowerScript.KINDS[0][1])
 
 
 func _sync_decor(delta: float) -> void:
@@ -475,20 +539,34 @@ func _sync_decor(delta: float) -> void:
 	for g in main.seagulls:
 		if not is_instance_valid(g):
 			continue
-		var m := _mirror(g, func(n): return spawn("gull"))
-		m.position = to3(g.position, -1.2)
+		var m := _mirror(g, _build_gull)
+		m.position = to3(g.position, GULL_DEPTH)
 		m.rotation.y = PI if g.facing_left else 0.0
-		var a := sin(idle_time * 9.0 + g.get_instance_id() % 7) * 0.9
-		for side in ["L", "R"]:
-			var w: Node3D = m.find_child("WingPivot" + side, true, false)
-			if w:
-				w.rotation.x = a * (1.0 if side == "L" else -1.0)
+		var a := sin(idle_time * 5.0 + g.get_instance_id() % 7) * 0.9
+		var wings: Array = m.get_meta("wings")
+		wings[0].rotation.x = a
+		wings[1].rotation.x = -a
 	for b in main.celestials:
 		if not is_instance_valid(b):
 			continue
 		var m := _mirror(b, _build_celestial)
 		m.position = to3(b.position, -6.0)
 		m.rotation.y += delta * 0.3
+
+
+# Gulls are scenery, and have to look it: flying at the bee's own depth, in
+# full white, they read as something to dodge. They now fly well behind the
+# hedges and the clouds (was z -1.2), which makes them smaller and slower
+# across the screen, take a share of the sky's colour, and flap lazily
+# (was 9.0). The wing pivots are looked up once instead of every frame.
+const GULL_DEPTH := -7.0
+const GULL_HAZE := 0.5
+
+
+func _build_gull(_g) -> Node3D:
+	var n := spawn("gull")
+	n.set_meta("wings", [n.find_child("WingPivotL", true, false), n.find_child("WingPivotR", true, false)])
+	return n
 
 
 # One voxel model per cloud size (large / medium / small), used unscaled:

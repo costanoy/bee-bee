@@ -1200,6 +1200,15 @@ func _build_ui() -> void:
 	score_label.size = Vector2(SCREEN_W, 68)
 	ui_layer.add_child(score_label)
 
+	# A digit's glyph and its outline are rasterised the first time they are
+	# drawn, at this size, which lands on whichever pickup first needs it.
+	# Drawing all ten once at start-up, all but invisible, gets it done early.
+	var digits := _make_label("0123456789", 64, Color.WHITE)
+	digits.modulate.a = 0.01
+	digits.position = score_label.position
+	ui_layer.add_child(digits)
+	get_tree().create_timer(1.0).timeout.connect(digits.queue_free)
+
 	direction_hint = _build_direction_hint()
 	ui_layer.add_child(direction_hint)
 

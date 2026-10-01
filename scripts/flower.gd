@@ -49,7 +49,8 @@ func _on_body_entered(_body: Node) -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
-	var sway := sin(_time * 2.0 + sway_phase) * 3.0
+	# halved on request (was * 3.0): a target that holds still reads better
+	var sway := sin(_time * 2.0 + sway_phase) * 1.5
 	position.x = _base_x + sway
 
 
