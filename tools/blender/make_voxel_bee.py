@@ -33,6 +33,26 @@ MOUTH = (0.45, 0.13, 0.18)
 WING = (0.78, 0.92, 1.0)
 WING_RIM = (0.95, 0.99, 1.0)
 
+# Optional third argument "shining": the skin unlocked at score 300. Same
+# bee, cube for cube, in rich gold — lighter on top, deeper underneath,
+# bright glints along its back, bronze stripes, warm wings — that gives off
+# a soft glow of its own (so it stays golden at night), with a few glowing
+# sparkles floating around it under a "Sparkles" node.
+# Exports bee_voxel_shining.glb instead of bee_voxel.glb.
+SHINING = len(ARGS) > 2 and ARGS[2] == "shining"
+OUT_NAME = "bee_voxel_shining" if SHINING else "bee_voxel"
+GOLD_TOP = (1.0, 0.84, 0.22)
+GOLD_DEEP = (0.90, 0.48, 0.03)
+GLINT = (1.0, 0.99, 0.84)
+SPARKLE = (1.0, 1.0, 0.92)
+SPARKLE_CORE = (1.0, 0.95, 0.60)
+if SHINING:
+    YELLOW = (1.0, 0.68, 0.04)
+    DARK = (0.40, 0.20, 0.04)
+    FLUFF = (1.0, 0.97, 0.84)
+    WING = (1.0, 0.92, 0.74)
+    WING_RIM = (1.0, 1.0, 0.92)
+
 
 def lin(c):
     return tuple(((v + 0.055) / 1.055) ** 2.4 if v > 0.04045 else v / 12.92 for v in c)
@@ -160,6 +180,28 @@ def wing_voxels(length, width):
     return vox
 
 
+def polish(vox):
+    """Shining skin: shade the gold by height and lay glints along the back."""
+    for (x, y, z), c in list(vox.items()):
+        if c != YELLOW:
+            continue
+        if z >= 6 and abs(y) <= 2 and (x in (-8, -7, -1, 0) or 7 <= x <= 9):
+            vox[(x, y, z)] = GLINT
+        elif z >= 4:
+            vox[(x, y, z)] = GOLD_TOP
+        elif z <= -4:
+            vox[(x, y, z)] = GOLD_DEEP
+
+
+def sparkle_voxels(size):
+    """A little star: a core with an arm out along each axis in the XZ plane."""
+    vox = {(0, 0, 0): SPARKLE_CORE}
+    for d in range(1, size + 1):
+        for p in ((d, 0, 0), (-d, 0, 0), (0, 0, d), (0, 0, -d)):
+            vox[p] = SPARKLE
+    return vox
+
+
 # ---------------------------------------------------------------- meshing
 def build_mesh(name, vox, material, parent=None, loc=(0, 0, 0), alpha=1.0, offset=(0, 0, 0)):
     bm = bmesh.new()
@@ -229,14 +271,31 @@ solid = voxel_material("Voxel")
 glass = voxel_material("VoxelWing", alpha=0.6)
 root = empty("Bee")
 
+if SHINING:
+    # a warm glow of its own; no metal — reflecting the pale sky only washed the gold out
+    p = solid.node_tree.nodes["Principled BSDF"]
+    p.inputs["Emission Color"].default_value = (*lin((1.0, 0.70, 0.16)), 1)
+    p.inputs["Emission Strength"].default_value = 0.3
+
 body = bee_voxels()
+if SHINING:
+    polish(body)
 live, dead = face_voxels(body)
 body.update(antenna_voxels())
-build_mesh("Body", body, solid, root)
+face_mat = solid
+if SHINING:
+    # Only the gold glows. Stripes, antennae, mouth and eyes get a plain
+    # material: lit up from inside they turned orange and the eyes vanished.
+    face_mat = voxel_material("VoxelPlain")
+    gold = {p: c for p, c in body.items() if c not in (DARK, MOUTH)}
+    build_mesh("Body", gold, solid, root)
+    build_mesh("BodyDark", {p: c for p, c in body.items() if p not in gold}, face_mat, root)
+else:
+    build_mesh("Body", body, solid, root)
 eyes = empty("LiveEyes", parent=root)
-build_mesh("Eyes", {p: c for p, c in live.items()}, solid, eyes, offset=(0, 0, 0))
+build_mesh("Eyes", {p: c for p, c in live.items()}, face_mat, eyes, offset=(0, 0, 0))
 dead_node = empty("DeadEyes", parent=root)
-build_mesh("XEyes", dead, solid, dead_node)
+build_mesh("XEyes", dead, face_mat, dead_node)
 # nudge painted features a hair outwards so they win over the head surface
 for o in (eyes.children[0], dead_node.children[0]):
     me = o.data
@@ -251,10 +310,20 @@ for side, tag in ((-1, "L"), (1, "R")):
     h = build_mesh("HindWing", hind, glass, piv, loc=(-2 * V, 0.02 * side, 0), alpha=0.6)
     h.rotation_euler = (0, math.radians(-62), 0)
 
+if SHINING:
+    sparkles = empty("Sparkles", parent=root)
+    twinkle = voxel_material("VoxelSparkle")
+    p = twinkle.node_tree.nodes["Principled BSDF"]
+    p.inputs["Emission Color"].default_value = (1.0, 0.94, 0.62, 1)
+    p.inputs["Emission Strength"].default_value = 1.5
+    for i, (at, size) in enumerate((((-13, -9, 10), 2), ((6, -10, -8), 1), ((17, -8, 11), 1), ((-3, 9, 12), 2),
+                                    ((-17, 8, -6), 1), ((11, 9, -9), 1))):
+        build_mesh("Sparkle%d" % i, sparkle_voxels(size), twinkle, sparkles, loc=tuple(c * V for c in at))
+
 dead_node.hide_render = False
-bpy.ops.export_scene.gltf(filepath=os.path.join(MODELS, "bee_voxel.glb"), export_format="GLB", export_yup=True,
+bpy.ops.export_scene.gltf(filepath=os.path.join(MODELS, OUT_NAME + ".glb"), export_format="GLB", export_yup=True,
                           export_vertex_color="MATERIAL", export_cameras=False, export_lights=False)
-print("EXPORTED bee_voxel")
+print("EXPORTED", OUT_NAME)
 
 
 # ---------------------------------------------------------------- preview renders
