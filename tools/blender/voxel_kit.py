@@ -133,3 +133,64 @@ class Preview:
         s.render.resolution_x, s.render.resolution_y = rx, ry
         s.render.filepath = path
         bpy.ops.render.render(write_still=True)
+
+
+def build_mesh_merged(name, cells, mat, parent=None, origin=(0, 0, 0), size=VOX, solid=None):
+    """Like build_mesh, for big flat assets (the ground): neighbouring cube
+    faces of the same colour are merged into one quad, so a surface of
+    thousands of cubes costs a few hundred polygons. No per-cube jitter —
+    the caller varies colour in patches instead, which is what lets faces
+    merge. cells: {(x, y, z): sRGB} for the cubes that show; solid(x, y, z)
+    says where the unseen bulk is (faces against it are skipped)."""
+    planes = {}
+    for (x, y, z), c in cells.items():
+        for di, ((dx, dy, dz), _) in enumerate(_DIRS):
+            n = (x + dx, y + dy, z + dz)
+            if n in cells or (solid is not None and solid(*n)):
+                continue
+            if dx:
+                key, uv = (di, x), (y, z)
+            elif dy:
+                key, uv = (di, y), (x, z)
+            else:
+                key, uv = (di, z), (x, y)
+            planes.setdefault(key, {})[uv] = c
+    bm = bmesh.new()
+    col = bm.loops.layers.color.new("Col")
+    for (di, plane), mask in planes.items():
+        d = _DIRS[di][0]
+        axis = 0 if d[0] else (1 if d[1] else 2)
+        level = plane + (1 if d[axis] > 0 else 0)
+        done = set()
+        for (u, v) in sorted(mask):
+            if (u, v) in done:
+                continue
+            c = mask[(u, v)]
+            w = 1
+            while mask.get((u + w, v)) == c and (u + w, v) not in done:
+                w += 1
+            h = 1
+            while all(mask.get((u + i, v + h)) == c and (u + i, v + h) not in done for i in range(w)):
+                h += 1
+            for i in range(w):
+                for j in range(h):
+                    done.add((u + i, v + j))
+            pts = []
+            for (a, b) in ((u, v), (u + w, v), (u + w, v + h), (u, v + h)):
+                p = [a, b]
+                p.insert(axis, level)
+                pts.append(Vector(((p[0] - origin[0]) * size, (p[1] - origin[1]) * size, (p[2] - origin[2]) * size)))
+            if (pts[1] - pts[0]).cross(pts[2] - pts[0]).dot(Vector(d)) < 0:
+                pts.reverse()
+            f = bm.faces.new([bm.verts.new(p) for p in pts])
+            for l in f.loops:
+                l[col] = (*c, 1.0)
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    me.materials.append(mat)
+    o = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(o)
+    if parent:
+        o.parent = parent
+    return o
