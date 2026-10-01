@@ -14,12 +14,17 @@ extends Node3D
 const PX := 40.0                 # game px per 3D unit (the screen is 10 units wide)
 const FOV := 50.0
 const BEE_SCALE := 0.8
-const FLOWER_SCALE := 1.25
+const FLOWER_SCALE := 1.0        # voxel flowers are built at their in-game size
 const CAM_PITCH := 7.0           # degrees, looking slightly down onto the play plane
 # voxel hedge tiles (make_voxel_hedge.py): 24 cubes = 0.96 units wide
 const HEDGE_VARIANTS := ["hedge_voxel_a", "hedge_voxel_b", "hedge_voxel_c"]
 const HEDGE_TILE_W := 0.96
-var voxel := {"bee": "bee_voxel"}
+var voxel := {
+	"bee": "bee_voxel",
+	"flower_red": "flower_voxel_red",
+	"flower_yellow": "flower_voxel_yellow",
+	"flower_blue": "flower_voxel_blue",
+}
 const BACKDROP_DEPTH := 95.0     # far enough to scroll at ~1/5 of the climb rate
 const SUN_Y := 26.0
 
