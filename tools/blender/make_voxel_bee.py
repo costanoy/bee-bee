@@ -34,24 +34,42 @@ WING = (0.78, 0.92, 1.0)
 WING_RIM = (0.95, 0.99, 1.0)
 
 # Optional third argument "shining": the skin unlocked at score 300. Same
-# bee, cube for cube, in rich gold — lighter on top, deeper underneath,
-# bright glints along its back, bronze stripes, warm wings — that gives off
-# a soft glow of its own (so it stays golden at night), with a few glowing
-# sparkles floating around it under a "Sparkles" node.
+# bee, cube for cube, all in silver chrome. Chrome only reads as chrome if it
+# mirrors something, so the mirror is painted on: a white sky highlight on
+# top, a dark horizon line round the middle with a bright streak under it,
+# and a paler ground reflection underneath. Stripes and antennae are
+# near-black, the wings cool glass, and a few sparkles float around it under
+# a "Sparkles" node. The game is meant to draw it unshaded, so the painted
+# mirror stays crisp and it shines just as bright at night; unshaded, the
+# game shows the stored colour as linear light, so glow() darkens the
+# palette to make it come out on screen as written here (which is also why
+# it looks dark in the Blender previews).
 # Exports bee_voxel_shining.glb instead of bee_voxel.glb.
+# A fourth argument "export_only" skips the review renders.
 SHINING = len(ARGS) > 2 and ARGS[2] == "shining"
+EXPORT_ONLY = "export_only" in ARGS
 OUT_NAME = "bee_voxel_shining" if SHINING else "bee_voxel"
-GOLD_TOP = (1.0, 0.84, 0.22)
-GOLD_DEEP = (0.90, 0.48, 0.03)
-GLINT = (1.0, 0.99, 0.84)
-SPARKLE = (1.0, 1.0, 0.92)
-SPARKLE_CORE = (1.0, 0.95, 0.60)
+
+
+def glow(c):
+    return tuple(v ** 2.2 for v in c)
+
+
+# chrome from the top of a ball down to its underside: (lowest height above the middle, colour)
+CHROME = [(6, glow((1.0, 1.0, 1.0))), (4, glow((0.80, 0.84, 0.90))), (2, glow((0.66, 0.70, 0.78))),
+          (1, glow((0.52, 0.56, 0.64))), (-1, glow((0.30, 0.33, 0.41))), (-2, glow((0.96, 0.98, 1.0))),
+          (-4, glow((0.46, 0.49, 0.56))), (-6, glow((0.60, 0.63, 0.69))), (-99, glow((0.74, 0.76, 0.80)))]
+SPARKLE = (1.0, 1.0, 1.0)
+SPARKLE_CORE = glow((0.86, 0.93, 1.0))
 if SHINING:
-    YELLOW = (1.0, 0.68, 0.04)
-    DARK = (0.40, 0.20, 0.04)
-    FLUFF = (1.0, 0.97, 0.84)
-    WING = (1.0, 0.92, 0.74)
-    WING_RIM = (1.0, 1.0, 0.92)
+    YELLOW = glow((0.64, 0.68, 0.76))
+    DARK = glow((0.08, 0.09, 0.13))
+    FLUFF = glow((0.96, 0.98, 1.0))
+    EYE = glow((0.04, 0.04, 0.07))
+    PINK = glow((0.92, 0.72, 0.82))
+    MOUTH = glow((0.08, 0.09, 0.13))
+    WING = glow((0.84, 0.91, 1.0))
+    WING_RIM = (1.0, 1.0, 1.0)
 
 
 def lin(c):
@@ -181,16 +199,15 @@ def wing_voxels(length, width):
 
 
 def polish(vox):
-    """Shining skin: shade the gold by height and lay glints along the back."""
+    """Shining skin: paint the chrome's mirrored sky, horizon and ground by
+    height — measured from the middle of the body, or from just under the
+    eyes on the head, so each gets its own horizon line and the head's
+    doesn't run through the eyes."""
     for (x, y, z), c in list(vox.items()):
         if c != YELLOW:
             continue
-        if z >= 6 and abs(y) <= 2 and (x in (-8, -7, -1, 0) or 7 <= x <= 9):
-            vox[(x, y, z)] = GLINT
-        elif z >= 4:
-            vox[(x, y, z)] = GOLD_TOP
-        elif z <= -4:
-            vox[(x, y, z)] = GOLD_DEEP
+        rel = z - (1 if x >= 5 else 0)
+        vox[(x, y, z)] = next(col for low, col in CHROME if rel >= low)
 
 
 def sparkle_voxels(size):
@@ -271,27 +288,13 @@ solid = voxel_material("Voxel")
 glass = voxel_material("VoxelWing", alpha=0.6)
 root = empty("Bee")
 
-if SHINING:
-    # a warm glow of its own; no metal — reflecting the pale sky only washed the gold out
-    p = solid.node_tree.nodes["Principled BSDF"]
-    p.inputs["Emission Color"].default_value = (*lin((1.0, 0.70, 0.16)), 1)
-    p.inputs["Emission Strength"].default_value = 0.3
-
 body = bee_voxels()
 if SHINING:
     polish(body)
 live, dead = face_voxels(body)
 body.update(antenna_voxels())
+build_mesh("Body", body, solid, root)
 face_mat = solid
-if SHINING:
-    # Only the gold glows. Stripes, antennae, mouth and eyes get a plain
-    # material: lit up from inside they turned orange and the eyes vanished.
-    face_mat = voxel_material("VoxelPlain")
-    gold = {p: c for p, c in body.items() if c not in (DARK, MOUTH)}
-    build_mesh("Body", gold, solid, root)
-    build_mesh("BodyDark", {p: c for p, c in body.items() if p not in gold}, face_mat, root)
-else:
-    build_mesh("Body", body, solid, root)
 eyes = empty("LiveEyes", parent=root)
 build_mesh("Eyes", {p: c for p, c in live.items()}, face_mat, eyes, offset=(0, 0, 0))
 dead_node = empty("DeadEyes", parent=root)
@@ -314,7 +317,7 @@ if SHINING:
     sparkles = empty("Sparkles", parent=root)
     twinkle = voxel_material("VoxelSparkle")
     p = twinkle.node_tree.nodes["Principled BSDF"]
-    p.inputs["Emission Color"].default_value = (1.0, 0.94, 0.62, 1)
+    p.inputs["Emission Color"].default_value = (0.90, 0.95, 1.0, 1)
     p.inputs["Emission Strength"].default_value = 1.5
     for i, (at, size) in enumerate((((-13, -9, 10), 2), ((6, -10, -8), 1), ((17, -8, 11), 1), ((-3, 9, 12), 2),
                                     ((-17, 8, -6), 1), ((11, 9, -9), 1))):
@@ -325,6 +328,10 @@ bpy.ops.export_scene.gltf(filepath=os.path.join(MODELS, OUT_NAME + ".glb"), expo
                           export_vertex_color="MATERIAL", export_cameras=False, export_lights=False)
 print("EXPORTED", OUT_NAME)
 
+
+if EXPORT_ONLY:
+    print("DONE voxel bee (export only)")
+    sys.exit(0)
 
 # ---------------------------------------------------------------- preview renders
 s = bpy.context.scene
