@@ -80,11 +80,11 @@ Pipeline: `tools/blender/voxel_kit.py` (grade compartilhada `VOX = 0.04` = 1,6 p
 ## Áudio
 - Música e SFX são gerados/ajustados por código; a música teve um "tic" corrigido (fade no fim das notas).
 - **SFX novos do ElevenLabs já estão no jogo** (estilo acústico/de brinquedo — o usuário não gostou de 8-bit como referência): os MP3 foram cortados, normalizados a -1 dB e salvos como WAV mono 44,1 kHz por cima dos antigos. `sfx_collect` é uma nota única em Lá (reafinada de 444 para 440 Hz — o jogo sobe o tom a cada flor); `sfx_hit` ganhou harmônicos por saturação porque o original era quase só grave (<150 Hz) e sumiria no alto-falante do celular; `sfx_record` e `sfx_ui_tap` perderam o trecho inicial/os repiques. Volumes nas constantes `SFX_*_DB` em `main.gd` — **ainda não ouvidos pelo usuário no aparelho**.
-- **Música: falta trocar.** O usuário achou a primeira tentativa lenta — o jogo é frenético, a música tem que ser também (prompt novo, ~160 BPM, Lá menor). O ElevenLabs não gera loop: pedir uma faixa de andamento constante e fazer a emenda aqui (cortar em compasso + crossfade; o WAV é importado com loop Forward).
+- **Música nova do ElevenLabs no jogo** (`audio/music_theme.wav`): o usuário queria um tema marcante e simples, "com cara de videogame" (referências dele: Super Mario Bros., Green Hill Zone, Crash) e frenético como o jogo. A faixa veio com 30 s (limite de créditos), 160 BPM exatos, Dó maior — mesmas notas da escadinha das flores. O ElevenLabs não gera loop: o loop são os **16 primeiros compassos (24 s)**, cortados no tempo forte; os 4 últimos compassos são o final da faixa e ficaram de fora. Se cansar por ser curto, gerar outro trecho de 30 s e emendar. O original está em `Downloads\musica-bee-bee.wav`. **Ainda não ouvida pelo usuário dentro do jogo.**
 
 ## Pendências
 1. O usuário precisa testar no celular: anúncios de teste (aparecem no 3º "Play Again"), vibração, tela de abertura, skins novas.
 2. Decidir os valores marcados `TEST` (tamanho/velocidade da abelha, rolagem, rampa, queda na morte, replay, near miss): continuam nos valores que o usuário pediu.
 3. Contas e IDs: AdMob (trocar IDs de teste), Play Console (ficha, política hospedada, declarações) e, se quiser, ligar o placar. Roteiro em `store/LEIA-ME.md`.
-4. Música nova do ElevenLabs: quando o usuário enviar, fazer o loop e trocar `audio/music_theme.wav`; conferir os volumes dos SFX novos com ele.
+4. Áudio: o usuário precisa ouvir no celular a música nova (emenda do loop e volume) e os SFX novos; ajustar `MUSIC_VOLUME_DB`/`SFX_*_DB` conforme o retorno.
 5. A interface nova (logo, botões, fonte) foi aprovada pelo usuário ("assim está ótimo").

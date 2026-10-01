@@ -63,8 +63,8 @@ const DEATH_FALL_TIME := 0.8
 const FALL_DEATH_GRACE := 0.5
 
 # Music sits under whatever else the game plays; the theme itself is
-# mastered around -15.5 dBFS RMS, so this only trims it the rest of the way.
-const MUSIC_VOLUME_DB := -6.0
+# mastered around -14.5 dBFS RMS, so this only trims it the rest of the way.
+const MUSIC_VOLUME_DB := -5.0
 # Muting by volume rather than stopping the player keeps the track running
 # underneath, so unmuting picks up where the loop got to instead of
 # snapping back to the top of the phrase.
