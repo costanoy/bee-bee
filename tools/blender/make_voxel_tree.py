@@ -140,7 +140,7 @@ for name, vox in built.items():
 try:
     bpy.ops.import_scene.gltf(filepath=os.path.join(MODELS, "bee_voxel.glb"))
     bee = [b for b in bpy.context.scene.objects if b.name == "Bee"][0]
-    bee.scale = (0.8, 0.8, 0.8)
+    bee.scale = (1.0, 1.0, 1.0)
     bee.location = (4.4, -0.3, 0.4)
     for b in bpy.context.scene.objects:
         if b.name.startswith("XEyes") or b.name.startswith("DeadEyes"):

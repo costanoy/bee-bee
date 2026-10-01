@@ -45,8 +45,8 @@ Pipeline: `tools/blender/voxel_kit.py` (grade compartilhada `VOX = 0.04` = 1,6 p
 | Gaivota | `make_voxel_gull.py` → `gull_voxel.glb` (21 cubos de comprimento, asas em `WingPivotL/R` como a low poly; escala 1.0) | ✅ no jogo |
 | Chão | `make_voxel_ground.py` → `ground_voxel.glb` (16 un. de largura, topo da grama em y=0; cor varia por retalho e as faces iguais são fundidas com `vk.build_mesh_merged`, ~4,6 mil polígonos) | ✅ no jogo |
 | Árvores | `make_voxel_tree.py` → `tree_voxel_round_a/b/c.glb` e `tree_voxel_pine_a/b/c.glb` (a/b/c = grande/média/pequena, 58/49/41 cubos de altura; sem as faces de trás e de baixo, que a câmera nunca vê) | ✅ no jogo (sem escala nem giro aleatório; posição presa à grade) |
-| Lua | `make_voxel_moon.py` → `moon_voxel.glb` (raio 25 cubos, crateras em volta toda porque o jogo gira a lua; faces fundidas, ~6,9 mil polígonos) | ✅ no jogo, **brilhante** (`_glowing()` em `view3d.gd` põe o material sem sombreamento; iluminada pela luz fraca da noite ela ficava cinza e com riscos pretos nos degraus do lado escuro) |
-| Júpiter | `make_voxel_jupiter.py` → `jupiter_voxel.glb` (raio 31 cubos = 1,25 un., já no tamanho final; faixas em volta toda e a Grande Mancha; ~9,1 mil polígonos) | ✅ no jogo, brilhante como a lua, escala 1.0 |
+| Lua | `make_voxel_moon.py` → `moon_voxel.glb` (raio 25 cubos, crateras em volta toda porque o jogo gira a lua; faces fundidas, ~6,9 mil polígonos) | ✅ no jogo, **brilhante**, paleta com `glow()` (`_glowing()` em `view3d.gd` põe o material sem sombreamento; iluminada pela luz fraca da noite ela ficava cinza e com riscos pretos nos degraus do lado escuro) |
+| Júpiter | `make_voxel_jupiter.py` → `jupiter_voxel.glb` (raio 31 cubos = 1,25 un., já no tamanho final; faixas em volta toda e a Grande Mancha; ~9,1 mil polígonos) | ✅ no jogo, brilhante como a lua (paleta com `glow()`), escala 1.0 |
 | OVNI | `make_voxel_ufo.py` → `ufo_voxel.glb` (49 cubos de diâmetro, já no tamanho final; malhas `Hull`, `Alien` e `Dome` — cúpula translúcida; paleta escurecida com `glow()` porque sem sombreamento o jogo mostra a cor do vértice como luz linear, bem mais clara) | ✅ no jogo, brilhante, escala 1.0 |
 | Fundo: montanhas | `make_voxel_backdrop_hills.py` → `backdrop_voxel_hills.glb` (três camadas — colinas verdes, colinas azuis, montanhas com neve — em **cubos de 0,2 un.**, 5× maiores, porque a 95 un. de distância a perspectiva os reduz ao tamanho dos outros cubos na tela; luz e sombra pintadas; ~4,2 mil polígonos) | ✅ no jogo |
 | Fundo: cidade | `make_voxel_backdrop_city.py` → `backdrop_voxel_city.glb` (casas em tons pastel com telhados e janelas, colinas verdes atrás; mesmos cubos de 0,2 un.; as janelas são uma malha separada `Windows` com material emissivo; ~3,4 mil polígonos) | ✅ no jogo |
@@ -73,5 +73,4 @@ Pipeline: `tools/blender/voxel_kit.py` (grade compartilhada `VOX = 0.04` = 1,6 p
 
 ## Pendências
 1. **Mundo 3D e interface já são voxel.** A interface nova foi feita de uma vez, a pedido do usuário, e aguarda a opinião dele (logo, botões, painéis, fonte).
-3. A lua e o Júpiter aparecem um pouco mais pastel que nos renders (sem sombreamento o jogo mostra a cor do vértice como luz linear); o OVNI, a abelha prateada e o sol já têm a correção `glow()` na paleta — aplicar neles se o usuário quiser cores mais fortes.
 4. Integrar os sons do ElevenLabs quando o usuário enviar.

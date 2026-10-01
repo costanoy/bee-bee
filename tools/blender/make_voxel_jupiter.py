@@ -19,18 +19,26 @@ ARGS = sys.argv[sys.argv.index("--") + 1:]
 MODELS, PREVIEW = ARGS[0], ARGS[1]
 os.makedirs(PREVIEW, exist_ok=True)
 
+# The game draws this unshaded (it shines by itself in the night sky), and
+# unshaded it shows the stored colour as linear light, which comes out much
+# paler. glow() darkens the palette so the screen shows the colours as
+# written here; it is also why the model looks dark in the Blender previews.
+def glow(c):
+    return tuple(v ** 2.2 for v in c)
+
+
 R = 31.0
 SHELL = 3.0
 
-CREAM = (1.0, 0.92, 0.74)
-SAND = (0.98, 0.84, 0.62)
-TAN = (0.90, 0.58, 0.34)
-RUST = (0.82, 0.48, 0.30)
-BROWN = (0.66, 0.38, 0.26)
-POLE = (0.78, 0.62, 0.50)
-SPOT = (0.88, 0.34, 0.24)
-SPOT_CORE = (0.72, 0.22, 0.18)
-SPOT_RING = (1.0, 0.80, 0.62)
+CREAM = glow((1.0, 0.92, 0.74))
+SAND = glow((0.98, 0.84, 0.62))
+TAN = glow((0.90, 0.58, 0.34))
+RUST = glow((0.82, 0.48, 0.30))
+BROWN = glow((0.66, 0.38, 0.26))
+POLE = glow((0.78, 0.62, 0.50))
+SPOT = glow((0.88, 0.34, 0.24))
+SPOT_CORE = glow((0.72, 0.22, 0.18))
+SPOT_RING = glow((1.0, 0.80, 0.62))
 
 # bands from the south pole up: (top edge in cubes from the centre, colour)
 BANDS = [(-25, POLE), (-19, RUST), (-13, CREAM), (-7, TAN), (-2, SAND), (4, CREAM), (10, RUST), (15, SAND),
@@ -102,7 +110,7 @@ vk.export(os.path.join(MODELS, "jupiter_voxel.glb"))
 try:
     bpy.ops.import_scene.gltf(filepath=os.path.join(MODELS, "bee_voxel.glb"))
     bee = [b for b in bpy.context.scene.objects if b.name == "Bee"][0]
-    bee.scale = (0.8, 0.8, 0.8)
+    bee.scale = (1.0, 1.0, 1.0)
     bee.location = (2.05, 0, -0.8)
     for b in bpy.context.scene.objects:
         if b.name.startswith("XEyes") or b.name.startswith("DeadEyes"):

@@ -139,7 +139,7 @@ vk.export(os.path.join(MODELS, "ground_voxel.glb"))
 try:
     bpy.ops.import_scene.gltf(filepath=os.path.join(MODELS, "bee_voxel.glb"))
     bee = [b for b in bpy.context.scene.objects if b.name == "Bee"][0]
-    bee.scale = (0.8, 0.8, 0.8)
+    bee.scale = (1.0, 1.0, 1.0)
     bee.location = (0, 0, 0.38)
     for b in bpy.context.scene.objects:
         if b.name.startswith("XEyes") or b.name.startswith("DeadEyes"):

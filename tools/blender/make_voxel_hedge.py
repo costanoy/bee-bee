@@ -144,7 +144,7 @@ bee = None
 try:
     bpy.ops.import_scene.gltf(filepath=os.path.join(MODELS, "bee_voxel.glb"))
     bee = [o for o in bpy.context.scene.objects if o.name == "Bee"][0]
-    bee.scale = (0.8, 0.8, 0.8)
+    bee.scale = (1.0, 1.0, 1.0)
     bee.location = (len(order) * TILE * vk.VOX + 0.9, -0.3, 0.05)
     for o in bpy.context.scene.objects:
         if o.name.startswith("XEyes") or o.name.startswith("DeadEyes"):

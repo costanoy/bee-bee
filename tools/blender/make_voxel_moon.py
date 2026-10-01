@@ -19,12 +19,20 @@ ARGS = sys.argv[sys.argv.index("--") + 1:]
 MODELS, PREVIEW = ARGS[0], ARGS[1]
 os.makedirs(PREVIEW, exist_ok=True)
 
+# The game draws this unshaded (it shines by itself in the night sky), and
+# unshaded it shows the stored colour as linear light, which comes out much
+# paler. glow() darkens the palette so the screen shows the colours as
+# written here; it is also why the model looks dark in the Blender previews.
+def glow(c):
+    return tuple(v ** 2.2 for v in c)
+
+
 R = 25.0
-SURFACE = [(1.0, 0.95, 0.74), (1.0, 0.97, 0.80), (0.97, 0.91, 0.69)]
-MARE = (0.93, 0.86, 0.64)            # the big darker "seas"
-FLOOR = (0.86, 0.78, 0.56)
-FLOOR_DEEP = (0.79, 0.70, 0.50)
-RIM = (1.0, 0.99, 0.88)
+SURFACE = [glow((1.0, 0.95, 0.74)), glow((1.0, 0.97, 0.80)), glow((0.97, 0.91, 0.69))]
+MARE = glow((0.93, 0.86, 0.64))            # the big darker "seas"
+FLOOR = glow((0.86, 0.78, 0.56))
+FLOOR_DEEP = glow((0.79, 0.70, 0.50))
+RIM = glow((1.0, 0.99, 0.88))
 
 
 def h(*k):
@@ -107,7 +115,7 @@ vk.export(os.path.join(MODELS, "moon_voxel.glb"))
 try:
     bpy.ops.import_scene.gltf(filepath=os.path.join(MODELS, "bee_voxel.glb"))
     bee = [b for b in bpy.context.scene.objects if b.name == "Bee"][0]
-    bee.scale = (0.8, 0.8, 0.8)
+    bee.scale = (1.0, 1.0, 1.0)
     bee.location = (1.75, 0, -0.6)
     for b in bpy.context.scene.objects:
         if b.name.startswith("XEyes") or b.name.startswith("DeadEyes"):
