@@ -16,10 +16,14 @@ const OBSTACLE_SPACING := 190.0
 # (long-standing) values, to restore if this doesn't stick:
 #   SCROLL_BASE := 78.0
 #   SCROLL_MAX := 148.0
-const SCROLL_BASE := 90.0
+# TEST — raised again by 15% (was 90.0 / 170.0) after the game came out
+# much easier on the phone: the bee had been given 15% more sideways speed
+# (bee.gd H_SPEED) while the climb stayed the same, so every row left more
+# time to spare. This puts the two back in their old proportion.
+const SCROLL_BASE := 103.0
 # Prototype's original ramp topped out at 165 (too punishing with mandatory
 # flowers + shrinking gaps); 110 was too tame, 135 still felt easy.
-const SCROLL_MAX := 170.0
+const SCROLL_MAX := 195.0
 # TEST — shortened from 50 so every run gets tense sooner; top speed and
 # narrowest gap are unchanged, they're just reached earlier.
 const DIFFICULTY_RAMP_TIME := 35.0
@@ -491,7 +495,11 @@ func _spawn_row() -> void:
 	highest_spawn_y = y
 
 	var diff: float = _difficulty()
-	var gap_width: float = 175.0 - diff * 75.0
+	# TEST — 6.4 px narrower at every difficulty (was 175.0 - diff * 75.0).
+	# The bee's hitbox went from 16 to 12.8 px in radius, which in effect
+	# widened every gap by that much; this gives back the old free space
+	# around the bee.
+	var gap_width: float = 168.6 - diff * 75.0
 	var margin: float = gap_width / 2.0 + 24.0
 	var flower_clear: float = gap_width / 2.0 + 20.0
 

@@ -45,8 +45,17 @@ const GLYPHS := {
 }
 const BACKDROP_DEPTH := 95.0     # far enough to scroll at ~1/5 of the climb rate
 const SUN_Y := 26.0
+# TEST — how fast the sun slides down the screen as the bee climbs, as a
+# share of the hedges' own scroll rate. Hung at its real depth it moved at
+# about 0.14, which next to everything rushing past read as a sun pinned to
+# the screen. Previous behaviour: no extra drift (see _sync_sky).
+const SUN_SCROLL := 0.35
 
-const SKY_DAY := [Color(0.30, 0.60, 0.95), Color(0.72, 0.88, 1.0)]
+# Day sky deepened (was top 0.30/0.60/0.95, horizon 0.72/0.88/1.0): the
+# camera looks almost level, so nearly the whole screen is the horizon
+# colour, and that pale it came out close to white — the bee's wings, the
+# clouds and the white UI text had little to stand against.
+const SKY_DAY := [Color(0.10, 0.36, 0.74), Color(0.27, 0.56, 0.86)]
 const SKY_DUSK := [Color(0.30, 0.26, 0.60), Color(0.98, 0.58, 0.46)]
 const SKY_NIGHT := [Color(0.04, 0.05, 0.16), Color(0.14, 0.14, 0.36)]
 
@@ -261,7 +270,12 @@ func _sync_sky() -> void:
 	env.ambient_light_energy = lerpf(0.9, 0.8, d)
 	# the sun sets: sinks and fades out as the sky turns
 	if sun_disc:
-		sun_disc.position.y = SUN_Y - d * 70.0
+		# Sinking it by hand as the camera rises makes it scroll faster than
+		# its depth alone would, while it still sets behind the backdrop.
+		var climb: float = (main.GROUND_DEPTH - main.screen_h - main.camera_y) / PX
+		var dist := _cam_dist()
+		var depth_ratio := (dist + BACKDROP_DEPTH + 40.0) / dist
+		sun_disc.position.y = SUN_Y - d * 70.0 + climb * (1.0 - SUN_SCROLL * depth_ratio)
 		sun_mat.albedo_color.a = clampf(1.0 - d * 2.2, 0.0, 1.0)
 		sun_disc.visible = sun_mat.albedo_color.a > 0.01
 	star_mat.albedo_color.a = clampf((d - 0.45) * 2.0, 0.0, 1.0)
