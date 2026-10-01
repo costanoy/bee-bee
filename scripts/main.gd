@@ -81,12 +81,12 @@ const SFX_NEAR_MISS := preload("res://audio/sfx_near_miss.wav")
 # balanced without re-rendering. The flap sits lowest by a wide margin:
 # it fires on every single tap, and anything louder takes over the mix
 # within one run.
-const SFX_FLAP_DB := -16.0
-const SFX_COLLECT_DB := -7.0
+const SFX_FLAP_DB := -18.0
+const SFX_COLLECT_DB := -6.0
 const SFX_HIT_DB := -3.0
 const SFX_RECORD_DB := -5.0
-const SFX_UI_DB := -12.0
-const SFX_NEAR_MISS_DB := -10.0
+const SFX_UI_DB := -13.0
+const SFX_NEAR_MISS_DB := -7.0
 
 # TEST — a "near miss" cue (screen shake + whoosh) when the bee grazes past
 # a gap edge within this many px without hitting it, requested to see if
