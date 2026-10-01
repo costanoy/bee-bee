@@ -43,8 +43,9 @@ Pipeline: `tools/blender/voxel_kit.py` (grade compartilhada `VOX = 0.04` = 1,6 p
 | Flores | `make_voxel_flower.py` → `flower_voxel_red/yellow/blue.glb` (mesma forma, só muda a cor; usar escala 1.0) | ✅ no jogo (aprovadas como estavam; `FLOWER_SCALE 1.0`) |
 | Nuvens | `make_voxel_cloud.py` → `cloud_voxel_a/b/c.glb` (grande/média/pequena = 45/35/25 cubos, translúcidas `ALPHA = 0.6`) | ✅ no jogo (`_build_cloud` em `view3d.gd` escolhe o modelo pela largura da nuvem 2D, escala 1.0, `depth_draw_mode ALWAYS` para as camadas internas não aparecerem como riscos) |
 | Gaivota | `make_voxel_gull.py` → `gull_voxel.glb` (21 cubos de comprimento, asas em `WingPivotL/R` como a low poly; escala 1.0) | ✅ no jogo |
-| Chão | `make_voxel_ground.py` → `ground_voxel.glb` (16 un. de largura, topo da grama em y=0; cor varia por retalho e as faces iguais são fundidas com `vk.build_mesh_merged`, ~4,6 mil polígonos) | ⏳ **aguardando aprovação** do usuário. Para ligar: em `view3d.gd` adicionar `"ground": "ground_voxel"` no `voxel` |
-| Próximos (um por vez) | árvores, lua, Júpiter, OVNI, fundos (colinas/montanhas e cidade) | ainda low poly (`make_lowpoly_models.py`) |
+| Chão | `make_voxel_ground.py` → `ground_voxel.glb` (16 un. de largura, topo da grama em y=0; cor varia por retalho e as faces iguais são fundidas com `vk.build_mesh_merged`, ~4,6 mil polígonos) | ✅ no jogo |
+| Árvores | `make_voxel_tree.py` → `tree_voxel_round_a/b/c.glb` e `tree_voxel_pine_a/b/c.glb` (a/b/c = grande/média/pequena, 58/49/41 cubos de altura; sem as faces de trás e de baixo, que a câmera nunca vê) | ⏳ **aguardando aprovação** do usuário. Para ligar: em `view3d.gd` `_sync_scenery` sortear um dos três tamanhos do tipo, **sem** `scale` nem `rotation.y` aleatórios (quebram a grade de cubos e mostrariam as faces que faltam) |
+| Próximos (um por vez) | lua, Júpiter, OVNI, fundos (colinas/montanhas e cidade) | ainda low poly (`make_lowpoly_models.py`) |
 
 ## Estado da jogabilidade (valores atuais)
 - Velocidade de scroll `SCROLL_BASE 90` / `SCROLL_MAX 170` (TEST, era 78/148); rampa de dificuldade 35 s (TEST, era 50).
@@ -60,7 +61,7 @@ Pipeline: `tools/blender/voxel_kit.py` (grade compartilhada `VOX = 0.04` = 1,6 p
 - O usuário vai gerar sons novos no **ElevenLabs** (lista de prompts já entregue): `sfx_flap`, `sfx_collect` (nota única em Lá — o jogo sobe o tom a cada flor), `sfx_hit`, `sfx_near_miss`, `sfx_record`, `sfx_ui_tap`, `music_theme` (loop). Quando chegarem: trocar em `audio/` e ajustar os volumes (constantes `SFX_*_DB` em `main.gd`).
 
 ## Pendências
-1. Aprovar/ajustar o **chão voxel** e ligá-lo no jogo.
+1. Aprovar/ajustar as **árvores voxel** e ligá-las no jogo.
 2. Seguir convertendo os demais assets para voxel, um por vez, sempre mostrando antes.
 3. Abelha brilhosa (skin desbloqueada no score 300) — lógica pronta, falta o visual.
 4. Integrar os sons do ElevenLabs quando o usuário enviar.

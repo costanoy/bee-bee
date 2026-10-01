@@ -54,11 +54,12 @@ _DIRS = [((1, 0, 0), [(1, 0, 0), (1, 1, 0), (1, 1, 1), (1, 0, 1)]),
 
 
 def build_mesh(name, vox, mat, parent=None, origin=(0, 0, 0), size=VOX, jitter=0.045, seed=1, alpha=1.0,
-               solid_neighbours=None):
+               solid_neighbours=None, skip=()):
     """vox: {(x, y, z): sRGB}. Voxel (x,y,z) spans [x, x+1) etc. times `size`,
     offset by -origin (in voxels). solid_neighbours: extra cells treated as
     filled when culling faces (e.g. the next tile over, so seams have no
-    inner walls)."""
+    inner walls). skip: face directions to leave out altogether, for sides
+    the game's camera can never see (e.g. (0, 1, 0), the back)."""
     rng = random.Random(seed)
     bm = bmesh.new()
     col = bm.loops.layers.color.new("Col")
@@ -74,7 +75,7 @@ def build_mesh(name, vox, mat, parent=None, origin=(0, 0, 0), size=VOX, jitter=0
         j = 1.0 + rng.uniform(-jitter, jitter)
         cc = tuple(min(1.0, v * j) for v in c)           # the colour layer stores sRGB as-is
         for (dx, dy, dz), corners in _DIRS:
-            if (x + dx, y + dy, z + dz) in solid:
+            if (dx, dy, dz) in skip or (x + dx, y + dy, z + dz) in solid:
                 continue
             f = bm.faces.new([vert((x + a, y + b, z + cz)) for a, b, cz in corners])
             for l in f.loops:
