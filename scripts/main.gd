@@ -139,6 +139,29 @@ const ICON_NOTE := [
 	"XXXXX.XXXXX",
 	".XXX...XXX.",
 ]
+const ICON_PLAY := [
+	"XX.......",
+	"XXXX.....",
+	"XXXXXX...",
+	"XXXXXXXX.",
+	"XXXXXXXXX",
+	"XXXXXXXX.",
+	"XXXXXX...",
+	"XXXX.....",
+	"XX.......",
+]
+# points right; the left one is the same rows mirrored
+const ICON_ARROW := [
+	"......X....",
+	"......XX...",
+	"XXXXXXXXX..",
+	"XXXXXXXXXX.",
+	"XXXXXXXXXXX",
+	"XXXXXXXXXX.",
+	"XXXXXXXXX..",
+	"......XX...",
+	"......X....",
+]
 const ICON_SLASH := [
 	"X..........",
 	"XX.........",
@@ -160,6 +183,11 @@ const SeagullScript := preload("res://scripts/seagull.gd")
 const SkyScript := preload("res://scripts/sky.gd")
 const PrerenderedArt := preload("res://scripts/prerendered_art.gd")
 const View3DScript := preload("res://scripts/view3d.gd")
+const VoxelPlate := preload("res://scripts/voxel_plate.gd")
+const VoxelLogo := preload("res://scripts/voxel_logo.gd")
+# One cube of the interface's grid, in UI pixels: every plate is a whole
+# number of these, about two of the world's cubes across.
+const UI_CELL := 3.0
 # Real-time 3D view (view3d.gd) on top of the unchanged 2D simulation;
 # false brings back the 2D sprites.
 const USE_3D_VIEW := true
@@ -224,7 +252,7 @@ var score_label: Label
 var record_label: Label
 var direction_hint: Control
 var start_screen: Control
-var play_button: TextureButton
+var play_button: Button
 var game_over_screen: Control
 var final_score_label: Label
 var final_best_label: Label
@@ -246,13 +274,9 @@ var bee_button_icons: Array[TextureRect] = []
 func _ready() -> void:
 	screen_h = get_viewport_rect().size.y
 
-	# Inter (SIL OFL 1.1, see fonts/Inter-OFL.txt) at its extra-bold weight:
-	# a round, chunky face that sits with the 3D candy-toy art, where the
-	# old pixel arcade font clashed.
-	var inter := FontVariation.new()
-	inter.base_font = load("res://fonts/Inter.woff2")
-	inter.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 800}
-	ui_font = inter
+	# Jersey 10 (SIL OFL 1.1, see fonts/Jersey10-OFL.txt): a chunky pixel
+	# face, so the text is made of squares like the voxel world behind it.
+	ui_font = load("res://fonts/Jersey10-Regular.ttf")
 
 	sky = SkyScript.new()
 	add_child(sky)
@@ -804,8 +828,8 @@ func _end_game() -> void:
 		SaveData.save_data()
 		_play_sfx(SFX_RECORD, SFX_RECORD_DB)
 
-	final_score_label.text = "Score: %d" % score
-	final_best_label.text = "Record: %d" % SaveData.best_score
+	final_score_label.text = "%d" % score
+	final_best_label.text = "%d" % SaveData.best_score
 	record_label.text = "Record: %d" % SaveData.best_score
 	if beat_record:
 		_show_new_record_badge()
@@ -823,21 +847,6 @@ func _set_hud_visible(on: bool) -> void:
 
 
 func _show_new_record_badge() -> void:
-	# "Record: n" is centred in a full-width label, so the text itself
-	# starts wherever its own width puts it — measure with the label's own
-	# font so the badge can't drift if that label is ever restyled.
-	var font: Font = final_best_label.get_theme_font("font")
-	var font_size: int = final_best_label.get_theme_font_size("font")
-	var text_w: float = font.get_string_size(
-		final_best_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-	# Centre badge + text as one line; parking the badge beside text that
-	# stayed centred on its own pushed the whole line ~28px left of the
-	# score beneath it. The 8px gap also absorbs the pulse's growth.
-	const GAP := 8.0
-	var group_left: float = (SCREEN_W - (new_record_badge.size.x + GAP + text_w)) / 2.0
-	new_record_badge.position = Vector2(group_left, final_best_label.position.y)
-	var text_left: float = group_left + new_record_badge.size.x + GAP
-	final_best_label.position.x = text_left - (SCREEN_W - text_w) / 2.0
 	new_record_badge.scale = Vector2.ONE
 	new_record_badge.visible = true
 
@@ -854,7 +863,6 @@ func _show_new_record_badge() -> void:
 
 func _hide_new_record_badge() -> void:
 	new_record_badge.visible = false
-	final_best_label.position.x = 0.0
 	if record_pulse != null and record_pulse.is_valid():
 		record_pulse.kill()
 	record_pulse = null
@@ -1067,13 +1075,7 @@ func _refresh_bee_menu() -> void:
 		var card: Dictionary = bee_cards[id]
 		var locked: bool = id == "shining" and not SaveData.shining_bee_unlocked
 		var selected: bool = id == current
-		var style := StyleBoxFlat.new()
-		style.bg_color = Color(UI_INK, 0.84)
-		style.set_corner_radius_all(18)
-		style.set_border_width_all(4 if selected else 3)
-		style.border_color = GOLD if selected else Color(1, 1, 1, 0.4 if locked else 0.8)
-		for s in ["normal", "hover", "pressed"]:
-			card["button"].add_theme_stylebox_override(s, style)
+		card["plate"].set_ink(GOLD if selected else Color(1, 1, 1, 0.45 if locked else 0.9))
 		# a locked bee shows as a dark silhouette
 		card["icon"].modulate = Color(0.08, 0.06, 0.14, 0.85) if locked else Color.WHITE
 		card["trait"].text = "?" if locked else BEE_SKINS[id]["trait"]
@@ -1164,22 +1166,22 @@ func _build_ui() -> void:
 	ui_layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(ui_layer)
 
-	record_label = _make_label("Record: 0", 15, Color(1, 1, 1, 0.8))
+	record_label = _make_label("Record: 0", 22, Color(1, 1, 1, 0.9))
 	record_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	record_label.position = Vector2(0, 24)
-	record_label.size = Vector2(SCREEN_W, 24)
+	record_label.position = Vector2(0, 22)
+	record_label.size = Vector2(SCREEN_W, 26)
 	ui_layer.add_child(record_label)
 
-	score_label = _make_label("0", 40, Color.WHITE)
+	score_label = _make_label("0", 64, Color.WHITE)
 	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	score_label.position = Vector2(0, 104)
-	score_label.size = Vector2(SCREEN_W, 56)
+	score_label.position = Vector2(0, 92)
+	score_label.size = Vector2(SCREEN_W, 68)
 	ui_layer.add_child(score_label)
 
 	direction_hint = _build_direction_hint()
 	ui_layer.add_child(direction_hint)
 
-	pause_button = _make_icon_button(_build_pixel_icon(ICON_PAUSE, 4.0, Color.WHITE), 46.0)
+	pause_button = _make_icon_button(_build_pixel_icon(ICON_PAUSE, 3.0, Color.WHITE), 48.0)
 	pause_button.position = Vector2(SCREEN_W - pause_button.size.x - 14, 18)
 	pause_button.visible = false
 	pause_button.pressed.connect(_on_pause_pressed)
@@ -1213,7 +1215,7 @@ func _make_label(text: String, font_size: int, color: Color) -> Label:
 	# Tinted ink outline, same idea as the art's per-material outlines,
 	# plus a soft drop so text still reads over busy scenery.
 	label.add_theme_color_override("font_outline_color", UI_INK)
-	label.add_theme_constant_override("outline_size", maxi(4, font_size / 4))
+	label.add_theme_constant_override("outline_size", maxi(5, roundi(font_size / 4.5)))
 	label.add_theme_color_override("font_shadow_color", Color(UI_INK, 0.45))
 	label.add_theme_constant_override("shadow_offset_x", 0)
 	label.add_theme_constant_override("shadow_offset_y", 3)
@@ -1247,21 +1249,16 @@ func _build_direction_hint() -> Control:
 func _add_hint_side(parent: Control, cx: float, dir: int, text: String) -> void:
 	var mid_y := screen_h * 0.5
 
-	var arrow := Polygon2D.new()
-	var pts := PackedVector2Array([
-		Vector2(-20, -8), Vector2(4, -8), Vector2(4, -20),
-		Vector2(24, 0), Vector2(4, 20), Vector2(4, 8), Vector2(-20, 8),
-	])
-	for i in range(pts.size()):
-		pts[i] = Vector2(pts[i].x * dir, pts[i].y)
-	arrow.polygon = pts
-	arrow.color = Color(1, 1, 1, 0.85)
-	arrow.position = Vector2(cx, mid_y)
+	var rows := []
+	for row in ICON_ARROW:
+		rows.append(row if dir > 0 else (row as String).reverse())
+	var arrow := _build_pixel_icon(rows, 4.0, Color(1, 1, 1, 0.9))
+	arrow.position = Vector2(cx, mid_y) - arrow.size / 2.0
 	parent.add_child(arrow)
 
-	var label := _make_label(text, 13, Color(1, 1, 1, 0.85))
-	label.position = Vector2(cx - 60, mid_y + 34)
-	label.size = Vector2(120, 24)
+	var label := _make_label(text, 20, Color(1, 1, 1, 0.9))
+	label.position = Vector2(cx - 60, mid_y + 30)
+	label.size = Vector2(120, 28)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	parent.add_child(label)
 
@@ -1271,30 +1268,45 @@ func _build_start_screen() -> Control:
 	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
 	screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	# source is a 1344x768 canvas; the actual logo art is an 822x254
-	# content box inside it.
-	var logo := Sprite2D.new()
-	var logo_atlas := AtlasTexture.new()
-	logo_atlas.atlas = load(PrerenderedArt.path("logo.png"))
-	logo_atlas.region = Rect2(264, 264, 822, 254)
-	logo.texture = logo_atlas
-	var logo_visual_w := 320.0
-	logo.scale = Vector2.ONE * (logo_visual_w / 822.0)
+	var logo := VoxelLogo.new()
+	logo.setup(344.0)
 	# Anchored to the bottom like the world behind it (the ground sits flush
 	# with the bottom edge, rows stack up from there), so on taller phones
 	# the logo keeps the same slot between rows instead of a row running
 	# straight through it. Floored so short screens don't push it under the
 	# record label.
-	logo.position = Vector2(SCREEN_W / 2.0, maxf(140.0, screen_h - 660.0))
+	logo.position = Vector2(
+		(SCREEN_W - logo.size.x) / 2.0, maxf(140.0, screen_h - 660.0) - logo.size.y / 2.0)
 	screen.add_child(logo)
 
-	# source is a 768x768 canvas; the actual button art is a 418x320 content
-	# box inside it.
-	play_button = _make_image_button(PrerenderedArt.path("play_button.png"), Rect2(174, 224, 418, 320), 110.0)
-	play_button.position = Vector2(SCREEN_W / 2.0 - play_button.size.x / 2.0, screen_h - 140)
+	# The bee in use hovers between the two words, so the title shows the
+	# skin that is about to fly.
+	var logo_bee := _make_bee_icon(_current_bee_skin(), 74.0)
+	bee_button_icons.append(logo_bee)
+	var bee_home: Vector2 = logo.position + logo.gap_anchor - Vector2(37.0, 40.0)
+	logo_bee.position = bee_home
+	screen.add_child(logo_bee)
+	var bob := logo_bee.create_tween().set_loops()
+	bob.tween_property(logo_bee, "position:y", bee_home.y - 7.0, 0.7) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	bob.tween_property(logo_bee, "position:y", bee_home.y, 0.7) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+	play_button = _make_block_button("green", Vector2(126, 84), 3)
+	var play_icon := _build_pixel_icon(ICON_PLAY, 5.0, Color.WHITE)
+	var play_face: Control = play_button.get_meta("content")
+	play_icon.position = ((play_face.size - play_icon.size) / 2.0 + Vector2(2, 0)).floor()
+	play_face.add_child(play_icon)
+	play_button.position = Vector2(SCREEN_W / 2.0 - play_button.size.x / 2.0, screen_h - 144)
 	play_button.pressed.connect(_on_play_pressed)
-	_add_press_feedback(play_button)
 	screen.add_child(play_button)
+	# a slow breath, so the one thing to tap on this screen asks for it
+	play_button.pivot_offset = play_button.size / 2.0
+	var breath := play_button.create_tween().set_loops()
+	breath.tween_property(play_button, "scale", Vector2.ONE * 1.06, 0.8) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	breath.tween_property(play_button, "scale", Vector2.ONE, 0.8) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 	var bee_button := _make_bee_button()
 	bee_button.position = Vector2(26, play_button.position.y + (play_button.size.y - bee_button.size.y) / 2.0)
@@ -1309,7 +1321,7 @@ func _build_start_screen() -> Control:
 func _make_bee_button() -> Button:
 	var icon := _make_bee_icon(_current_bee_skin(), 50.0)
 	bee_button_icons.append(icon)
-	var btn := _make_icon_button(icon, 62.0)
+	var btn := _make_icon_button(icon, 63.0)
 	btn.pressed.connect(_on_bee_menu_pressed)
 	return btn
 
@@ -1336,13 +1348,13 @@ func _build_bee_menu() -> Control:
 	screen.add_child(dim)
 
 	var top := screen_h * 0.2
-	var title := _make_label("Choose your bee", 24, Color.WHITE)
+	var title := _make_label("Choose your bee", 38, Color.WHITE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.position = Vector2(0, top)
 	title.size = Vector2(SCREEN_W, 44)
 	screen.add_child(title)
 
-	const CARD := Vector2(164, 216)
+	const CARD := Vector2(165, 216)
 	const GAP := 16.0
 	var left := (SCREEN_W - (CARD.x * BEE_ORDER.size() + GAP * (BEE_ORDER.size() - 1))) / 2.0
 	for i in BEE_ORDER.size():
@@ -1351,7 +1363,7 @@ func _build_bee_menu() -> Control:
 		screen.add_child(card)
 
 	var back := _make_text_button("Back")
-	back.position = Vector2(SCREEN_W / 2.0 - 115, top + 70 + CARD.y + 34)
+	back.position = Vector2((SCREEN_W - back.size.x) / 2.0, top + 70 + CARD.y + 34)
 	back.pressed.connect(_on_bee_menu_closed)
 	screen.add_child(back)
 
@@ -1359,56 +1371,47 @@ func _build_bee_menu() -> Control:
 
 
 func _make_bee_card(id: String, card_size: Vector2) -> Button:
-	var btn := Button.new()
-	btn.focus_mode = Control.FOCUS_NONE
-	btn.custom_minimum_size = card_size
-	btn.size = card_size
+	var btn := _make_block_button("dark", card_size)
 	btn.pressed.connect(_on_bee_card_pressed.bind(id))
-	_add_tap_sound(btn)
+	var face: Control = btn.get_meta("content")
 
-	var icon := _make_bee_icon(id, 132.0)
-	icon.position = Vector2((card_size.x - 132.0) / 2.0, 8)
-	btn.add_child(icon)
+	var icon := _make_bee_icon(id, 126.0)
+	icon.position = Vector2((face.size.x - 126.0) / 2.0, 6)
+	face.add_child(icon)
 
 	var rows := {}
-	for row in [["name", BEE_SKINS[id]["name"], 16, 140.0], ["trait", "", 11, 164.0], ["status", "", 12, 186.0]]:
+	for row in [["name", BEE_SKINS[id]["name"], 26, 128.0], ["trait", "", 18, 154.0], ["status", "", 18, 177.0]]:
 		var label := _make_label(row[1], row[2], Color.WHITE if row[0] == "name" else Color(1, 1, 1, 0.75))
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		label.position = Vector2(0, row[3])
-		label.size = Vector2(card_size.x, 22)
-		btn.add_child(label)
+		label.size = Vector2(face.size.x, 24)
+		face.add_child(label)
 		rows[row[0]] = label
 
-	bee_cards[id] = {"button": btn, "icon": icon, "trait": rows["trait"], "status": rows["status"]}
+	bee_cards[id] = {"plate": btn.get_meta("plate"), "icon": icon, "trait": rows["trait"], "status": rows["status"]}
 	return btn
 
 
 # A banner for the moment the silver bee is won (score 300, first time ever).
 func _build_bee_notice() -> Control:
-	var panel := Panel.new()
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.size = Vector2(300, 68)
+	var panel := VoxelPlate.new()
+	panel.setup("dark", Vector2(300, 72), UI_CELL)
+	panel.set_ink(GOLD)
 	panel.position = Vector2((SCREEN_W - panel.size.x) / 2.0, 172)
 	panel.visible = false
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(UI_INK, 0.88)
-	style.set_corner_radius_all(16)
-	style.set_border_width_all(3)
-	style.border_color = GOLD
-	panel.add_theme_stylebox_override("panel", style)
 
 	var icon := _make_bee_icon("shining", 60.0)
-	icon.position = Vector2(8, 4)
+	icon.position = Vector2(8, 3)
 	panel.add_child(icon)
 
-	var title := _make_label("Silver Bee unlocked!", 16, GOLD)
-	title.position = Vector2(74, 9)
-	title.size = Vector2(220, 26)
+	var title := _make_label("Silver Bee unlocked!", 26, GOLD)
+	title.position = Vector2(74, 6)
+	title.size = Vector2(220, 28)
 	panel.add_child(title)
 
-	var hint := _make_label("Pick it in the bee menu", 11, Color(1, 1, 1, 0.9))
-	hint.position = Vector2(74, 38)
-	hint.size = Vector2(220, 20)
+	var hint := _make_label("Pick it in the bee menu", 18, Color(1, 1, 1, 0.9))
+	hint.position = Vector2(74, 35)
+	hint.size = Vector2(220, 22)
 	panel.add_child(hint)
 
 	return panel
@@ -1429,33 +1432,33 @@ func _build_pause_screen() -> Control:
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	screen.add_child(dim)
 
-	var title := _make_label("Paused", 28, Color.WHITE)
+	var title := _make_label("Paused", 52, Color.WHITE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.position = Vector2(0, screen_h * 0.26)
-	title.size = Vector2(SCREEN_W, 50)
+	title.size = Vector2(SCREEN_W, 56)
 	screen.add_child(title)
 
-	var resume_button := _make_text_button("Resume")
-	resume_button.position = Vector2(SCREEN_W / 2.0 - 115, screen_h * 0.41)
+	var resume_button := _make_text_button("Resume", "green")
+	resume_button.position = Vector2((SCREEN_W - resume_button.size.x) / 2.0, screen_h * 0.41)
 	resume_button.pressed.connect(_on_resume_pressed)
 	screen.add_child(resume_button)
 
 	var pause_restart_button := _make_text_button("Restart")
-	pause_restart_button.position = Vector2(SCREEN_W / 2.0 - 115, screen_h * 0.41 + 86)
+	pause_restart_button.position = Vector2((SCREEN_W - pause_restart_button.size.x) / 2.0, screen_h * 0.41 + 86)
 	pause_restart_button.pressed.connect(_on_pause_restart_pressed)
 	screen.add_child(pause_restart_button)
 
-	music_note = _build_pixel_icon(ICON_NOTE, 4.0, Color.WHITE)
-	var music_button := _make_icon_button(music_note, 58.0)
+	music_note = _build_pixel_icon(ICON_NOTE, 3.0, Color.WHITE)
+	var music_button := _make_icon_button(music_note, 57.0)
 	music_button.position = Vector2(
 		SCREEN_W / 2.0 - music_button.size.x / 2.0, screen_h * 0.41 + 200)
 	music_button.pressed.connect(_on_music_toggle_pressed)
 	screen.add_child(music_button)
 
-	music_slash = _build_pixel_icon(ICON_SLASH, 4.0, Color.WHITE)
+	music_slash = _build_pixel_icon(ICON_SLASH, 3.0, Color.WHITE)
 	music_slash.position = music_note.position
 	music_slash.visible = false
-	music_button.add_child(music_slash)
+	music_note.get_parent().add_child(music_slash)
 
 	return screen
 
@@ -1463,59 +1466,72 @@ func _build_pause_screen() -> Control:
 func _build_pixel_icon(rows: Array, cell: float, color: Color) -> Control:
 	# Horizontal runs of set pixels collapse into one rect each, so a glyph
 	# costs a handful of nodes instead of one per pixel.
+	# Drawn twice: an ink copy one cube lower first, as the glyph's shadow.
 	var icon := Control.new()
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var cols: int = (rows[0] as String).length()
 	icon.size = Vector2(cols * cell, rows.size() * cell)
-	for y in rows.size():
-		var row: String = rows[y]
-		var x := 0
-		while x < cols:
-			if row[x] != "X":
-				x += 1
-				continue
-			var run := 1
-			while x + run < cols and row[x + run] == "X":
-				run += 1
-			var block := ColorRect.new()
-			block.color = color
-			block.position = Vector2(x * cell, y * cell)
-			block.size = Vector2(run * cell, cell)
-			block.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			icon.add_child(block)
-			x += run
+	for layer in [[Color(UI_INK, color.a), cell], [color, 0.0]]:
+		for y in rows.size():
+			var row: String = rows[y]
+			var x := 0
+			while x < cols:
+				if row[x] != "X":
+					x += 1
+					continue
+				var run := 1
+				while x + run < cols and row[x + run] == "X":
+					run += 1
+				var block := ColorRect.new()
+				block.color = layer[0]
+				block.position = Vector2(x * cell, y * cell + layer[1])
+				block.size = Vector2(run * cell, cell)
+				block.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				icon.add_child(block)
+				x += run
 	return icon
 
 
-func _make_icon_button(icon: Control, side: float) -> Button:
+# A button that is one voxel_plate.gd block: tapping it sinks the block's
+# face, and whatever was added to its "content" node (meta) rides down with
+# it. The Button itself draws nothing.
+func _make_block_button(palette: String, btn_size: Vector2, side_cells := 2) -> Button:
 	var btn := Button.new()
 	btn.focus_mode = Control.FOCUS_NONE
-	btn.custom_minimum_size = Vector2(side, side)
-	btn.size = btn.custom_minimum_size
+	btn.custom_minimum_size = btn_size
+	btn.size = btn_size
+	for s in ["normal", "hover", "pressed", "disabled", "focus"]:
+		btn.add_theme_stylebox_override(s, StyleBoxEmpty.new())
 
-	# No plate art exists at this shape, and the in-game one sits over live
-	# gameplay, so these carry their own backing instead.
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(UI_INK, 0.55)
-	style.set_corner_radius_all(int(side * 0.3))
-	style.set_border_width_all(3)
-	style.border_color = Color(1, 1, 1, 0.8)
-	style.shadow_color = Color(UI_INK, 0.35)
-	style.shadow_size = 2
-	style.shadow_offset = Vector2(0, 3)
-	btn.add_theme_stylebox_override("normal", style)
+	var plate := VoxelPlate.new()
+	plate.setup(palette, btn_size, UI_CELL, side_cells)
+	btn.add_child(plate)
 
-	var style_hover: StyleBoxFlat = style.duplicate()
-	style_hover.bg_color = Color(UI_INK, 0.68)
-	btn.add_theme_stylebox_override("hover", style_hover)
+	var content := Control.new()
+	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.position = plate.face_rect().position
+	content.size = plate.face_rect().size
+	btn.add_child(content)
 
-	var style_pressed: StyleBoxFlat = style.duplicate()
-	style_pressed.bg_color = Color(UI_INK.lightened(0.25), 0.72)
-	btn.add_theme_stylebox_override("pressed", style_pressed)
-
-	icon.position = ((btn.size - icon.size) / 2.0).floor()
-	btn.add_child(icon)
+	btn.set_meta("plate", plate)
+	btn.set_meta("content", content)
+	btn.button_down.connect(func():
+		plate.pressed = true
+		content.position = plate.face_rect().position
+	)
+	btn.button_up.connect(func():
+		plate.pressed = false
+		content.position = plate.face_rect().position
+	)
 	_add_tap_sound(btn)
+	return btn
+
+
+func _make_icon_button(icon: Control, side: float) -> Button:
+	var btn := _make_block_button("dark", Vector2(side, side))
+	var face: Control = btn.get_meta("content")
+	icon.position = ((face.size - icon.size) / 2.0).floor()
+	face.add_child(icon)
 	return btn
 
 
@@ -1525,36 +1541,57 @@ func _build_game_over_screen() -> Control:
 	screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	screen.visible = false
 
-	var title := _make_label("Game Over", 28, Color.WHITE)
+	var top := screen_h * 0.3
+	var title := _make_label("Game Over", 56, Color.WHITE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, screen_h * 0.32)
-	title.size = Vector2(SCREEN_W, 50)
+	title.position = Vector2(0, top)
+	title.size = Vector2(SCREEN_W, 60)
 	screen.add_child(title)
 
-	final_best_label = _make_label("Record: 0", 15, Color(1, 0.88, 0.4))
-	final_best_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	final_best_label.position = Vector2(0, screen_h * 0.32 + 56)
-	final_best_label.size = Vector2(SCREEN_W, 26)
-	screen.add_child(final_best_label)
+	# The run's score and the record side by side on one board.
+	var board := VoxelPlate.new()
+	board.setup("dark", Vector2(258, 114), UI_CELL)
+	board.position = Vector2((SCREEN_W - board.size.x) / 2.0, top + 74)
+	screen.add_child(board)
+	var face := board.face_rect()
+	var col_w := face.size.x / 2.0
 
-	# Sized to its own glyphs rather than given a fixed box, because it gets
-	# parked hard against the left edge of the centred "Record: n" text and
-	# any slack would read as a crooked gap.
-	new_record_badge = _make_label("NEW", 15, Color(1, 0.82, 0.18))
+	var divider := ColorRect.new()
+	divider.color = VoxelPlate.PALETTES["dark"]["light"]
+	divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	divider.position = Vector2(face.position.x + col_w - UI_CELL / 2.0, face.position.y + 15)
+	divider.size = Vector2(UI_CELL, face.size.y - 27)
+	board.add_child(divider)
+
+	var values := []
+	for i in 2:
+		var caption := _make_label(["Score", "Record"][i], 22, Color(1, 1, 1, 0.8))
+		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		caption.position = face.position + Vector2(col_w * i, 10)
+		caption.size = Vector2(col_w, 26)
+		board.add_child(caption)
+		var value := _make_label("0", 50, Color.WHITE if i == 0 else GOLD)
+		value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		value.position = face.position + Vector2(col_w * i, 36)
+		value.size = Vector2(col_w, 54)
+		board.add_child(value)
+		values.append(value)
+	final_score_label = values[0]
+	final_best_label = values[1]
+
+	# Pinned over the board's top-right corner, on the record's side.
+	new_record_badge = _make_label("NEW!", 28, GOLD)
 	new_record_badge.size = Vector2(
-		ui_font.get_string_size("NEW", HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x, 26)
+		ui_font.get_string_size("NEW!", HORIZONTAL_ALIGNMENT_LEFT, -1, 28).x, 32)
 	new_record_badge.pivot_offset = new_record_badge.size / 2.0
+	new_record_badge.position = Vector2(
+		board.position.x + board.size.x - new_record_badge.size.x * 0.7, board.position.y - 18)
+	new_record_badge.rotation = deg_to_rad(10.0)
 	new_record_badge.visible = false
 	screen.add_child(new_record_badge)
 
-	final_score_label = _make_label("Score: 0", 22, Color(1, 0.88, 0.4))
-	final_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	final_score_label.position = Vector2(0, screen_h * 0.32 + 86)
-	final_score_label.size = Vector2(SCREEN_W, 36)
-	screen.add_child(final_score_label)
-
-	restart_button = _make_text_button("Play Again")
-	restart_button.position = Vector2(SCREEN_W / 2.0 - 115, screen_h - 146)
+	restart_button = _make_text_button("Play Again", "green")
+	restart_button.position = Vector2((SCREEN_W - restart_button.size.x) / 2.0, screen_h - 146)
 	restart_button.pressed.connect(_on_restart_pressed)
 	screen.add_child(restart_button)
 
@@ -1565,71 +1602,19 @@ func _build_game_over_screen() -> Control:
 	return screen
 
 
-func _make_image_button(path: String, content_rect: Rect2, visual_w: float) -> TextureButton:
-	var atlas := AtlasTexture.new()
-	atlas.atlas = load(path)
-	atlas.region = content_rect
-
-	var btn := TextureButton.new()
-	btn.texture_normal = atlas
-	btn.focus_mode = Control.FOCUS_NONE
-	btn.ignore_texture_size = true
-	btn.stretch_mode = TextureButton.STRETCH_SCALE
-	var visual_h := visual_w * (content_rect.size.y / content_rect.size.x)
-	btn.custom_minimum_size = Vector2(visual_w, visual_h)
-	btn.size = btn.custom_minimum_size
-	_add_tap_sound(btn)
-	return btn
-
-
 func _add_tap_sound(btn: BaseButton) -> void:
 	# Wired in the factories rather than at each call site, so every button
 	# in the game clicks without anyone having to remember to ask for it.
 	btn.pressed.connect(func(): _play_sfx(SFX_UI_TAP, SFX_UI_DB))
 
 
-func _add_press_feedback(btn: BaseButton) -> void:
-	# Mobile has no real hover state, but a tap should still feel
-	# responsive — shrink/darken slightly for as long as it's held down,
-	# same idea as a hover/active state, and snap back on release.
-	btn.pivot_offset = btn.size / 2.0
-	btn.button_down.connect(func():
-		btn.scale = Vector2.ONE * 0.92
-		btn.modulate = Color(0.82, 0.82, 0.82)
-	)
-	btn.button_up.connect(func():
-		btn.scale = Vector2.ONE
-		btn.modulate = Color.WHITE
-	)
-
-
-func _make_text_button(text: String) -> Button:
-	var btn := Button.new()
-	btn.text = text
-	btn.focus_mode = Control.FOCUS_NONE
-	btn.custom_minimum_size = Vector2(230, 66)
-	btn.size = Vector2(230, 66)
-	btn.add_theme_font_override("font", ui_font)
-	btn.add_theme_font_size_override("font_size", 17)
-	btn.add_theme_color_override("font_color", Color(0.1, 0.16, 0.07))
-
-	# Plate art, cropped to its content box (768x768 canvas, content is a
-	# 598x262 box inside it) — same technique as the other assets. Only one
-	# image exists so hover/pressed reuse it with a modulate tint instead
-	# of separate art.
-	var plate: Texture2D = load(PrerenderedArt.path("button_plate.png"))
-	var style := StyleBoxTexture.new()
-	style.texture = plate
-	style.region_rect = Rect2(84, 252, 598, 262)
-	btn.add_theme_stylebox_override("normal", style)
-
-	var style_hover: StyleBoxTexture = style.duplicate()
-	style_hover.modulate_color = Color(1.08, 1.08, 1.08)
-	btn.add_theme_stylebox_override("hover", style_hover)
-
-	var style_pressed: StyleBoxTexture = style.duplicate()
-	style_pressed.modulate_color = Color(0.82, 0.82, 0.82)
-	btn.add_theme_stylebox_override("pressed", style_pressed)
-
-	_add_tap_sound(btn)
+# Green for the action that starts or continues a run, honey for the rest.
+func _make_text_button(text: String, palette := "honey") -> Button:
+	var btn := _make_block_button(palette, Vector2(228, 66), 3)
+	var face: Control = btn.get_meta("content")
+	var label := _make_label(text, 34, Color.WHITE)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.size = face.size
+	face.add_child(label)
 	return btn

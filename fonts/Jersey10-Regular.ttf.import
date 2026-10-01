@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://cjv5mxjalug4s"
-path="res://.godot/imported/Inter.woff2-75406d1655cfaac0e85699c0833a9c0a.fontdata"
+uid="uid://bx0o8mvrfpe65"
+path="res://.godot/imported/Jersey10-Regular.ttf-2bf0d37d15e5634f8f45422a282f4af2.fontdata"
 
 [deps]
 
-source_file="res://fonts/Inter.woff2"
-dest_files=["res://.godot/imported/Inter.woff2-75406d1655cfaac0e85699c0833a9c0a.fontdata"]
+source_file="res://fonts/Jersey10-Regular.ttf"
+dest_files=["res://.godot/imported/Jersey10-Regular.ttf-2bf0d37d15e5634f8f45422a282f4af2.fontdata"]
 
 [params]
 
