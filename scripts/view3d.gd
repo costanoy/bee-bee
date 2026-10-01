@@ -26,6 +26,7 @@ var voxel := {
 	"flower_blue": "flower_voxel_blue",
 	"gull": "gull_voxel",
 	"ground": "ground_voxel",
+	"moon": "moon_voxel",
 }
 const BACKDROP_DEPTH := 95.0     # far enough to scroll at ~1/5 of the climb rate
 const SUN_Y := 26.0
@@ -448,10 +449,22 @@ func _build_cloud(c) -> Node3D:
 	return n
 
 
+# Bodies in the night sky shine by themselves instead of being lit by the
+# scene: under the dim night light a turning voxel ball goes grey and the
+# steps on its dark side show up as thin black streaks.
+func _glowing(n: Node3D) -> Node3D:
+	for m: MeshInstance3D in _meshes(n):
+		for i in m.mesh.get_surface_count():
+			var mat: Material = m.mesh.surface_get_material(i)
+			if mat is StandardMaterial3D:
+				mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	return n
+
+
 func _build_celestial(b) -> Node3D:
 	var path: String = b.texture.resource_path
 	if "moon" in path:
-		return spawn("moon")
+		return _glowing(spawn("moon"))
 	if "jupiter" in path:
 		var j := spawn("jupiter")
 		j.scale = Vector3.ONE * 1.25
