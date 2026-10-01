@@ -21,6 +21,7 @@ const HEDGE_VARIANTS := ["hedge_voxel_a", "hedge_voxel_b", "hedge_voxel_c"]
 const HEDGE_TILE_W := 0.96
 var voxel := {
 	"bee": "bee_voxel",
+	"bee_shining": "bee_voxel_shining",
 	"flower_red": "flower_voxel_red",
 	"flower_yellow": "flower_voxel_yellow",
 	"flower_blue": "flower_voxel_blue",
@@ -54,6 +55,7 @@ var hedge_models: Array = HEDGE_VARIANTS
 var hedge_seg_w := HEDGE_TILE_W
 var flower_scale := FLOWER_SCALE
 var bee3d: Node3D
+var bee_scale := BEE_SCALE
 var wing_l: Node3D
 var wing_r: Node3D
 var dead_eyes: Node3D
@@ -72,7 +74,7 @@ var record_for: Object
 
 func setup(p_main: Node2D) -> void:
 	main = p_main
-	for f in ["bee", "hedge_voxel_a", "hedge_voxel_b", "hedge_voxel_c", "flower_red", "flower_yellow", "flower_blue",
+	for f in ["bee", "bee_shining", "hedge_voxel_a", "hedge_voxel_b", "hedge_voxel_c", "flower_red", "flower_yellow", "flower_blue",
 			"cloud_voxel_a", "cloud_voxel_b", "cloud_voxel_c", "gull", "moon", "jupiter", "ufo", "ground",
 			"tree_voxel_round_a", "tree_voxel_round_b", "tree_voxel_round_c",
 			"tree_voxel_pine_a", "tree_voxel_pine_b", "tree_voxel_pine_c",
@@ -521,9 +523,21 @@ func _build_record_line() -> Node3D:
 
 
 # ------------------------------------------------------------------ bee
-func _build_bee() -> void:
-	bee3d = spawn("bee")
-	bee3d.scale = Vector3.ONE * BEE_SCALE
+# Swaps the bee for another skin (main.gd BEE_SKINS): `model` is its slot in
+# `models`, `size` scales it against the normal bee, `glow` draws it unshaded.
+func set_bee_skin(model: String, size: float, glow: bool) -> void:
+	if bee3d:
+		bee3d.queue_free()
+	live_eyes.clear()
+	bee_scale = BEE_SCALE * size
+	_build_bee(model)
+	if glow:
+		_glowing(bee3d)
+
+
+func _build_bee(model := "bee") -> void:
+	bee3d = spawn(model)
+	bee3d.scale = Vector3.ONE * bee_scale
 	wing_l = bee3d.find_child("WingPivotL", true, false)
 	wing_r = bee3d.find_child("WingPivotR", true, false)
 	dead_eyes = bee3d.find_child("DeadEyes", true, false)
@@ -563,9 +577,9 @@ func _sync_bee(delta: float) -> void:
 		var t: float = (b.sprite.frame + b.sprite.frame_progress) / frames
 		wing = 0.25 + sin(t * PI) * 1.55
 		var squash := sin(t * PI) * 0.08
-		bee3d.scale = Vector3(BEE_SCALE * (1.0 + squash), BEE_SCALE * (1.0 - squash), BEE_SCALE)
+		bee3d.scale = Vector3(bee_scale * (1.0 + squash), bee_scale * (1.0 - squash), bee_scale)
 	else:
-		bee3d.scale = Vector3.ONE * BEE_SCALE
+		bee3d.scale = Vector3.ONE * bee_scale
 	wing_l.rotation.x = wing
 	wing_r.rotation.x = -wing
 

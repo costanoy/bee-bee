@@ -50,9 +50,12 @@ Pipeline: `tools/blender/voxel_kit.py` (grade compartilhada `VOX = 0.04` = 1,6 p
 | OVNI | `make_voxel_ufo.py` → `ufo_voxel.glb` (49 cubos de diâmetro, já no tamanho final; malhas `Hull`, `Alien` e `Dome` — cúpula translúcida; paleta escurecida com `glow()` porque sem sombreamento o jogo mostra a cor do vértice como luz linear, bem mais clara) | ✅ no jogo, brilhante, escala 1.0 |
 | Fundo: montanhas | `make_voxel_backdrop_hills.py` → `backdrop_voxel_hills.glb` (três camadas — colinas verdes, colinas azuis, montanhas com neve — em **cubos de 0,2 un.**, 5× maiores, porque a 95 un. de distância a perspectiva os reduz ao tamanho dos outros cubos na tela; luz e sombra pintadas; ~4,2 mil polígonos) | ✅ no jogo |
 | Fundo: cidade | `make_voxel_backdrop_city.py` → `backdrop_voxel_city.glb` (casas em tons pastel com telhados e janelas, colinas verdes atrás; mesmos cubos de 0,2 un.; as janelas são uma malha separada `Windows` com material emissivo; ~3,4 mil polígonos) | ✅ no jogo |
-| Abelha brilhosa (skin do score 300) | `make_voxel_bee.py ... shining` → `bee_voxel_shining.glb` (a mesma abelha, **toda prateada e cromada**, pedido do usuário: o cromado é pintado — brilho branco em cima, linha escura de horizonte no meio com um filete claro embaixo, listras quase pretas — mais estrelinhas sob o nó `Sparkles`; paleta escurecida com `glow()`; 4º argumento `export_only` pula os renders) | ⏳ **aguardando aprovação** do usuário. É para ser desenhada **sem sombreamento** (`_glowing(bee3d)` em `view3d.gd`), senão o cromado pintado some e ela escurece à noite. Falta decidir **como o jogador escolhe a skin** (`SaveData.selected_bee` existe, mas não há tela de seleção) antes de ligar |
+| Abelha prateada (skin do score 300; id interno `shining`) | `make_voxel_bee.py ... shining` → `bee_voxel_shining.glb` (a mesma abelha, **toda prateada e cromada**: o cromado é pintado — brilho branco em cima, linha escura de horizonte com um filete claro embaixo, listras quase pretas — mais estrelinhas sob o nó `Sparkles`; paleta escurecida com `glow()`; 4º argumento `export_only` pula os renders) | ✅ no jogo, desenhada sem sombreamento. Ícones do menu em `art/ui/bee_*.png`, gerados por `tools/godot/render_bee_icons.gd` (rodar de novo se o modelo mudar) |
 
 ## Estado da jogabilidade (valores atuais)
+- **Skins de abelha** (`BEE_SKINS` em `main.gd`): cada uma tem `size` (hitbox + modelo) e `speed` (velocidade lateral) relativos à normal. A **prateada é menor (0,8) e mais rápida (1,15)** — TEST, pedido do usuário; 1,0/1,0 volta a ser só visual. *Suposição a confirmar:* apliquei só na prateada, não na abelha normal.
+- **Menu de abelhas** ("Choose your bee"): botão com o ícone da abelha na tela inicial e na de game over; existe desde o começo, com a prateada trancada como silhueta ("Score 300 to unlock"). Escolha salva em `SaveData.selected_bee`.
+- **Aviso de desbloqueio**: faixa "Silver Bee unlocked!" por ~4 s + som de recorde, só na primeira vez que o score chega a 300.
 - Velocidade de scroll `SCROLL_BASE 90` / `SCROLL_MAX 170` (TEST, era 78/148); rampa de dificuldade 35 s (TEST, era 50).
 - Abelha `H_SPEED 275` (TEST, era 230).
 - Distância lateral máxima gap↔flor limitada a 200 px na dificuldade máxima (evita fileiras impossíveis).
@@ -66,7 +69,7 @@ Pipeline: `tools/blender/voxel_kit.py` (grade compartilhada `VOX = 0.04` = 1,6 p
 - O usuário vai gerar sons novos no **ElevenLabs** (lista de prompts já entregue): `sfx_flap`, `sfx_collect` (nota única em Lá — o jogo sobe o tom a cada flor), `sfx_hit`, `sfx_near_miss`, `sfx_record`, `sfx_ui_tap`, `music_theme` (loop). Quando chegarem: trocar em `audio/` e ajustar os volumes (constantes `SFX_*_DB` em `main.gd`).
 
 ## Pendências
-1. Aprovar/ajustar a **abelha brilhosa voxel** e decidir como o jogador escolhe a skin; só então ligar.
-2. Ainda não são voxel (são malhas lisas criadas por código em `view3d.gd`): o disco do sol e as bolinhas das partículas ao pegar flor.
-3. A lua e o Júpiter aparecem um pouco mais pastel que nos renders (sem sombreamento o jogo mostra a cor do vértice como luz linear); o OVNI já tem a correção `glow()` na paleta — aplicar neles se o usuário quiser cores mais fortes.
+1. Confirmar com o usuário se "menor e mais rápida" era só para a abelha prateada (como está) ou para todas.
+2. **Sol voxel**: próximo asset — mostrar e esperar aprovação. Depois dele, ainda lisas: as bolinhas das partículas ao pegar flor.
+3. A lua e o Júpiter aparecem um pouco mais pastel que nos renders (sem sombreamento o jogo mostra a cor do vértice como luz linear); o OVNI e a abelha prateada já têm a correção `glow()` na paleta — aplicar neles se o usuário quiser cores mais fortes.
 4. Integrar os sons do ElevenLabs quando o usuário enviar.

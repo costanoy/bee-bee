@@ -21,7 +21,19 @@ const SCROLL_MAX := 170.0
 # TEST — shortened from 50 so every run gets tense sooner; top speed and
 # narrowest gap are unchanged, they're just reached earlier.
 const DIFFICULTY_RAMP_TIME := 35.0
-const BEE_R := 16.0
+# The bees the player can fly, in menu order. `size` (hitbox and model) and
+# `speed` (sideways speed) are relative to the normal bee; `glow` draws the
+# model unshaded.
+# TEST — the silver bee is smaller and faster, asked for together with the
+# skin. size 1.0 / speed 1.0 would make it a purely cosmetic skin again.
+const BEE_SKINS := {
+	"normal": {"name": "Bee", "trait": "The classic", "model": "bee", "icon": "res://art/ui/bee_normal.png",
+			"size": 1.0, "speed": 1.0, "glow": false},
+	"shining": {"name": "Silver Bee", "trait": "Smaller & faster", "model": "bee_shining",
+			"icon": "res://art/ui/bee_silver.png", "size": 0.8, "speed": 1.15, "glow": true},
+}
+const BEE_ORDER := ["normal", "shining"]
+const GOLD := Color(1, 0.82, 0.18)
 # Widest sideways distance, at max difficulty, between a gap and the next
 # flower or between a flower and the next gap (see _spawn_row).
 const MAX_LEG_HARD := 200.0
@@ -73,7 +85,7 @@ const SFX_NEAR_MISS_DB := -10.0
 # TEST — a "near miss" cue (screen shake + whoosh) when the bee grazes past
 # a gap edge within this many px without hitting it, requested to see if
 # that close-call thrill makes the game more addictive. Margin is on top
-# of BEE_R, i.e. how much closer than "just barely fits" still counts.
+# of the bee's radius, i.e. how much closer than "just barely fits" still counts.
 const NEAR_MISS_MARGIN := 8.0
 const CAMERA_SHAKE_DURATION := 0.18
 const CAMERA_SHAKE_MAGNITUDE := 4.0
@@ -223,6 +235,12 @@ var pause_button: Button
 var pause_screen: Control
 var music_note: Control
 var music_slash: Control
+var view3d: Node3D
+var applied_bee_skin := ""
+var bee_menu: Control
+var bee_notice: Control
+var bee_cards := {}                      # skin id -> its card's nodes in the bee menu
+var bee_button_icons: Array[TextureRect] = []
 
 
 func _ready() -> void:
@@ -289,6 +307,8 @@ func _ready() -> void:
 		var view := View3DScript.new()
 		add_child(view)
 		view.setup(self)
+		view3d = view
+		_apply_bee_skin()
 		visible = false
 		sky.layer.visible = false
 
@@ -323,7 +343,10 @@ func _notification(what: int) -> void:
 				State.PAUSED:
 					_on_resume_pressed()
 				State.START, State.GAMEOVER:
-					get_tree().quit()
+					if bee_menu.visible:
+						_on_bee_menu_closed()
+					else:
+						get_tree().quit()
 
 
 # ------------------------------------------------------------------
@@ -399,7 +422,8 @@ func _reset_to_ground_scene() -> void:
 	ground_sprite.position = Vector2(0.0, ground_y - GROUND_GRASS_Y0 * ground_scale)
 	add_child(ground_sprite)
 
-	bee.reset_bee(Vector2(SCREEN_W / 2.0, ground_y - BEE_R))
+	_apply_bee_skin()
+	bee.reset_bee(Vector2(SCREEN_W / 2.0, ground_y - bee.radius))
 	world_moving = false
 	scrolling_started = false
 	launch_timer = 0.0
@@ -666,15 +690,15 @@ func _update_playing(delta: float) -> void:
 	for o in obstacles:
 		var band_top: float = o.position.y
 		var band_bottom: float = band_top + ObstacleScript.THICK
-		var in_band: bool = bee.position.y + BEE_R >= band_top and bee.position.y - BEE_R <= band_bottom
+		var in_band: bool = bee.position.y + bee.radius >= band_top and bee.position.y - bee.radius <= band_bottom
 		if in_band:
 			var gap_left: float = o.gap_x - o.gap_width / 2.0
 			var gap_right: float = o.gap_x + o.gap_width / 2.0
 			var clearance := INF
 			if gap_left > 0.0:
-				clearance = _circle_rect_clearance(bee.position, BEE_R, Vector2(0.0, band_top), Vector2(gap_left, band_bottom))
+				clearance = _circle_rect_clearance(bee.position, bee.radius, Vector2(0.0, band_top), Vector2(gap_left, band_bottom))
 			if gap_right < SCREEN_W:
-				clearance = min(clearance, _circle_rect_clearance(bee.position, BEE_R, Vector2(gap_right, band_top), Vector2(SCREEN_W, band_bottom)))
+				clearance = min(clearance, _circle_rect_clearance(bee.position, bee.radius, Vector2(gap_right, band_top), Vector2(SCREEN_W, band_bottom)))
 			if clearance < 0.0:
 				_trigger_game_over()
 				return
@@ -685,7 +709,7 @@ func _update_playing(delta: float) -> void:
 			o.near_miss_checked = true
 			_trigger_near_miss()
 
-	if time_since_first_flap >= FALL_DEATH_GRACE and bee.position.y - BEE_R > screen_bottom:
+	if time_since_first_flap >= FALL_DEATH_GRACE and bee.position.y - bee.radius > screen_bottom:
 		_trigger_game_over()
 
 
@@ -711,7 +735,7 @@ func _trigger_near_miss() -> void:
 
 func _update_dying(delta: float) -> void:
 	dying_timer += delta
-	if bee.position.y - BEE_R > camera_y + screen_h or dying_timer > DEATH_FALL_TIME:
+	if bee.position.y - bee.radius > camera_y + screen_h or dying_timer > DEATH_FALL_TIME:
 		_end_game()
 
 
@@ -965,8 +989,102 @@ func _update_score_label() -> void:
 
 
 func _on_shining_bee_unlock_requested() -> void:
+	# sky.gd asks again every session (its own flag isn't saved); only the
+	# first time ever is news.
+	if SaveData.shining_bee_unlocked:
+		return
 	SaveData.shining_bee_unlocked = true
 	SaveData.save_data()
+	_refresh_bee_menu()
+	_show_bee_notice()
+
+
+# ------------------------------------------------------------------
+# Bee skins
+# ------------------------------------------------------------------
+
+func _current_bee_skin() -> String:
+	var id: String = SaveData.selected_bee
+	if not BEE_SKINS.has(id) or (id == "shining" and not SaveData.shining_bee_unlocked):
+		return "normal"
+	return id
+
+
+func _apply_bee_skin() -> void:
+	var id := _current_bee_skin()
+	var skin: Dictionary = BEE_SKINS[id]
+	bee.apply_skin(skin["size"], skin["speed"])
+	if view3d and applied_bee_skin != id:
+		applied_bee_skin = id
+		view3d.set_bee_skin(skin["model"], skin["size"], skin["glow"])
+	# a bee waiting on the ground keeps its feet on the grass at its new size
+	if state == State.START and not world_moving:
+		bee.position.y = -bee.radius
+
+
+func _show_bee_notice() -> void:
+	_play_sfx(SFX_RECORD, SFX_RECORD_DB)
+	bee_notice.visible = true
+	bee_notice.modulate.a = 0.0
+	# Bound to the notice itself so it keeps running if the run gets paused.
+	var tw := bee_notice.create_tween()
+	tw.tween_property(bee_notice, "modulate:a", 1.0, 0.25)
+	tw.tween_interval(3.2)
+	tw.tween_property(bee_notice, "modulate:a", 0.0, 0.6)
+	tw.tween_callback(func(): bee_notice.visible = false)
+
+
+func _on_bee_menu_pressed() -> void:
+	if state != State.START and state != State.GAMEOVER:
+		return
+	_refresh_bee_menu()
+	# The screen it opened from steps aside: its logo or score would
+	# otherwise sit right behind the menu's title and cards.
+	start_screen.visible = false
+	game_over_screen.visible = false
+	bee_menu.visible = true
+
+
+func _on_bee_menu_closed() -> void:
+	bee_menu.visible = false
+	start_screen.visible = state == State.START
+	game_over_screen.visible = state == State.GAMEOVER
+
+
+func _on_bee_card_pressed(id: String) -> void:
+	if id == "shining" and not SaveData.shining_bee_unlocked:
+		return
+	if SaveData.selected_bee != id:
+		SaveData.selected_bee = id
+		SaveData.save_data()
+		_apply_bee_skin()
+	_refresh_bee_menu()
+
+
+func _refresh_bee_menu() -> void:
+	var current := _current_bee_skin()
+	for id in bee_cards:
+		var card: Dictionary = bee_cards[id]
+		var locked: bool = id == "shining" and not SaveData.shining_bee_unlocked
+		var selected: bool = id == current
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(UI_INK, 0.84)
+		style.set_corner_radius_all(18)
+		style.set_border_width_all(4 if selected else 3)
+		style.border_color = GOLD if selected else Color(1, 1, 1, 0.4 if locked else 0.8)
+		for s in ["normal", "hover", "pressed"]:
+			card["button"].add_theme_stylebox_override(s, style)
+		# a locked bee shows as a dark silhouette
+		card["icon"].modulate = Color(0.08, 0.06, 0.14, 0.85) if locked else Color.WHITE
+		card["trait"].text = "?" if locked else BEE_SKINS[id]["trait"]
+		var status: Label = card["status"]
+		if locked:
+			status.text = "Score %d to unlock" % SkyScript.SHINING_BEE_SCORE
+		else:
+			status.text = "Selected" if selected else "Tap to select"
+		status.add_theme_color_override("font_color", GOLD if selected else Color(1, 1, 1, 0.85))
+	for icon in bee_button_icons:
+		icon.texture = load(BEE_SKINS[current]["icon"])
 
 
 # ------------------------------------------------------------------
@@ -1076,6 +1194,14 @@ func _build_ui() -> void:
 	game_over_screen = _build_game_over_screen()
 	ui_layer.add_child(game_over_screen)
 
+	bee_notice = _build_bee_notice()
+	ui_layer.add_child(bee_notice)
+
+	# last, so it opens over the start and game-over screens
+	bee_menu = _build_bee_menu()
+	ui_layer.add_child(bee_menu)
+	_refresh_bee_menu()
+
 
 func _make_label(text: String, font_size: int, color: Color) -> Label:
 	var label := Label.new()
@@ -1170,7 +1296,122 @@ func _build_start_screen() -> Control:
 	_add_press_feedback(play_button)
 	screen.add_child(play_button)
 
+	var bee_button := _make_bee_button()
+	bee_button.position = Vector2(26, play_button.position.y + (play_button.size.y - bee_button.size.y) / 2.0)
+	screen.add_child(bee_button)
+
 	return screen
+
+
+# Opens the bee menu; shows the bee currently in use. One sits on the start
+# screen and one on the game-over screen, so a freshly unlocked bee can be
+# picked without restarting the app.
+func _make_bee_button() -> Button:
+	var icon := _make_bee_icon(_current_bee_skin(), 50.0)
+	bee_button_icons.append(icon)
+	var btn := _make_icon_button(icon, 62.0)
+	btn.pressed.connect(_on_bee_menu_pressed)
+	return btn
+
+
+func _make_bee_icon(id: String, side: float) -> TextureRect:
+	var icon := TextureRect.new()
+	icon.texture = load(BEE_SKINS[id]["icon"])
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.size = Vector2(side, side)
+	return icon
+
+
+func _build_bee_menu() -> Control:
+	var screen := Control.new()
+	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
+	screen.visible = false
+
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.55)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	screen.add_child(dim)
+
+	var top := screen_h * 0.2
+	var title := _make_label("Choose your bee", 24, Color.WHITE)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.position = Vector2(0, top)
+	title.size = Vector2(SCREEN_W, 44)
+	screen.add_child(title)
+
+	const CARD := Vector2(164, 216)
+	const GAP := 16.0
+	var left := (SCREEN_W - (CARD.x * BEE_ORDER.size() + GAP * (BEE_ORDER.size() - 1))) / 2.0
+	for i in BEE_ORDER.size():
+		var card := _make_bee_card(BEE_ORDER[i], CARD)
+		card.position = Vector2(left + i * (CARD.x + GAP), top + 70)
+		screen.add_child(card)
+
+	var back := _make_text_button("Back")
+	back.position = Vector2(SCREEN_W / 2.0 - 115, top + 70 + CARD.y + 34)
+	back.pressed.connect(_on_bee_menu_closed)
+	screen.add_child(back)
+
+	return screen
+
+
+func _make_bee_card(id: String, card_size: Vector2) -> Button:
+	var btn := Button.new()
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.custom_minimum_size = card_size
+	btn.size = card_size
+	btn.pressed.connect(_on_bee_card_pressed.bind(id))
+	_add_tap_sound(btn)
+
+	var icon := _make_bee_icon(id, 132.0)
+	icon.position = Vector2((card_size.x - 132.0) / 2.0, 8)
+	btn.add_child(icon)
+
+	var rows := {}
+	for row in [["name", BEE_SKINS[id]["name"], 16, 140.0], ["trait", "", 11, 164.0], ["status", "", 12, 186.0]]:
+		var label := _make_label(row[1], row[2], Color.WHITE if row[0] == "name" else Color(1, 1, 1, 0.75))
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.position = Vector2(0, row[3])
+		label.size = Vector2(card_size.x, 22)
+		btn.add_child(label)
+		rows[row[0]] = label
+
+	bee_cards[id] = {"button": btn, "icon": icon, "trait": rows["trait"], "status": rows["status"]}
+	return btn
+
+
+# A banner for the moment the silver bee is won (score 300, first time ever).
+func _build_bee_notice() -> Control:
+	var panel := Panel.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.size = Vector2(300, 68)
+	panel.position = Vector2((SCREEN_W - panel.size.x) / 2.0, 172)
+	panel.visible = false
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(UI_INK, 0.88)
+	style.set_corner_radius_all(16)
+	style.set_border_width_all(3)
+	style.border_color = GOLD
+	panel.add_theme_stylebox_override("panel", style)
+
+	var icon := _make_bee_icon("shining", 60.0)
+	icon.position = Vector2(8, 4)
+	panel.add_child(icon)
+
+	var title := _make_label("Silver Bee unlocked!", 16, GOLD)
+	title.position = Vector2(74, 9)
+	title.size = Vector2(220, 26)
+	panel.add_child(title)
+
+	var hint := _make_label("Pick it in the bee menu", 11, Color(1, 1, 1, 0.9))
+	hint.position = Vector2(74, 38)
+	hint.size = Vector2(220, 20)
+	panel.add_child(hint)
+
+	return panel
 
 
 func _build_pause_screen() -> Control:
@@ -1316,6 +1557,10 @@ func _build_game_over_screen() -> Control:
 	restart_button.position = Vector2(SCREEN_W / 2.0 - 115, screen_h - 146)
 	restart_button.pressed.connect(_on_restart_pressed)
 	screen.add_child(restart_button)
+
+	var bee_button := _make_bee_button()
+	bee_button.position = Vector2(14, restart_button.position.y + 2)
+	screen.add_child(bee_button)
 
 	return screen
 

@@ -15,6 +15,13 @@ const SCREEN_W := 400.0
 
 var facing := 1  # 1 = right, -1 = left
 var physics_enabled := false
+# Per-skin size and sideways speed (see main.gd BEE_SKINS); the constants
+# above are the normal bee's.
+var radius := BEE_R
+var h_speed := H_SPEED
+var _circle: CircleShape2D
+var _flap_scale_base: float
+var _dead_scale_base: float
 
 var sprite: AnimatedSprite2D
 
@@ -49,9 +56,9 @@ var rest_frame := 0
 
 func _ready() -> void:
 	var shape := CollisionShape2D.new()
-	var circle := CircleShape2D.new()
-	circle.radius = BEE_R
-	shape.shape = circle
+	_circle = CircleShape2D.new()
+	_circle.radius = radius
+	shape.shape = _circle
 	add_child(shape)
 
 	var visual_span := BEE_R * 2.6
@@ -107,6 +114,20 @@ func _ready() -> void:
 
 	sprite.scale = Vector2.ONE * flap_scale_mag
 	PixelArt.apply_filter(sprite, flap_is_pixel)
+	_flap_scale_base = flap_scale_mag
+	_dead_scale_base = dead_scale_mag
+
+
+# `size` scales the bee (hitbox and sprite) and `speed` its sideways speed,
+# both relative to the normal bee.
+func apply_skin(size: float, speed: float) -> void:
+	radius = BEE_R * size
+	h_speed = H_SPEED * speed
+	_circle.radius = radius
+	flap_scale_mag = _flap_scale_base * size
+	dead_scale_mag = _dead_scale_base * size
+	var mag := dead_scale_mag if sprite.animation == "dead" else flap_scale_mag
+	sprite.scale = Vector2(mag * -facing, mag)
 
 
 # bee_flap_0..n-1 from `source`, or empty unless every frame exists.
@@ -142,11 +163,11 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
-	if position.x < BEE_R:
-		position.x = BEE_R
+	if position.x < radius:
+		position.x = radius
 		velocity.x = abs(velocity.x) * 0.4
-	elif position.x > SCREEN_W - BEE_R:
-		position.x = SCREEN_W - BEE_R
+	elif position.x > SCREEN_W - radius:
+		position.x = SCREEN_W - radius
 		velocity.x = -abs(velocity.x) * 0.4
 
 	# Sideways lean from the prototype (validated, keep as-is) plus an extra
@@ -160,7 +181,7 @@ func _physics_process(delta: float) -> void:
 
 func flap(direction: int) -> void:
 	velocity.y = FLAP_VELOCITY
-	velocity.x = direction * H_SPEED
+	velocity.x = direction * h_speed
 	facing = direction
 	# the flap art faces left natively (unflipped) — mirror it to face right.
 	sprite.scale = Vector2(flap_scale_mag * -facing, flap_scale_mag)
