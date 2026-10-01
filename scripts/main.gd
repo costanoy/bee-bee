@@ -109,15 +109,9 @@ const SFX_VOICES := 8
 # rising figure rather than the same blip over and over.
 const COLLECT_PITCH_STEPS := [1.0, 1.1892, 1.3348, 1.4983, 1.7818]
 
-# Clouds and gulls are scenery, so they dim with the sky; left pure white
-# they glow against the night like cut-outs. Obstacles and flowers stay
-# untinted on purpose — they're what the player has to read at speed.
-const NIGHT_DECOR_TINT := Color(0.52, 0.57, 0.74)
 # Deep plum used for text outlines and UI backing — the UI's share of the
 # art's tinted-ink look.
 const UI_INK := Color(0.24, 0.13, 0.32)
-const DAY_CLOUD_ALPHA := 0.55
-const NIGHT_CLOUD_ALPHA := 0.45
 
 # Icons are drawn as pixel grids rather than imported art, so they match
 # the game's own resolution instead of being scaled-down smooth shapes.
@@ -198,29 +192,17 @@ const FlowerScript := preload("res://scripts/flower.gd")
 const CloudScript := preload("res://scripts/cloud.gd")
 const SeagullScript := preload("res://scripts/seagull.gd")
 const SkyScript := preload("res://scripts/sky.gd")
-const PrerenderedArt := preload("res://scripts/prerendered_art.gd")
 const View3DScript := preload("res://scripts/view3d.gd")
 const VoxelPlate := preload("res://scripts/voxel_plate.gd")
 const VoxelLogo := preload("res://scripts/voxel_logo.gd")
 # One cube of the interface's grid, in UI pixels: every plate is a whole
 # number of these, about two of the world's cubes across.
 const UI_CELL := 3.0
-# Real-time 3D view (view3d.gd) on top of the unchanged 2D simulation;
-# false brings back the 2D sprites.
-const USE_3D_VIEW := true
 const BeeScript := preload("res://scripts/bee.gd")
 
-# Ground/trees content bounding boxes inside their source canvases (see
-# scripts for the other assets' equivalents) — used once, to frame the
-# cold-start scene precisely instead of eyeballing it.
-const GROUND_CANVAS_W := 1568.0
-const GROUND_GRASS_Y0 := 416.0
-const GROUND_GRASS_Y1 := 494.0
-const TREES_CANVAS_W := 1568.0
-const TREES_BOTTOM_Y := 636.0
-# The mountain (with its own sun) now lives in sky.gd instead — a
-# screen-space horizon element that sinks slowly as the bee climbs
-# rather than a world sprite that scrolls away at the normal 1:1 rate.
+# How far below the grass line (world y = 0, where the bee stands) the
+# cold-start view reaches: the strip of earth under the grass.
+const GROUND_DEPTH := 19.9
 
 var state: State = State.START
 # The stretch mode is keep_width: the world is always 400 wide, and a phone
@@ -245,7 +227,9 @@ var last_gap_x := 0.0
 var rows_spawned := 0
 var score := 0
 var dying_timer := 0.0
+# Marks the height of the flower that breaks the record; view3d.gd draws it.
 var record_line: Node2D
+var record_word_on_left := true
 
 var obstacles: Array = []
 var flowers: Array = []
@@ -260,8 +244,9 @@ var collect_step := 0
 var physics_ticks_since_reset := 0
 var camera: Camera2D
 var sky: Node
-var ground_sprite: Sprite2D
-var trees_sprite: Sprite2D
+# Bumped every time a fresh start scene is built; view3d.gd rebuilds the
+# ground, trees and far backdrop whenever it changes.
+var scenery_id := 0
 
 var ui_font: Font
 
@@ -304,9 +289,6 @@ func _ready() -> void:
 	sky.moon_spawn_requested.connect(_on_moon_spawn_requested)
 	sky.jupiter_spawn_requested.connect(_on_jupiter_spawn_requested)
 	sky.ship_spawn_requested.connect(_on_ship_spawn_requested)
-	# Stars are self-contained inside sky.gd (fixed screen-space scatter,
-	# faded with the same night crossfade) — nothing to wire up here.
-
 	camera = Camera2D.new()
 	camera.anchor_mode = Camera2D.ANCHOR_MODE_FIXED_TOP_LEFT
 	add_child(camera)
@@ -315,7 +297,6 @@ func _ready() -> void:
 
 	bee = CharacterBody2D.new()
 	bee.set_script(BeeScript)
-	bee.z_index = 10
 	add_child(bee)
 
 	for i in SFX_VOICES:
@@ -344,17 +325,11 @@ func _ready() -> void:
 	_reset_to_ground_scene()
 
 	# Everything the player sees of the world is drawn in 3D by view3d.gd,
-	# which mirrors this node's 2D simulation. The 2D world (and the 2D sky
-	# layer) stays in the tree purely as simulation; the UI layers are
-	# CanvasLayers and aren't affected by hiding it.
-	if USE_3D_VIEW:
-		var view := View3DScript.new()
-		add_child(view)
-		view.setup(self)
-		view3d = view
-		_apply_bee_skin()
-		visible = false
-		sky.layer.visible = false
+	# which mirrors this node's 2D simulation every frame.
+	view3d = View3DScript.new()
+	add_child(view3d)
+	view3d.setup(self)
+	_apply_bee_skin()
 
 	state = State.START
 	start_screen.visible = true
@@ -419,12 +394,6 @@ func _clear_world() -> void:
 	if record_line:
 		record_line.queue_free()
 		record_line = null
-	if ground_sprite:
-		ground_sprite.queue_free()
-		ground_sprite = null
-	if trees_sprite:
-		trees_sprite.queue_free()
-		trees_sprite = null
 
 
 func _reset_to_ground_scene() -> void:
@@ -439,45 +408,20 @@ func _reset_to_ground_scene() -> void:
 	collect_step = 0
 	physics_ticks_since_reset = 0
 
-	var ground_y := 0.0
-	var ground_scale: float = SCREEN_W / GROUND_CANVAS_W
-
-	# Only the sunset-mountain background variant (sky.reset_run(), just
-	# above, is what rolls the pick) pairs with a tree line behind the
-	# ground — the city variant's own skyline already reads as the
-	# ground-level backdrop, so a second tree sprite would just clash.
-	if sky.mountain_has_trees:
-		trees_sprite = Sprite2D.new()
-		trees_sprite.texture = load(PrerenderedArt.path("trees.png"))
-		trees_sprite.centered = false
-		var trees_scale: float = SCREEN_W / TREES_CANVAS_W
-		trees_sprite.scale = Vector2.ONE * trees_scale
-		trees_sprite.position = Vector2(0.0, ground_y - TREES_BOTTOM_Y * trees_scale)
-		trees_sprite.z_index = -1
-		add_child(trees_sprite)
-
-	ground_sprite = Sprite2D.new()
-	ground_sprite.texture = load(PrerenderedArt.path("ground.png"))
-	ground_sprite.centered = false
-	ground_sprite.scale = Vector2.ONE * ground_scale
-	# Align world y=0 with the TOP edge of the grass (GROUND_GRASS_Y0) —
-	# the actual surface the bee should stand on — not the middle of the
-	# grass+dirt band, which left the bee visibly sunk into the ground.
-	ground_sprite.position = Vector2(0.0, ground_y - GROUND_GRASS_Y0 * ground_scale)
-	add_child(ground_sprite)
+	scenery_id += 1
 
 	_apply_bee_skin()
-	bee.reset_bee(Vector2(SCREEN_W / 2.0, ground_y - bee.radius))
+	# the grass line is world y = 0
+	bee.reset_bee(Vector2(SCREEN_W / 2.0, -bee.radius))
 	world_moving = false
 	scrolling_started = false
 	launch_timer = 0.0
 	time_since_first_flap = 0.0
 	camera_shake_time = 0.0
 
-	# Frame the cold-start camera so the ground graphic's own bottom edge
-	# sits flush with the bottom of the screen (no floating gap beneath it).
-	var ground_bottom_world: float = ground_sprite.position.y + GROUND_GRASS_Y1 * ground_scale
-	camera_y = ground_bottom_world - screen_h
+	# Frame the cold-start camera so the bottom of the ground sits flush with
+	# the bottom of the screen.
+	camera_y = GROUND_DEPTH - screen_h
 	camera.position = Vector2(0.0, camera_y)
 
 	elapsed = 0.0
@@ -554,79 +498,40 @@ func _spawn_row() -> void:
 	rows_spawned += 1
 	if SaveData.best_score > 0 and rows_spawned == SaveData.best_score + 1:
 		_spawn_record_line(fy, fx)
-		move_child(record_line, flower.get_index())
 
 	# Clouds keep appearing through the night, just less often once the sky
-	# has started turning (day->fade now begins at score 50 — see sky.gd).
+	# has started turning.
 	var cloud_chance: float = 0.85 if score < 50 else 0.35
 	if randf() < cloud_chance:
-		var cloud := Sprite2D.new()
+		var cloud := Node2D.new()
 		cloud.set_script(CloudScript)
 		cloud.position = Vector2(randf() * SCREEN_W, y - randf() * 60.0)
-		cloud.z_index = -1
 		add_child(cloud)
 		cloud.setup()
-		cloud.self_modulate = _decor_tint()
-		cloud.modulate.a = lerp(DAY_CLOUD_ALPHA, NIGHT_CLOUD_ALPHA, sky.darkness(elapsed))
 		clouds.append(cloud)
 
 	if score < 75 and randf() < 0.15:
-		var gull := AnimatedSprite2D.new()
+		var gull := Node2D.new()
 		gull.set_script(SeagullScript)
 		gull.position = Vector2(randf() * SCREEN_W, y - randf() * 80.0)
-		gull.z_index = -1
 		add_child(gull)
 		gull.setup()
-		gull.self_modulate = _decor_tint()
 		seagulls.append(gull)
-
-
-const RECORD_LINE_COLOR := Color(1.0, 0.82, 0.25, 0.8)
-const RECORD_DASH_W := 10.0
-const RECORD_DASH_GAP := 6.0
-const RECORD_DASH_H := 2.0
 
 
 func _spawn_record_line(y: float, flower_x: float) -> void:
 	record_line = Node2D.new()
 	record_line.position = Vector2(0.0, y)
 	add_child(record_line)
-
-	var x := 0.0
-	while x < SCREEN_W:
-		var dash := ColorRect.new()
-		dash.color = RECORD_LINE_COLOR
-		dash.position = Vector2(x, -RECORD_DASH_H / 2.0)
-		dash.size = Vector2(min(RECORD_DASH_W, SCREEN_W - x), RECORD_DASH_H)
-		dash.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		record_line.add_child(dash)
-		x += RECORD_DASH_W + RECORD_DASH_GAP
-
-	# Label goes on the side away from the flower so the two never overlap.
-	var label := _make_label("RECORD", 10, RECORD_LINE_COLOR)
-	label.size = Vector2(90.0, 14.0)
-	label.position.y = -16.0
-	if flower_x > SCREEN_W / 2.0:
-		label.position.x = 6.0
-	else:
-		label.position.x = SCREEN_W - 96.0
-		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	record_line.add_child(label)
+	# the word RECORD goes on the side away from the flower, so the two never overlap
+	record_word_on_left = flower_x > SCREEN_W / 2.0
 
 
+# Dropping the marker is the cue: view3d.gd flashes the line it was drawing
+# and lets it go.
 func _flash_record_line() -> void:
-	var line := record_line
+	record_line.queue_free()
 	record_line = null
-	var tween := create_tween()
-	tween.tween_property(line, "modulate", Color(1.8, 1.8, 1.8, 1.0), 0.08)
-	tween.tween_property(line, "modulate", Color(1.8, 1.8, 1.8, 0.0), 0.5)
-	tween.tween_callback(line.queue_free)
-
-
-func _decor_tint() -> Color:
-	# Set once at spawn: the fade to night takes minutes, so a cloud's tint
-	# never visibly lags in the few seconds it's on screen.
-	return Color.WHITE.lerp(NIGHT_DECOR_TINT, sky.darkness(elapsed))
 
 
 # ------------------------------------------------------------------
@@ -650,7 +555,7 @@ func _physics_process(delta: float) -> void:
 	camera.position = Vector2(0.0, camera_y)
 	_apply_camera_shake(delta)
 
-	sky.update(delta, state == State.START or state == State.STARTING, elapsed, score, camera_y)
+	sky.check_triggers(score)
 
 
 func _start_camera_shake(duration: float, magnitude: float) -> void:
@@ -762,7 +667,7 @@ func _circle_rect_clearance(circle_center: Vector2, radius: float, rect_min: Vec
 	# the circle's center. Negative means overlap (a hit) — this treats the
 	# bee as the circle it actually looks like, instead of the square
 	# bounding box the old check used, which let corners of the invisible
-	# hitbox clip the roseira before the round bee sprite visually touched
+	# hitbox clip the roseira before the round bee visually touched
 	# it. The actual (non-negative) distance doubles as the near-miss
 	# clearance so both checks share one geometry test.
 	var closest := Vector2(
@@ -835,8 +740,8 @@ func _trigger_game_over() -> void:
 	bee.die()
 	# The bee keeps falling under its own gravity — no impact effect, no
 	# reposition. Tested and decided explicitly (spec 4.7): any collision FX
-	# made the moment feel worse. Only the face/pose changes to the dead
-	# sprite; the fall itself is untouched.
+	# made the moment feel worse. Only the face/pose changes; the fall itself
+	# is untouched.
 
 
 func _end_game() -> void:
@@ -1068,6 +973,7 @@ func _apply_bee_skin() -> void:
 	var id := _current_bee_skin()
 	var skin: Dictionary = BEE_SKINS[id]
 	bee.apply_skin(skin["size"], skin["speed"])
+	# the very first call comes from _ready, before the 3D view exists
 	if view3d and applied_bee_skin != id:
 		applied_bee_skin = id
 		view3d.set_bee_skin(skin["model"], skin["size"], skin["glow"])
@@ -1147,31 +1053,30 @@ func _refresh_bee_menu() -> void:
 # them down and off the bottom of the screen.
 # ------------------------------------------------------------------
 
-func _spawn_celestial(path: String, content_w: float, visual_w: float, y_offset_above_view: float) -> void:
+# `kind` is the model view3d.gd draws for it: "moon", "jupiter" or "ufo".
+func _spawn_celestial(kind: String, y_offset_above_view: float) -> void:
 	if state != State.PLAYING:
 		return
-	var body := Sprite2D.new()
-	body.texture = load(path)
-	body.scale = Vector2.ONE * (visual_w / content_w)
+	var body := Node2D.new()
+	body.set_meta("kind", kind)
 	# Spawn ABOVE the current view (camera_y is the screen's top edge) so it
 	# scrolls into sight as the bee keeps climbing, instead of popping into
 	# the middle of whatever's already on screen.
 	body.position = Vector2(80.0 + randf() * (SCREEN_W - 160.0), camera_y - y_offset_above_view)
-	body.z_index = -1
 	add_child(body)
 	celestials.append(body)
 
 
 func _on_moon_spawn_requested() -> void:
-	_spawn_celestial(PrerenderedArt.path("moon.png"), 435.0, 80.0, 120.0)
+	_spawn_celestial("moon", 120.0)
 
 
 func _on_jupiter_spawn_requested() -> void:
-	_spawn_celestial(PrerenderedArt.path("jupiter.png"), 690.0, 100.0, 140.0)
+	_spawn_celestial("jupiter", 140.0)
 
 
 func _on_ship_spawn_requested() -> void:
-	_spawn_celestial(PrerenderedArt.path("ufo.png"), 492.0, 80.0, 100.0)
+	_spawn_celestial("ufo", 100.0)
 
 
 # ------------------------------------------------------------------

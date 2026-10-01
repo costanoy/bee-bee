@@ -1,51 +1,35 @@
 extends Area2D
 
-# A collectible flower. Created entirely by code from main.gd.
+# A collectible flower. Created entirely by code from main.gd. It has no
+# picture of its own: view3d.gd draws the voxel model for its `kind`.
 
 const FLOWER_R := 14.0
-const PixelArt := preload("res://scripts/pixel_art.gd")
-const PrerenderedArt := preload("res://scripts/prerendered_art.gd")
 
-# Content-box width of the original (non-pixel) flower art inside its canvas.
-const LEGACY_CONTENT_W := 346.0
-
-static var textures: Array = [
-	_entry("flower_red.png", Color(0.94, 0.2, 0.2)),
-	_entry("flower_yellow.png", Color(1.0, 0.82, 0.25)),
-	_entry("flower_blue.png", Color(0.35, 0.2, 0.95)),
+# [kind (view3d.gd's flower_<kind> model), colour of its pickup burst]
+const KINDS := [
+	["red", Color(0.94, 0.2, 0.2)],
+	["yellow", Color(1.0, 0.82, 0.25)],
+	["blue", Color(0.35, 0.2, 0.95)],
 ]
-
-
-static func _entry(file_name: String, burst_color: Color) -> Dictionary:
-	var pixel := PixelArt.texture(file_name)
-	if pixel:
-		return {"tex": pixel, "scale": PixelArt.SCALE, "pixel": true, "burst_color": burst_color}
-	return {
-		"tex": load(PrerenderedArt.path(file_name)),
-		"scale": FLOWER_R * 2.4 / LEGACY_CONTENT_W,
-		"pixel": false,
-		"burst_color": burst_color,
-	}
 
 var sway_phase := 0.0
 var _time := 0.0
 var _base_x := 0.0
 
-var sprite: Sprite2D
+var kind := "red"
 var burst_color := Color(1.0, 0.82, 0.25)
+# Set when the bee picks it up; the node lingers half a second after that so
+# view3d.gd can play its burst where the flower was.
+var collected := false
 
 
 func setup() -> void:
 	sway_phase = randf() * TAU
 	_base_x = position.x
 
-	sprite = Sprite2D.new()
-	add_child(sprite)
-	var entry: Dictionary = textures[randi() % textures.size()]
-	sprite.texture = entry["tex"]
-	burst_color = entry["burst_color"]
-	sprite.scale = Vector2.ONE * entry["scale"]
-	PixelArt.apply_filter(sprite, entry["pixel"])
+	var entry: Array = KINDS[randi() % KINDS.size()]
+	kind = entry[0]
+	burst_color = entry[1]
 
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
@@ -75,24 +59,7 @@ func play_collect_effect() -> void:
 	# picked flower would keep detecting for the half second it lingers
 	# here for its burst.
 	set_deferred("monitoring", false)
-	sprite.visible = false
-
-	var particles := CPUParticles2D.new()
-	particles.position = Vector2.ZERO
-	particles.amount = 10
-	particles.lifetime = 0.5
-	particles.one_shot = true
-	particles.explosiveness = 1.0
-	particles.direction = Vector2.UP
-	particles.spread = 180.0
-	particles.gravity = Vector2.ZERO
-	particles.initial_velocity_min = 60.0
-	particles.initial_velocity_max = 200.0
-	particles.scale_amount_min = 3.0
-	particles.scale_amount_max = 5.0
-	particles.color = burst_color
-	add_child(particles)
-	particles.emitting = true
+	collected = true
 
 	var tween := create_tween()
 	tween.tween_interval(0.5)

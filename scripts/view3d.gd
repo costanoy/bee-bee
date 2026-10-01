@@ -1,15 +1,13 @@
 extends Node3D
 
-# The game drawn in real-time 3D. Gameplay is untouched — main.gd still
-# simulates everything in its 400-px-wide 2D plane (physics, collisions,
-# spawning, difficulty) — and this node mirrors that state every frame into
-# a low-poly scene: same x/y on the plane z=0, plus real depth, light,
-# shadow and a perspective camera (so far-away scenery gets its parallax
-# for free instead of being faked). The 2D world is hidden; the 2D UI stays.
+# The game drawn in real-time 3D. main.gd simulates everything in its
+# 400-px-wide 2D plane (physics, collisions, spawning, difficulty) and draws
+# nothing but the UI; this node mirrors that state every frame into a voxel
+# scene: same x/y on the plane z=0, plus real depth, light and a perspective
+# camera (so far-away scenery gets its parallax for free).
 #
-# Models: models/*.glb, built by tools/blender/make_lowpoly_models.py —
-# being replaced one by one by voxel-art versions (make_voxel_*.py); `voxel`
-# maps a model slot to its voxel file once that asset is approved.
+# Models: models/*.glb, built cube by cube by tools/blender/make_voxel_*.py
+# on one shared grid (VOX). `voxel` maps a model slot to its file.
 
 const PX := 40.0                 # game px per 3D unit (the screen is 10 units wide)
 const FOV := 50.0
@@ -78,7 +76,7 @@ var idle_time := 0.0
 
 var sun_disc: MeshInstance3D
 var sun_mat: StandardMaterial3D
-var ground_for: Object           # the ground Sprite2D this scenery was built for
+var scenery_for := -1            # main.scenery_id this scenery was built for
 var scenery: Node3D
 var record3d: Node3D
 var record_for: Object
@@ -234,20 +232,19 @@ func _sync_sky() -> void:
 # The ground, trees and far backdrop are rebuilt whenever main.gd builds a
 # fresh start scene (every run), since the backdrop variant is re-rolled.
 func _sync_scenery() -> void:
-	if main.ground_sprite == ground_for:
+	if main.scenery_id == scenery_for:
 		return
-	ground_for = main.ground_sprite
+	scenery_for = main.scenery_id
 	if scenery:
 		scenery.queue_free()
 	scenery = Node3D.new()
 	add_child(scenery)
-	if ground_for == null:
-		return
 	var ground := spawn("ground", scenery)
 	ground.position = Vector3(0, 0, 0)          # grass top at world y=0, where the bee stands
 	var rng := RandomNumberGenerator.new()
 	rng.seed = main.rows_spawned * 7919 + int(main.last_gap_x * 13.0)
-	if main.trees_sprite:
+	var hills: bool = main.sky.backdrop == "hills"
+	if hills:
 		var x := -8.0
 		while x < 8.0:
 			# Voxel trees come in three sizes per kind and are never scaled or
@@ -257,7 +254,6 @@ func _sync_scenery() -> void:
 			var t := spawn("tree_voxel_%s_%s" % [kind, ["a", "b", "c"][rng.randi() % 3]], scenery)
 			t.position = Vector3(snappedf(x, 0.04), 0, snappedf(rng.randf_range(-2.4, -1.4), 0.04))
 			x += rng.randf_range(0.9, 1.5)
-	var hills: bool = main.sky.mountain_has_trees
 	var back := spawn("backdrop_hills" if hills else "backdrop_city", scenery)
 	# Sink the backdrop so, from the cold-start camera, its foot lines up
 	# just above the near grass: seen through a level perspective camera, a
@@ -372,10 +368,10 @@ func _sync_flowers(delta: float) -> void:
 		m.position = to3(f.position, 0.1)
 		# a gentle sway rather than a full spin, which turned them edge-on
 		m.rotation.y = sin(idle_time * 1.8 + f.sway_phase) * 0.55
-	# collected: the 2D sprite is hidden while its burst plays
+	# collected: the flower gives way to its burst
 	for id in mirrors.keys():
 		var n = instance_from_id(id)
-		if n is Area2D and is_instance_valid(n) and not n.sprite.visible:
+		if n is Area2D and is_instance_valid(n) and n.collected:
 			var m: Node3D = mirrors[id]
 			if m.visible:
 				m.visible = false
@@ -383,13 +379,7 @@ func _sync_flowers(delta: float) -> void:
 
 
 func _build_flower(f) -> Node3D:
-	var path: String = f.sprite.texture.resource_path
-	var model := "flower_red"
-	if "yellow" in path:
-		model = "flower_yellow"
-	elif "blue" in path:
-		model = "flower_blue"
-	var n := spawn(model)
+	var n := spawn("flower_" + f.kind)
 	n.scale = Vector3.ONE * flower_scale
 	return n
 
@@ -435,7 +425,7 @@ func _sync_decor(delta: float) -> void:
 			continue
 		var m := _mirror(g, func(n): return spawn("gull"))
 		m.position = to3(g.position, -1.2)
-		m.rotation.y = PI if g.flip_h else 0.0
+		m.rotation.y = PI if g.facing_left else 0.0
 		var a := sin(idle_time * 9.0 + g.get_instance_id() % 7) * 0.9
 		for side in ["L", "R"]:
 			var w: Node3D = m.find_child("WingPivot" + side, true, false)
@@ -452,7 +442,7 @@ func _sync_decor(delta: float) -> void:
 # One voxel model per cloud size (large / medium / small), used unscaled:
 # stretching a single model would give clouds cubes of different sizes.
 func _build_cloud(c) -> Node3D:
-	var span: float = c.scale.x * 538.0     # cloud.gd CONTENT_W: its width in game px
+	var span: float = c.span
 	var n := spawn("cloud_voxel_a" if span >= 65.0 else ("cloud_voxel_b" if span >= 55.0 else "cloud_voxel_c"))
 	# The clouds are see-through. Writing depth as they draw (their cubes are
 	# stored nearest-first) keeps a cloud's own inner steps from blending in
@@ -477,13 +467,9 @@ func _glowing(n: Node3D) -> Node3D:
 	return n
 
 
+# All three are modelled at their in-game size.
 func _build_celestial(b) -> Node3D:
-	var path: String = b.texture.resource_path
-	if "moon" in path:
-		return _glowing(spawn("moon"))
-	if "jupiter" in path:
-		return _glowing(spawn("jupiter"))     # modelled at its in-game size
-	return _glowing(spawn("ufo"))             # modelled at its in-game size
+	return _glowing(spawn(b.get_meta("kind")))
 
 
 func _sync_record_line() -> void:
@@ -505,8 +491,7 @@ func _sync_record_line() -> void:
 
 # The record line in voxels: dashes six cubes long and four apart, and the
 # word RECORD spelled out in cubes with a dark drop shadow one cube down and
-# to the right. Like the 2D line it mirrors, the word sits on the side away
-# from the record flower.
+# to the right. The word sits on the side away from the record flower.
 func _build_record_line() -> Node3D:
 	var line := Node3D.new()
 	add_child(line)
@@ -535,10 +520,10 @@ func _build_record_line() -> Node3D:
 				if rows[r][c] == "X":
 					cells.append(Vector3((i * 6 + c + 0.5) * VOX, (rows.size() - r - 0.5) * VOX, 0))
 	var word_w := (RECORD_WORD.length() * 6 - 1) * VOX
-	# the 2D line's own label is its last child, already placed on the free side
-	var label_2d: Control = main.record_line.get_child(main.record_line.get_child_count() - 1)
-	var on_left: bool = label_2d.position.x < main.SCREEN_W / 2.0
-	var origin := Vector3(-4.85 if on_left else 4.85 - word_w, 3 * VOX, 0)
+	var on_left: bool = main.record_word_on_left
+	# Kept well inside the 5-unit half-width: the camera looks down from above
+	# the middle, so the top of the screen is nearer to it and shows less width.
+	var origin := Vector3(-4.5 if on_left else 4.5 - word_w, 3 * VOX, 0)
 	var cube := BoxMesh.new()
 	cube.size = Vector3.ONE * VOX
 	for layer in [[ink, Vector3(VOX, -VOX, -VOX)], [gold, Vector3.ZERO]]:
@@ -590,7 +575,7 @@ func _build_bee(model := "bee") -> void:
 func _sync_bee(delta: float) -> void:
 	var b = main.bee
 	bee3d.position = to3(b.position, 0.15)
-	var dead: bool = b.sprite.animation == "dead"
+	var dead: bool = b.dead
 	dead_eyes.visible = dead
 	for e in live_eyes:
 		e.visible = not dead
@@ -600,17 +585,16 @@ func _sync_bee(delta: float) -> void:
 	bee_yaw = lerp_angle(bee_yaw, target_yaw, clampf(delta * 12.0, 0.0, 1.0))
 	# roll belly-up on death
 	bee_roll_x = lerpf(bee_roll_x, PI if dead else 0.0, clampf(delta * 6.0, 0.0, 1.0))
-	var lean: float = -b.sprite.rotation * b.facing
+	var lean: float = -b.tilt * b.facing
 	bee3d.rotation = Vector3(bee_roll_x, bee_yaw, lean)
 
-	# wingbeat: the 2D flap animation (hidden) is the clock — one full
-	# down-and-up stroke per tap, with a soft hover flutter in between
+	# wingbeat: one full down-and-up stroke per tap, with a soft hover
+	# flutter in between
 	var wing := 0.25 + sin(idle_time * 7.0) * 0.12
 	if dead:
 		wing = 1.6
-	elif b.sprite.animation == "flap" and b.sprite.is_playing():
-		var frames: int = b.sprite.sprite_frames.get_frame_count("flap")
-		var t: float = (b.sprite.frame + b.sprite.frame_progress) / frames
+	elif b.is_flapping():
+		var t: float = b.flap_progress()
 		wing = 0.25 + sin(t * PI) * 1.55
 		var squash := sin(t * PI) * 0.08
 		bee3d.scale = Vector3(bee_scale * (1.0 + squash), bee_scale * (1.0 - squash), bee_scale)
