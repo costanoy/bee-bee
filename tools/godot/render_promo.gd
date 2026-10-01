@@ -264,7 +264,9 @@ func _direct() -> void:
 		539:
 			_stage_run(88, 265.0, "queen", 2400.0, seeds[1], 240)
 		809:
-			_stage_run(214, 640.0, "shining", 5200.0, seeds[2], 320)
+			# One flower short of the moon's score, so the moon rises alone,
+			# as it does in a real run (Jupiter comes a hundred flowers later).
+			_stage_run(99, 640.0, "shining", 5200.0, seeds[2], 320)
 		1439:
 			_stage_title()
 	# the camera eases in on the title, and drifts in on the end card
