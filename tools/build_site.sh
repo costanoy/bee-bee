@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Builds the public test site into build/site/ (a plain static folder):
+# Builds the public test site (https://beebee.cyberhat.com.br, on Hostinger)
+# into build/site/, a plain static folder, and zips it as build/BeeBee-site.zip:
 #   index.html, assets/   the landing page, copied from site/
+#   .htaccess             MIME types, compression and caching for the host
 #   play/                 the game exported for the browser ("Web" preset)
 #   BeeBee.apk            a release-signed APK for sideloading ("Android" preset)
 #
@@ -25,5 +27,19 @@ mkdir -p build/site/play /c/jtmp
 "$GODOT" --headless --path . --export-release "Web" build/site/play/index.html
 # Gradle needs a short temp path on Windows.
 TEMP='C:\jtmp' TMP='C:\jtmp' "$GODOT" --headless --path . --export-release "Android" build/site/BeeBee.apk
-cp -r site/index.html site/assets build/site/
-ls -la build/site build/site/play
+cp -r site/index.html site/.htaccess site/assets build/site/
+# Godot scans build/ like any other folder and leaves .import files next to
+# the exported icons; .gdignore stops that, and the strays are not shipped.
+touch build/.gdignore
+find build/site -name "*.import" -delete
+# One archive to upload and extract in the site's folder on the host.
+rm -f build/BeeBee-site.zip
+python -c "
+import os, zipfile
+z = zipfile.ZipFile('build/BeeBee-site.zip', 'w', zipfile.ZIP_DEFLATED)
+for d, _, fs in os.walk('build/site'):
+    for f in fs:
+        p = os.path.join(d, f)
+        z.write(p, os.path.relpath(p, 'build/site'), zipfile.ZIP_STORED if f.endswith(('.apk', '.webp', '.png')) else zipfile.ZIP_DEFLATED)
+z.close()"
+ls -la build/site build/site/play build/BeeBee-site.zip

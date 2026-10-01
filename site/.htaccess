@@ -1,0 +1,27 @@
+# Bee Bee test site — settings for Apache/LiteSpeed hosting (Hostinger).
+
+# The browser refuses to run WebAssembly served under the wrong type, and
+# Android only offers to install a file that arrives as a package.
+AddType application/wasm .wasm
+AddType application/vnd.android.package-archive .apk
+AddType font/ttf .ttf
+AddType image/webp .webp
+
+# The game is ~45 MB before compression and about a quarter of that after.
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE application/wasm application/javascript text/javascript text/html text/css font/ttf
+  <FilesMatch "\.pck$">
+    SetOutputFilter DEFLATE
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_headers.c>
+  # Game and APK keep their names from one build to the next, so browsers
+  # must check for a newer copy instead of trusting an old one.
+  <FilesMatch "\.(html|wasm|pck|js|apk)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  <FilesMatch "\.(webp|png|ttf)$">
+    Header set Cache-Control "public, max-age=604800"
+  </FilesMatch>
+</IfModule>

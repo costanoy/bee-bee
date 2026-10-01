@@ -94,7 +94,7 @@ Pipeline: `tools/blender/voxel_kit.py` (grade compartilhada `VOX = 0.04` = 1,6 p
 - Fonte em `site/` (`index.html` único, sem dependências externas; imagens em `site/assets/`, geradas a partir de `store/screenshots`, `art/ui` e `store/backdrop.png`). A pasta tem `.gdignore`.
 - `bash tools/build_site.sh` monta tudo em `build/site/`: a página, `play/` (exportação **Web**, sem threads, roda em hospedagem estática comum) e `BeeBee.apk` (APK de **release**, assinado com a chave da loja, só arm64, ~53 MB). O preset "Android" ficou com `compress_native_libraries=true` (sem isso o APK tinha 101 MB).
 - A página tem dois botões: jogar no navegador (no computador o jogo abre dentro da moldura de celular; no celular vai para `play/`) e baixar o APK, mais as instruções de instalação.
-- **Ainda não está publicado**: falta o usuário escolher onde hospedar (o repositório do jogo é privado, então o GitHub Pages dele não serve; opção sugerida: um repositório público só com `build/site`).
+- **Hospedagem: `https://beebee.cyberhat.com.br`, na Hostinger** (decisão do usuário). O script também gera `build/BeeBee-site.zip` para enviar e extrair na pasta do subdomínio; `site/.htaccess` cuida dos tipos MIME (`.wasm`, `.apk`), compressão e cache. **Ainda não foi enviado**: não há acesso à Hostinger nesta máquina (em 01/10 o subdomínio ainda não resolvia).
 - Quem instalar esse APK e depois for instalar pela Google Play vai precisar desinstalar antes (assinaturas diferentes, por causa do Play App Signing).
 
 ## Pendências
