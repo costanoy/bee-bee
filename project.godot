@@ -16,7 +16,7 @@ config/quit_on_go_back=false
 config/features=PackedStringArray("4.7", "Mobile")
 boot_splash/bg_color=Color(0.53, 0.77, 0.98, 1)
 boot_splash/image="res://art/ui/splash.png"
-config/icon="res://art/icon_bg.png"
+config/icon="res://art/ui/window_icon.png"
 
 [autoload]
 
