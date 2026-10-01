@@ -22,15 +22,15 @@ const SCROLL_MAX := 170.0
 # narrowest gap are unchanged, they're just reached earlier.
 const DIFFICULTY_RAMP_TIME := 35.0
 # The bees the player can fly, in menu order. `size` (hitbox and model) and
-# `speed` (sideways speed) are relative to the normal bee; `glow` draws the
-# model unshaded.
-# TEST — the silver bee is smaller and faster, asked for together with the
-# skin. size 1.0 / speed 1.0 would make it a purely cosmetic skin again.
+# `speed` (sideways speed) are relative to the base values in bee.gd, so a
+# skin could fly differently; today both are purely cosmetic (the "smaller
+# and faster" change turned out to be meant for every bee, and lives in
+# bee.gd's BEE_R / H_SPEED). `glow` draws the model unshaded.
 const BEE_SKINS := {
 	"normal": {"name": "Bee", "trait": "The classic", "model": "bee", "icon": "res://art/ui/bee_normal.png",
 			"size": 1.0, "speed": 1.0, "glow": false},
-	"shining": {"name": "Silver Bee", "trait": "Smaller & faster", "model": "bee_shining",
-			"icon": "res://art/ui/bee_silver.png", "size": 0.8, "speed": 1.15, "glow": true},
+	"shining": {"name": "Silver Bee", "trait": "Shiny chrome", "model": "bee_shining",
+			"icon": "res://art/ui/bee_silver.png", "size": 1.0, "speed": 1.0, "glow": true},
 }
 const BEE_ORDER := ["normal", "shining"]
 const GOLD := Color(1, 0.82, 0.18)

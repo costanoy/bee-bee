@@ -6,11 +6,15 @@ extends CharacterBody2D
 const GRAVITY := 1500.0
 const FLAP_VELOCITY := -480.0
 const MAX_FALL := 700.0
-# TEST — bumped for a faster-feeling bee, requested to see if it makes the
-# game more addictive. Previous (validated, long-standing) value: 230.0.
-const H_SPEED := 275.0
+# TEST — a faster bee, bumped twice on request: 230.0 (validated,
+# long-standing) -> 275.0 -> 316.0 (another 15%, asked for together with
+# the smaller bee below).
+const H_SPEED := 316.0
 const H_DAMPING := 2.0
-const BEE_R := 16.0
+# TEST — a smaller bee (hitbox and looks), asked for with the speed bump
+# above. Previous (validated, long-standing) value: 16.0. The 3D model's
+# matching scale is BEE_SCALE in view3d.gd.
+const BEE_R := 12.8
 const SCREEN_W := 400.0
 
 var facing := 1  # 1 = right, -1 = left

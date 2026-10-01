@@ -13,7 +13,9 @@ extends Node3D
 
 const PX := 40.0                 # game px per 3D unit (the screen is 10 units wide)
 const FOV := 50.0
-const BEE_SCALE := 0.8
+# TEST — a smaller bee, to match BEE_R in bee.gd (was 0.8, where the bee's
+# cubes matched the world's 0.04 grid exactly; now they're a fifth smaller).
+const BEE_SCALE := 0.64
 const FLOWER_SCALE := 1.0        # voxel flowers are built at their in-game size
 const CAM_PITCH := 7.0           # degrees, looking slightly down onto the play plane
 # voxel hedge tiles (make_voxel_hedge.py): 24 cubes = 0.96 units wide
@@ -33,6 +35,16 @@ var voxel := {
 	"backdrop_hills": "backdrop_voxel_hills",
 	"backdrop_city": "backdrop_voxel_city",
 	"sun": "sun_voxel",
+}
+const VOX := 0.04                # the world's cube size (tools/blender/voxel_kit.py VOX)
+const RECORD_WORD := "RECORD"
+# 5x7 cube letters for the record line
+const GLYPHS := {
+	"R": ["XXXX.", "X...X", "X...X", "XXXX.", "X.X..", "X..X.", "X...X"],
+	"E": ["XXXXX", "X....", "X....", "XXXX.", "X....", "X....", "XXXXX"],
+	"C": [".XXXX", "X....", "X....", "X....", "X....", "X....", ".XXXX"],
+	"O": [".XXX.", "X...X", "X...X", "X...X", "X...X", "X...X", ".XXX."],
+	"D": ["XXXX.", "X...X", "X...X", "X...X", "X...X", "X...X", "XXXX."],
 }
 const BACKDROP_DEPTH := 95.0     # far enough to scroll at ~1/5 of the climb rate
 const SUN_Y := 26.0
@@ -62,9 +74,6 @@ var wing_r: Node3D
 var dead_eyes: Node3D
 var live_eyes: Array[Node3D] = []
 var bee_yaw := 0.0
-# The flower-pickup burst as little cubes instead of smooth balls. Built for
-# review: off until approved.
-var voxel_burst := false
 var bee_roll_x := 0.0
 var idle_time := 0.0
 
@@ -386,43 +395,9 @@ func _build_flower(f) -> Node3D:
 	return n
 
 
+# A flower's pickup burst: cubes of two exact grid sizes (two cubes across
+# and one), never scaled in between, the small ones in a lighter tint.
 func _burst(at: Vector3, color: Color) -> void:
-	if voxel_burst:
-		_burst_cubes(at, color)
-		return
-	var p := CPUParticles3D.new()
-	p.one_shot = true
-	p.amount = 14
-	p.lifetime = 0.55
-	p.explosiveness = 1.0
-	p.direction = Vector3.UP
-	p.spread = 180.0
-	p.gravity = Vector3(0, -4, 0)
-	p.initial_velocity_min = 2.0
-	p.initial_velocity_max = 5.0
-	p.scale_amount_min = 0.6
-	p.scale_amount_max = 1.0
-	var mesh := SphereMesh.new()
-	mesh.radius = 0.07
-	mesh.height = 0.14
-	mesh.radial_segments = 6
-	mesh.rings = 3
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.emission_enabled = true
-	mat.emission = color
-	mat.emission_energy_multiplier = 0.6
-	mesh.material = mat
-	p.mesh = mesh
-	p.position = at
-	add_child(p)
-	p.emitting = true
-	get_tree().create_timer(1.0).timeout.connect(p.queue_free)
-
-
-# The burst in voxels: cubes of two exact grid sizes (two cubes across and
-# one), never scaled in between, the small ones in a lighter tint.
-func _burst_cubes(at: Vector3, color: Color) -> void:
 	for spec in [[10, 0.08, color], [8, 0.04, color.lightened(0.45)]]:
 		var p := CPUParticles3D.new()
 		p.one_shot = true
@@ -529,32 +504,55 @@ func _sync_record_line() -> void:
 		record3d.position = to3(Vector2(main.SCREEN_W / 2.0, rl.position.y), 0.45)
 
 
+# The record line in voxels: dashes six cubes long and four apart, and the
+# word RECORD spelled out in cubes with a dark drop shadow one cube down and
+# to the right. Like the 2D line it mirrors, the word sits on the side away
+# from the record flower.
 func _build_record_line() -> Node3D:
 	var line := Node3D.new()
 	add_child(line)
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(1.0, 0.84, 0.3)
+	var gold := StandardMaterial3D.new()
+	gold.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	gold.albedo_color = Color(1.0, 0.84, 0.3)
+	var ink := StandardMaterial3D.new()
+	ink.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ink.albedo_color = main.UI_INK
+	var dash_mesh := BoxMesh.new()
+	dash_mesh.size = Vector3(6 * VOX, VOX, VOX)
 	var x := -5.0
 	while x < 5.0:
 		var dash := MeshInstance3D.new()
-		var bm := BoxMesh.new()
-		bm.size = Vector3(0.26, 0.05, 0.05)
-		dash.mesh = bm
-		dash.material_override = mat
-		dash.position = Vector3(x + 0.13, 0, 0)
+		dash.mesh = dash_mesh
+		dash.material_override = gold
+		dash.position = Vector3(x + 3 * VOX, 0, 0)
 		line.add_child(dash)
-		x += 0.4
-	var label := Label3D.new()
-	label.text = "RECORD"
-	label.font = main.ui_font
-	label.font_size = 64
-	label.pixel_size = 0.004
-	label.modulate = Color(1.0, 0.84, 0.3)
-	label.outline_modulate = main.UI_INK
-	label.outline_size = 16
-	label.position = Vector3(-4.2, 0.22, 0)
-	line.add_child(label)
+		x += 10 * VOX
+
+	var cells: Array[Vector3] = []
+	for i in RECORD_WORD.length():
+		var rows: Array = GLYPHS[RECORD_WORD[i]]
+		for r in rows.size():
+			for c in (rows[r] as String).length():
+				if rows[r][c] == "X":
+					cells.append(Vector3((i * 6 + c + 0.5) * VOX, (rows.size() - r - 0.5) * VOX, 0))
+	var word_w := (RECORD_WORD.length() * 6 - 1) * VOX
+	# the 2D line's own label is its last child, already placed on the free side
+	var label_2d: Control = main.record_line.get_child(main.record_line.get_child_count() - 1)
+	var on_left: bool = label_2d.position.x < main.SCREEN_W / 2.0
+	var origin := Vector3(-4.85 if on_left else 4.85 - word_w, 3 * VOX, 0)
+	var cube := BoxMesh.new()
+	cube.size = Vector3.ONE * VOX
+	for layer in [[ink, Vector3(VOX, -VOX, -VOX)], [gold, Vector3.ZERO]]:
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = cube
+		mm.instance_count = cells.size()
+		for k in cells.size():
+			mm.set_instance_transform(k, Transform3D(Basis(), origin + cells[k] + layer[1]))
+		var word := MultiMeshInstance3D.new()
+		word.multimesh = mm
+		word.material_override = layer[0]
+		line.add_child(word)
 	return line
 
 
@@ -620,22 +618,30 @@ func _sync_bee(delta: float) -> void:
 	wing_r.rotation.x = -wing
 
 
+# Stars are cubes too. They sit 180 units behind the camera, where a cube of
+# STAR_VOX lands on screen at the size of one world cube; every star is
+# exactly one or two of those across, and a few bigger ones are crosses.
 func _build_stars() -> void:
+	const STAR_VOX := 0.34
+	const SQUARES := 140
+	const CROSSES := 12
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
-	var sm := SphereMesh.new()
-	sm.radius = 0.35
-	sm.height = 0.7
-	sm.radial_segments = 4
-	sm.rings = 2
-	mm.mesh = sm
-	mm.instance_count = 140
+	var cube := BoxMesh.new()
+	cube.size = Vector3.ONE * STAR_VOX
+	mm.mesh = cube
+	mm.instance_count = SQUARES + CROSSES * 2
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
-	for i in mm.instance_count:
-		var t := Transform3D(Basis().scaled(Vector3.ONE * rng.randf_range(0.5, 1.4)),
+	for i in SQUARES:
+		var side := 2.0 if rng.randf_range(0.5, 1.4) > 1.08 else 1.0
+		var t := Transform3D(Basis().scaled(Vector3.ONE * side),
 			Vector3(rng.randf_range(-60, 60), rng.randf_range(-90, 90), 0))
 		mm.set_instance_transform(i, t)
+	for i in CROSSES:
+		var at := Vector3(rng.randf_range(-60, 60), rng.randf_range(-90, 90), 0).snappedf(STAR_VOX)
+		mm.set_instance_transform(SQUARES + i * 2, Transform3D(Basis().scaled(Vector3(3, 1, 1)), at))
+		mm.set_instance_transform(SQUARES + i * 2 + 1, Transform3D(Basis().scaled(Vector3(1, 3, 1)), at))
 	star_mat = StandardMaterial3D.new()
 	star_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	star_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
