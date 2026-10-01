@@ -40,6 +40,7 @@ var mirrors := {}                # 2D node instance id -> Node3D
 # hedge tile models and the width (3D units) of one tile
 var hedge_models: Array = HEDGE_VARIANTS
 var hedge_seg_w := HEDGE_TILE_W
+var flower_scale := FLOWER_SCALE
 var bee3d: Node3D
 var wing_l: Node3D
 var wing_r: Node3D
@@ -360,7 +361,7 @@ func _build_flower(f) -> Node3D:
 	elif "blue" in path:
 		model = "flower_blue"
 	var n := spawn(model)
-	n.scale = Vector3.ONE * FLOWER_SCALE
+	n.scale = Vector3.ONE * flower_scale
 	return n
 
 
