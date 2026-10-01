@@ -68,7 +68,9 @@ var record_for: Object
 func setup(p_main: Node2D) -> void:
 	main = p_main
 	for f in ["bee", "hedge_voxel_a", "hedge_voxel_b", "hedge_voxel_c", "flower_red", "flower_yellow", "flower_blue",
-			"cloud_voxel_a", "cloud_voxel_b", "cloud_voxel_c", "gull", "moon", "jupiter", "ufo", "ground", "tree_round", "tree_pine",
+			"cloud_voxel_a", "cloud_voxel_b", "cloud_voxel_c", "gull", "moon", "jupiter", "ufo", "ground",
+			"tree_voxel_round_a", "tree_voxel_round_b", "tree_voxel_round_c",
+			"tree_voxel_pine_a", "tree_voxel_pine_b", "tree_voxel_pine_c",
 			"backdrop_hills", "backdrop_city"]:
 		models[f] = load("res://models/%s.glb" % voxel.get(f, f))
 
@@ -229,11 +231,12 @@ func _sync_scenery() -> void:
 	if main.trees_sprite:
 		var x := -8.0
 		while x < 8.0:
-			var t := spawn("tree_round" if rng.randf() < 0.6 else "tree_pine", scenery)
-			var s := rng.randf_range(0.85, 1.25)
-			t.scale = Vector3.ONE * s
-			t.position = Vector3(x, 0, rng.randf_range(-2.4, -1.4))
-			t.rotation.y = rng.randf_range(0, TAU)
+			# Voxel trees come in three sizes per kind and are never scaled or
+			# turned: either would break the shared cube grid, and their backs
+			# aren't modelled.
+			var kind := "round" if rng.randf() < 0.6 else "pine"
+			var t := spawn("tree_voxel_%s_%s" % [kind, ["a", "b", "c"][rng.randi() % 3]], scenery)
+			t.position = Vector3(snappedf(x, 0.04), 0, snappedf(rng.randf_range(-2.4, -1.4), 0.04))
 			x += rng.randf_range(0.9, 1.5)
 	var hills: bool = main.sky.mountain_has_trees
 	var back := spawn("backdrop_hills" if hills else "backdrop_city", scenery)
