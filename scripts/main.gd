@@ -7,6 +7,8 @@ extends Node2D
 enum State { START, STARTING, PLAYING, PAUSED, DYING, GAMEOVER }
 
 const SCREEN_W := 400.0
+# shortest view the layout is made for (16:9); see _ready
+const MIN_SCREEN_H := 711.0
 
 # Physics/gameplay constants ported verbatim from reference-prototype.html.
 const OBSTACLE_SPACING := 190.0
@@ -278,6 +280,14 @@ var bee_button_icons: Array[TextureRect] = []
 
 
 func _ready() -> void:
+	# The layout needs a screen at least 16:9 tall. On anything squatter (a
+	# tablet, a foldable opened flat) keep_width would leave too little
+	# height for the menus and for reading the next row, so there the game
+	# keeps a 16:9 column in the middle with bars at the sides instead.
+	var window := get_window()
+	if float(window.size.y) / maxf(1.0, window.size.x) < MIN_SCREEN_H / SCREEN_W:
+		window.content_scale_size = Vector2i(int(SCREEN_W), int(MIN_SCREEN_H))
+		window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
 	screen_h = get_viewport_rect().size.y
 
 	# Jersey 10 (SIL OFL 1.1, see fonts/Jersey10-OFL.txt): a chunky pixel
