@@ -20,8 +20,9 @@ roseiras e precisa pegar **todas** as flores (perder uma = game over).
 ## Build e teste no celular
 - Boot check: `"<godot>" --headless --path . --quit-after 5`
 - Reimportar assets: `"<godot>" --headless --path . --import`
-- APK (precisa de temp curto + sandbox desligado):
+- APK de teste (precisa de temp curto + sandbox desligado):
   `TEMP="C:\jtmp" TMP="C:\jtmp" "<godot>" --headless --path . --export-debug "Android" build/android/beebee-debug.apk`
+- **Bundle de release assinado para o Google Play:** `bash tools/build_release.sh` → `build/android/beebee-release.aab` (preset "Android Release": AAB, ARM 32+64 bits). A chave fica **fora do git**, em `..\Bee Bee - chaves\` (`beebee-release.keystore`, alias `beebee`, senha em `senha.txt`, SHA-1/SHA-256 em `impressoes-digitais.txt`); o script passa tudo ao Godot por variáveis de ambiente. Subir `version/code` no preset a cada envio. `export_presets.cfg` não vai para o git: se sumir, recriar os presets "Android" (APK debug) e "Android Release" com `permissions/vibrate=true` e o `exclude_filter` de candidatos de arte, `tools/*`, `store/*`, `build/*`, as pastas não usadas de `addons/admob` e os ícones grandes `art/icon_*.png`.
 - Servir: `npx serve -l tcp://0.0.0.0:8090` dentro de `build/` (rodar em background). **Usar a porta 8090** — a 8080 é de outro projeto do usuário ("Duelel"), não mexer.
 - O IP Wi-Fi muda (ver `ipconfig`). Link: `http://<ip>:8090/android/beebee-debug.apk` — conferir com `curl` (200) antes de mandar.
 - Screenshots reais: script `extends SceneTree` que cria um `SubViewport` 1080x2160 com `size_2d_override = (400, 800)` + `size_2d_override_stretch = true`, instancia `res://scripts/main.gd` num `Node2D`, espera frames e salva `sv.get_texture().get_image()`. Rodar **sem** `--headless` e com `--audio-driver Dummy`. O jogo pode **pausar sozinho** quando a janela perde o foco: no loop de espera, forçar `paused = false`, `g.state = g.State.PLAYING`, `g.pause_screen.visible = false`.
@@ -67,10 +68,22 @@ Pipeline: `tools/blender/voxel_kit.py` (grade compartilhada `VOX = 0.04` = 1,6 p
 - Linha tracejada "RECORD" no mundo, na altura da flor que bate o recorde.
 - Fundo do horizonte sorteado por partida: colinas+montanhas (com árvores) ou cidade.
 
+## Anúncios, placar e loja
+- **Só anúncios, sem compras no app** (decisão do usuário). `scripts/ads.gd` + plugin `addons/admob` (Poing Studios v5.1.0, binários Android do Godot 4.7.1 commitados): um intersticial ao tocar em "Play Again", no máximo a cada 3 partidas e 90 s; consentimento UMP onde a lei exige; botão "Ad privacy" na pausa quando aplicável. **Está com os IDs de TESTE do Google** — trocar o do bloco em `ads.gd` e o do app em `project.godot` (`[admob] general/android/app_id`) quando a conta AdMob existir.
+- **Placar online** via Google Play Games (`scripts/leaderboard.gd` + `addons/GodotPlayGameServices` v3.4.0): hospedado pelo Google, **sem banco de dados próprio** (o usuário não quer Supabase/Render por enquanto). **Desligado** até o jogo existir no Play Console; os 4 passos para ligar estão no topo de `leaderboard.gd`. O plugin fica fora de `[editor_plugins]` até lá (só o autoload dele está em `project.godot`).
+- **Material da loja** em `store/` (ignorada pelo Godot via `.gdignore`): `LEIA-ME.md` (roteiro do Play Console), `listing.md` (textos pt-BR/en-US), `privacy_policy.md`, `screenshots/` e `feature_graphic.png`. Imagens geradas por `tools/godot/render_store_shots.gd` e `tools/make_feature_graphic.py`.
+- **Ícone do app:** o usuário pediu para **não mexer** (`art/icon_bg.png`/`icon_fg.png`, ainda em pixel art 2D). `art/ui/window_icon.png` é só uma cópia reduzida para o ícone da janela.
+- Tela de abertura: `art/ui/splash.png` (`tools/godot/render_splash.gd`).
+- Telas mais baixas que 16:9 (tablets) ganham uma coluna 400x711 com barras laterais (`_ready` em `main.gd`).
+- **Nada de anúncios/placar/vibração foi testado em aparelho ainda** (só build e leitura do manifesto): testar pelo APK e depois pelo Teste interno do Play.
+
 ## Áudio
 - Música e SFX são gerados/ajustados por código; a música teve um "tic" corrigido (fade no fim das notas).
 - O usuário vai gerar sons novos no **ElevenLabs** (lista de prompts já entregue): `sfx_flap`, `sfx_collect` (nota única em Lá — o jogo sobe o tom a cada flor), `sfx_hit`, `sfx_near_miss`, `sfx_record`, `sfx_ui_tap`, `music_theme` (loop). Quando chegarem: trocar em `audio/` e ajustar os volumes (constantes `SFX_*_DB` em `main.gd`).
 
 ## Pendências
-1. **Mundo 3D e interface já são voxel.** A interface nova foi feita de uma vez, a pedido do usuário, e aguarda a opinião dele (logo, botões, painéis, fonte).
+1. O usuário precisa testar no celular: anúncios de teste (aparecem no 3º "Play Again"), vibração, tela de abertura, skins novas.
+2. Decidir os valores marcados `TEST` (tamanho/velocidade da abelha, rolagem, rampa, queda na morte, replay, near miss): continuam nos valores que o usuário pediu.
+3. Contas e IDs: AdMob (trocar IDs de teste), Play Console (ficha, política hospedada, declarações) e, se quiser, ligar o placar. Roteiro em `store/LEIA-ME.md`.
 4. Integrar os sons do ElevenLabs quando o usuário enviar.
+5. A interface nova (logo, botões, fonte) foi aprovada pelo usuário ("assim está ótimo").

@@ -1,0 +1,106 @@
+# Publicação do Bee Bee na Google Play — roteiro
+
+Tudo o que dá para preparar fora do Play Console já está nesta pasta e no projeto. Este roteiro
+lista, em ordem, o que só você pode fazer (contas, IDs e declarações) e onde colar cada coisa.
+
+## O que já está pronto
+
+| Item | Onde |
+|---|---|
+| Bundle assinado para envio (`.aab`) | `build/android/beebee-release.aab`, gerado por `bash tools/build_release.sh` |
+| Chave de assinatura e senha | `..\Bee Bee - chaves\` (fora do git) — **faça backup dessa pasta** |
+| Capturas de tela (6, 1080x2160) | `store/screenshots/` |
+| Imagem de destaque (1024x500) | `store/feature_graphic.png` |
+| Nome e descrições (pt-BR e en-US) | `store/listing.md` |
+| Política de privacidade (pt-BR e en) | `store/privacy_policy.md` |
+
+Para refazer as imagens depois de mudar o jogo:
+`godot --path . --audio-driver Dummy --script tools/godot/render_store_shots.gd` e depois
+`python tools/make_feature_graphic.py`.
+
+## 1. Conta e app no Play Console
+
+1. Crie a conta de desenvolvedor em https://play.google.com/console (taxa única de US$ 25).
+   Contas pessoais novas precisam passar por um **teste fechado** antes de liberar a produção
+   (até onde sei, 12 testadores por 14 dias; o Play Console mostra a regra atual).
+2. Crie o app: nome "Bee Bee", idioma padrão pt-BR, tipo **Jogo**, **Gratuito**.
+3. O nome do pacote é `com.beebeegame.beebee`. Ele não pode ser trocado depois do primeiro envio.
+
+## 2. Anúncios (AdMob)
+
+O jogo está com os **IDs de teste do Google**: mostram anúncios de teste e não pagam nada.
+
+1. Crie a conta em https://admob.google.com e adicione o app (Android).
+2. Crie um bloco de anúncios do tipo **Intersticial**.
+3. Troque os dois IDs:
+   - **ID do app** (formato `ca-app-pub-XXXX~YYYY`): em `project.godot`, adicione na seção
+     `[admob]` a linha `general/android/app_id="ca-app-pub-XXXX~YYYY"` (ou, no editor,
+     *Projeto > Configurações do Projeto > AdMob > General > Android > App Id*).
+   - **ID do bloco** (formato `ca-app-pub-XXXX/ZZZZ`): constante `INTERSTITIAL_ID` em
+     `scripts/ads.gd`.
+4. No AdMob, em *Privacidade e mensagens*, crie a mensagem de consentimento para os
+   **regulamentos europeus** (GDPR). Sem ela o formulário de consentimento não aparece na
+   Europa e os anúncios lá ficam limitados.
+5. Nunca toque em anúncios reais no seu próprio aparelho: isso pode suspender a conta. Para
+   testar com os IDs reais, cadastre o aparelho como dispositivo de teste no AdMob.
+
+Como os anúncios funcionam no jogo: um intersticial ao tocar em "Play Again", no máximo a cada
+3 partidas e nunca com menos de 90 segundos do anterior. Os números estão no topo de
+`scripts/ads.gd` (`RUNS_BETWEEN_ADS`, `MIN_SECONDS_BETWEEN_ADS`).
+
+## 3. Placar online (opcional)
+
+Está pronto, mas **desligado**. Usa o Google Play Games: quem hospeda as pontuações é o Google,
+sem banco de dados nosso. Os quatro passos para ligar estão no topo de
+`scripts/leaderboard.gd`. Você vai precisar das impressões digitais SHA-1:
+
+- da **chave de envio**: está em `..\Bee Bee - chaves\impressoes-digitais.txt`;
+- da **chave de assinatura do app** que o Google cria: Play Console > *Integridade do app*.
+
+## 4. Ficha da loja
+
+Cole os textos de `store/listing.md`, envie as capturas e a imagem de destaque. O ícone de
+512x512 é o ícone atual do app.
+
+## 5. Política de privacidade
+
+O Play Console exige um endereço público. Preencha os dois campos entre colchetes em
+`store/privacy_policy.md` e hospede o texto (por exemplo, numa página do Google Sites ou num
+repositório público com GitHub Pages; o repositório do jogo é privado e não serve para isso).
+
+## 6. Declarações do Play Console (Conteúdo do app)
+
+Sugestões de resposta, de acordo com o que o jogo faz hoje. Confira cada uma na hora: as
+perguntas mudam, e a responsabilidade pela declaração é sua.
+
+- **Anúncios:** Sim, o app contém anúncios.
+- **Acesso ao app:** todas as funções estão disponíveis sem login.
+- **Classificação de conteúdo** (questionário IARC): jogo sem violência, sem linguagem
+  imprópria, sem compras e sem interação entre usuários. O resultado esperado é **Livre**.
+- **Público-alvo:** recomendo **13 anos ou mais**. Marcar faixas abaixo de 13 coloca o jogo no
+  programa *Famílias*, que exige anúncios certificados para crianças e outras regras; o jogo
+  não está configurado para isso.
+- **Segurança dos dados:** o jogo em si não coleta nada, mas o SDK de anúncios do Google sim.
+  Declare como **coletados e compartilhados** (finalidade: publicidade, análise e prevenção de
+  fraude), todos **criptografados em trânsito**:
+  - Localização aproximada
+  - Identificadores do dispositivo ou outros IDs
+  - Interações com o app
+  - Diagnóstico (registros de falhas e desempenho)
+
+  A lista oficial do Google para o SDK de anúncios está em
+  https://developers.google.com/admob/android/privacy/play-data-disclosure — confira por ela.
+- **ID de publicidade:** Sim, o app usa (o SDK de anúncios declara a permissão `AD_ID`).
+
+## 7. Envio
+
+1. `bash tools/build_release.sh` gera `build/android/beebee-release.aab`.
+2. A cada envio novo, aumente `version/code` em 1 no preset "Android Release" de
+   `export_presets.cfg` (o Play recusa um código repetido).
+3. Envie primeiro para **Teste interno**, instale pelo link de teste e jogue: é a única forma
+   de conferir anúncios e placar exatamente como o usuário final vai ver.
+
+## Requisitos do aparelho
+
+Android 10 ou mais novo (é o mínimo que o build declara), ARM de 32 ou 64 bits. Download estimado por
+aparelho: cerca de 40 MB.
