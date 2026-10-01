@@ -29,6 +29,7 @@ var voxel := {
 	"moon": "moon_voxel",
 	"jupiter": "jupiter_voxel",
 	"ufo": "ufo_voxel",
+	"backdrop_hills": "backdrop_voxel_hills",
 }
 const BACKDROP_DEPTH := 95.0     # far enough to scroll at ~1/5 of the climb rate
 const SUN_Y := 26.0
