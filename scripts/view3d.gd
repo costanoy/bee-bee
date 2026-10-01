@@ -13,9 +13,9 @@ extends Node3D
 
 const PX := 40.0                 # game px per 3D unit (the screen is 10 units wide)
 const FOV := 50.0
-# TEST — a smaller bee, to match BEE_R in bee.gd (was 0.8, where the bee's
-# cubes matched the world's 0.04 grid exactly; now they're a fifth smaller).
-const BEE_SCALE := 0.64
+# The bee models are built at their in-game size on the world's cube grid
+# (make_voxel_bee.py), so they're drawn unscaled.
+const BEE_SCALE := 1.0
 const FLOWER_SCALE := 1.0        # voxel flowers are built at their in-game size
 const CAM_PITCH := 7.0           # degrees, looking slightly down onto the play plane
 # voxel hedge tiles (make_voxel_hedge.py): 24 cubes = 0.96 units wide
@@ -23,7 +23,6 @@ const HEDGE_VARIANTS := ["hedge_voxel_a", "hedge_voxel_b", "hedge_voxel_c"]
 const HEDGE_TILE_W := 0.96
 var voxel := {
 	"bee": "bee_voxel",
-	"bee_shining": "bee_voxel_shining",
 	"flower_red": "flower_voxel_red",
 	"flower_yellow": "flower_voxel_yellow",
 	"flower_blue": "flower_voxel_blue",
@@ -87,7 +86,7 @@ var record_for: Object
 
 func setup(p_main: Node2D) -> void:
 	main = p_main
-	for f in ["bee", "bee_shining", "hedge_voxel_a", "hedge_voxel_b", "hedge_voxel_c", "flower_red", "flower_yellow", "flower_blue",
+	for f in ["bee", "hedge_voxel_a", "hedge_voxel_b", "hedge_voxel_c", "flower_red", "flower_yellow", "flower_blue",
 			"cloud_voxel_a", "cloud_voxel_b", "cloud_voxel_c", "gull", "moon", "jupiter", "ufo", "ground",
 			"tree_voxel_round_a", "tree_voxel_round_b", "tree_voxel_round_c",
 			"tree_voxel_pine_a", "tree_voxel_pine_b", "tree_voxel_pine_c",
@@ -564,6 +563,9 @@ func set_bee_skin(model: String, size: float, glow: bool) -> void:
 		bee3d.queue_free()
 	live_eyes.clear()
 	bee_scale = BEE_SCALE * size
+	# skins other than the one in use are only loaded when picked
+	if not models.has(model):
+		models[model] = load("res://models/%s.glb" % model)
 	_build_bee(model)
 	if glow:
 		_glowing(bee3d)

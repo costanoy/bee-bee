@@ -38,7 +38,7 @@ Pipeline: `tools/blender/voxel_kit.py` (grade compartilhada `VOX = 0.04` = 1,6 p
 
 | Asset | Script | Status |
 |---|---|---|
-| Abelha | `make_voxel_bee.py` → `bee_voxel.glb` (grade própria 0.05, usada em escala 0.8) | ✅ no jogo (sem patinhas, antena contínua; `LiveEyes`/`DeadEyes`, `WingPivotL/R`) |
+| Abelha | `make_voxel_bee.py <models> <preview> [skin] [export_only]` → `bee_voxel.glb` (normal) e `bee_voxel_<skin>.glb`; **na grade do mundo (0,04) e já no tamanho do jogo**, desenhada sem escala (`BEE_SCALE 1.0`) | ✅ no jogo (sem patinhas, antena contínua; `LiveEyes`/`DeadEyes`, `WingPivotL/R`). Skins = mesma abelha com outra paleta (`SKINS` no script): `rosy`, `mint`, `ice`, `grape`, `queen` (com coroa) e `shining` |
 | Roseira | `make_voxel_hedge.py` → `hedge_voxel_a/b/c.glb` (tiles de 24 cubos = 0.96 un., emendáveis) | ✅ no jogo (mais rosas + espinhos) |
 | Flores | `make_voxel_flower.py` → `flower_voxel_red/yellow/blue.glb` (mesma forma, só muda a cor; usar escala 1.0) | ✅ no jogo (aprovadas como estavam; `FLOWER_SCALE 1.0`) |
 | Nuvens | `make_voxel_cloud.py` → `cloud_voxel_a/b/c.glb` (grande/média/pequena = 45/35/25 cubos, translúcidas `ALPHA = 0.6`) | ✅ no jogo (`_build_cloud` em `view3d.gd` escolhe o modelo pela largura da nuvem 2D, escala 1.0, `depth_draw_mode ALWAYS` para as camadas internas não aparecerem como riscos) |
@@ -50,15 +50,16 @@ Pipeline: `tools/blender/voxel_kit.py` (grade compartilhada `VOX = 0.04` = 1,6 p
 | OVNI | `make_voxel_ufo.py` → `ufo_voxel.glb` (49 cubos de diâmetro, já no tamanho final; malhas `Hull`, `Alien` e `Dome` — cúpula translúcida; paleta escurecida com `glow()` porque sem sombreamento o jogo mostra a cor do vértice como luz linear, bem mais clara) | ✅ no jogo, brilhante, escala 1.0 |
 | Fundo: montanhas | `make_voxel_backdrop_hills.py` → `backdrop_voxel_hills.glb` (três camadas — colinas verdes, colinas azuis, montanhas com neve — em **cubos de 0,2 un.**, 5× maiores, porque a 95 un. de distância a perspectiva os reduz ao tamanho dos outros cubos na tela; luz e sombra pintadas; ~4,2 mil polígonos) | ✅ no jogo |
 | Fundo: cidade | `make_voxel_backdrop_city.py` → `backdrop_voxel_city.glb` (casas em tons pastel com telhados e janelas, colinas verdes atrás; mesmos cubos de 0,2 un.; as janelas são uma malha separada `Windows` com material emissivo; ~3,4 mil polígonos) | ✅ no jogo |
-| Abelha prateada (skin do score 300; id interno `shining`) | `make_voxel_bee.py ... shining` → `bee_voxel_shining.glb` (a mesma abelha, **toda prateada e cromada**: o cromado é pintado — brilho branco em cima, linha escura de horizonte com um filete claro embaixo, listras quase pretas — mais estrelinhas sob o nó `Sparkles`; paleta escurecida com `glow()`; 4º argumento `export_only` pula os renders) | ✅ no jogo, desenhada sem sombreamento. Ícones do menu em `art/ui/bee_*.png`, gerados por `tools/godot/render_bee_icons.gd` (rodar de novo se o modelo mudar) |
+| Abelha prateada (skin do score 300; id interno `shining`) | `make_voxel_bee.py ... shining` → `bee_voxel_shining.glb` (**toda prateada e cromada**: o cromado é pintado — brilho branco em cima, linha escura de horizonte com um filete claro embaixo, listras quase pretas — mais estrelinhas sob o nó `Sparkles`; paleta escurecida com `glow()`) | ✅ no jogo, desenhada sem sombreamento. Ícones de todas as skins em `art/ui/bee_<skin>.png`, gerados por `tools/godot/render_bee_icons.gd` (rodar de novo se um modelo mudar) |
 | Sol | `make_voxel_sun.py` → `sun_voxel.glb` (disco chato de cubos de 0,3 un. — fica a 135 un. de distância —, mesmo raio da esfera antiga, com miolo claro, borda mais quente e oito raios curtos; paleta pálida de propósito, para não competir com as flores amarelas; `glow()` na paleta) | ✅ no jogo (o material continua sendo criado em `view3d.gd`, para o sol sumir no pôr do sol) |
 | Partículas ao pegar flor, estrelas e linha de recorde | sem modelo, feitas por código em `view3d.gd`: `_burst()` solta cubos de dois tamanhos exatos da grade (0,08 e 0,04); `_build_stars()` usa cubos de 1 ou 2 "cubos de tela" e 12 estrelas em cruz; `_build_record_line()` faz os traços com 6 cubos e escreve RECORD em letras de cubos 5×7 com sombra | ✅ no jogo |
 
 ## Estado da jogabilidade (valores atuais)
-- **Abelha menor e mais rápida — todas** (TEST, pedido do usuário): `BEE_R 12.8` (era 16.0) e `H_SPEED 316` (era 275; antes 230) em `bee.gd`, `BEE_SCALE 0.64` (era 0.8) em `view3d.gd`. Efeito colateral: os cubos da abelha ficaram 20% menores que os do resto do mundo (0,032 contra 0,04).
-- **Skins de abelha** (`BEE_SKINS` em `main.gd`): cada uma pode ter `size`/`speed` próprios, mas hoje as duas são só visuais (1,0/1,0).
-- **Menu de abelhas** ("Choose your bee"): botão com o ícone da abelha na tela inicial e na de game over; existe desde o começo, com a prateada trancada como silhueta ("Score 300 to unlock"). Escolha salva em `SaveData.selected_bee`.
-- **Aviso de desbloqueio**: faixa "Silver Bee unlocked!" por ~4 s + som de recorde, só na primeira vez que o score chega a 300.
+- **Abelha menor e mais rápida — todas** (TEST, pedido do usuário): `BEE_R 12.8` (era 16.0) e `H_SPEED 316` (era 275; antes 230) em `bee.gd`. O modelo já é construído nesse tamanho, com cubos iguais aos do mundo.
+- **Skins de abelha** (`BEE_SKINS` em `main.gd`, todas só visuais): Bee (0), Rosy (25), Mint (60), Ice (100), Grape (150), Queen (220) e **Silver (300, a mais difícil — pedido do usuário)**. Ganha-se a skin no instante em que a partida chega ao score (`_check_bee_unlocks`), salva em `SaveData.unlocked_bees`; também conta como liberada se `best_score` já cobre o score.
+- **Menu de abelhas** ("Choose your bee"): botão com o ícone da abelha na tela inicial e na de game over; grade de 3 colunas, a prateada sozinha na última linha; trancadas aparecem como silhueta com "Score N". Escolha salva em `SaveData.selected_bee`.
+- **Aviso de desbloqueio**: faixa "<nome> unlocked!" por ~4 s + som de recorde + vibração, na primeira vez que o score chega ao valor da skin.
+- **Vibração** (`_vibrate`): ao morrer, ao bater recorde e ao ganhar skin; botão liga/desliga no menu de pausa, ao lado do da música (`SaveData.vibration`). Precisa de `permissions/vibrate=true` no preset Android (`export_presets.cfg` não vai para o git).
 - Velocidade de scroll `SCROLL_BASE 90` / `SCROLL_MAX 170` (TEST, era 78/148); rampa de dificuldade 35 s (TEST, era 50).
 - Distância lateral máxima gap↔flor limitada a 200 px na dificuldade máxima (evita fileiras impossíveis).
 - Morte: queda de 0,8 s (TEST, era 1,4), tremor de tela; "near miss" (raspou a 8 px da roseira) dá tremor leve + som.
@@ -72,6 +73,5 @@ Pipeline: `tools/blender/voxel_kit.py` (grade compartilhada `VOX = 0.04` = 1,6 p
 
 ## Pendências
 1. **Mundo 3D e interface já são voxel.** A interface nova foi feita de uma vez, a pedido do usuário, e aguarda a opinião dele (logo, botões, painéis, fonte).
-2. Opcional: refazer o modelo da abelha numa grade maior para os cubos dela voltarem a ter o tamanho dos do mundo depois de encolhida.
 3. A lua e o Júpiter aparecem um pouco mais pastel que nos renders (sem sombreamento o jogo mostra a cor do vértice como luz linear); o OVNI, a abelha prateada e o sol já têm a correção `glow()` na paleta — aplicar neles se o usuário quiser cores mais fortes.
 4. Integrar os sons do ElevenLabs quando o usuário enviar.

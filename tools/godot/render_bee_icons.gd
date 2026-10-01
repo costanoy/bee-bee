@@ -5,13 +5,19 @@ extends SceneTree
 #
 #   godot --path . --audio-driver Dummy --script tools/godot/render_bee_icons.gd
 #
-# Writes art/ui/bee_normal.png and art/ui/bee_silver.png (256x256,
-# transparent). Run it again whenever a bee model changes, then --import.
+# Writes art/ui/bee_<skin>.png for every skin (256x256, transparent). Run it
+# again whenever a bee model changes, then --import.
 
 const SIZE := 256
+# [model file, skin id (main.gd BEE_SKINS), drawn unshaded]
 const BEES := [
-	["bee_voxel", "bee_normal", false],
-	["bee_voxel_shining", "bee_silver", true],
+	["bee_voxel", "normal", false],
+	["bee_voxel_rosy", "rosy", false],
+	["bee_voxel_mint", "mint", false],
+	["bee_voxel_ice", "ice", false],
+	["bee_voxel_grape", "grape", false],
+	["bee_voxel_queen", "queen", false],
+	["bee_voxel_shining", "shining", true],
 ]
 
 
@@ -43,11 +49,11 @@ func _init() -> void:
 
 		var cam := Camera3D.new()
 		cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-		cam.size = 2.05
+		cam.size = 1.36
 		# a little to the front-right and above, so the face and both wings show
-		cam.position = Vector3(0.9, 0.55, 3.0)
+		cam.position = Vector3(0.9, 0.55, 3.0) + Vector3(0.01, 0.08, 0.0)
 		sv.add_child(cam)
-		cam.look_at(Vector3(0.02, 0.12, 0.0))
+		cam.look_at(Vector3(0.01, 0.08, 0.0))
 
 		var bee: Node3D = load("res://models/%s.glb" % entry[0]).instantiate()
 		sv.add_child(bee)
@@ -67,7 +73,7 @@ func _init() -> void:
 		for k in 4:
 			await process_frame
 		var img := sv.get_texture().get_image()
-		img.save_png("res://art/ui/%s.png" % entry[1])
-		print("wrote art/ui/%s.png" % entry[1])
+		img.save_png("res://art/ui/bee_%s.png" % entry[1])
+		print("wrote art/ui/bee_%s.png" % entry[1])
 		sv.queue_free()
 	quit()

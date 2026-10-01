@@ -24,7 +24,6 @@ const DUSK_TO_NIGHT_END := 480.0
 const MOON_SCORE := 100
 const JUPITER_SCORE := 200
 const SHIP_SCORE := 250
-const SHINING_BEE_SCORE := 300
 
 # The flat bg_day/bg_night fills (each is a single solid color, confirmed by
 # sampling the actual files) left the sky reading as an empty void once the
@@ -106,12 +105,10 @@ var mountain_ref_set := false
 var moon_spawned := false
 var jupiter_spawned := false
 var ship_spawned := false
-var shining_bee_unlocked := false
 
 signal moon_spawn_requested
 signal jupiter_spawn_requested
 signal ship_spawn_requested
-signal shining_bee_unlock_requested
 
 
 func _ready() -> void:
@@ -308,15 +305,11 @@ func _check_triggers(score: int) -> void:
 	if score >= SHIP_SCORE and not ship_spawned:
 		ship_spawned = true
 		ship_spawn_requested.emit()
-	if score >= SHINING_BEE_SCORE and not shining_bee_unlocked:
-		shining_bee_unlocked = true
-		shining_bee_unlock_requested.emit()
 
 
 func reset_run() -> void:
 	# Spec 4.9: these are "evento único NA PARTIDA" — one-time per RUN, not
 	# per app session — so every fresh run needs to see them again.
-	# shining_bee_unlocked stays untouched: that unlock is permanent.
 	moon_spawned = false
 	jupiter_spawned = false
 	ship_spawned = false

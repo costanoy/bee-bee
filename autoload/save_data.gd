@@ -15,9 +15,13 @@ const BACKUP_PATH := "user://bee_bee_save.cfg.bak"
 
 var seen_tutorial := false
 var best_score := 0
-var shining_bee_unlocked := false
-var selected_bee := "normal"  # "normal" | "shining" — only "normal" has a sprite so far
+# Skins won by reaching their score in a run (main.gd BEE_SKINS). A skin
+# also counts as unlocked whenever best_score already covers it, so this
+# only matters for the moment between winning one mid-run and the run's end.
+var unlocked_bees: Array = []
+var selected_bee := "normal"  # a key of main.gd BEE_SKINS
 var music_muted := false
+var vibration := true
 
 
 func _ready() -> void:
@@ -36,17 +40,22 @@ func load_data() -> void:
 	if err == OK:
 		seen_tutorial = config.get_value("save", "seen_tutorial", false)
 		best_score = config.get_value("save", "best_score", 0)
-		shining_bee_unlocked = config.get_value("save", "shining_bee_unlocked", false)
+		unlocked_bees = config.get_value("save", "unlocked_bees", [])
+		# saves from before there were several skins only knew the silver bee
+		if config.get_value("save", "shining_bee_unlocked", false) and not unlocked_bees.has("shining"):
+			unlocked_bees.append("shining")
 		selected_bee = config.get_value("save", "selected_bee", "normal")
 		music_muted = config.get_value("save", "music_muted", false)
+		vibration = config.get_value("save", "vibration", true)
 
 
 func save_data() -> void:
 	var config := ConfigFile.new()
 	config.set_value("save", "seen_tutorial", seen_tutorial)
 	config.set_value("save", "best_score", best_score)
-	config.set_value("save", "shining_bee_unlocked", shining_bee_unlocked)
+	config.set_value("save", "unlocked_bees", unlocked_bees)
 	config.set_value("save", "selected_bee", selected_bee)
 	config.set_value("save", "music_muted", music_muted)
+	config.set_value("save", "vibration", vibration)
 	if config.save(SAVE_PATH) == OK:
 		config.save(BACKUP_PATH)

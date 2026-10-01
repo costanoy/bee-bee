@@ -21,18 +21,22 @@ const SCROLL_MAX := 170.0
 # TEST — shortened from 50 so every run gets tense sooner; top speed and
 # narrowest gap are unchanged, they're just reached earlier.
 const DIFFICULTY_RAMP_TIME := 35.0
-# The bees the player can fly, in menu order. `size` (hitbox and model) and
-# `speed` (sideways speed) are relative to the base values in bee.gd, so a
-# skin could fly differently; today both are purely cosmetic (the "smaller
-# and faster" change turned out to be meant for every bee, and lives in
-# bee.gd's BEE_R / H_SPEED). `glow` draws the model unshaded.
+# The bees the player can fly. `score` is what a run has to reach to win the
+# skin (0 = there from the start); the silver one is the hardest. `size`
+# (hitbox and model) and `speed` (sideways speed) are relative to the base
+# values in bee.gd, so a skin could fly differently; today every skin is
+# purely cosmetic. `glow` draws the model unshaded.
 const BEE_SKINS := {
-	"normal": {"name": "Bee", "trait": "The classic", "model": "bee", "icon": "res://art/ui/bee_normal.png",
-			"size": 1.0, "speed": 1.0, "glow": false},
-	"shining": {"name": "Silver Bee", "trait": "Shiny chrome", "model": "bee_shining",
-			"icon": "res://art/ui/bee_silver.png", "size": 1.0, "speed": 1.0, "glow": true},
+	"normal": {"name": "Bee", "score": 0, "model": "bee", "size": 1.0, "speed": 1.0, "glow": false},
+	"rosy": {"name": "Rosy Bee", "score": 25, "model": "bee_voxel_rosy", "size": 1.0, "speed": 1.0, "glow": false},
+	"mint": {"name": "Mint Bee", "score": 60, "model": "bee_voxel_mint", "size": 1.0, "speed": 1.0, "glow": false},
+	"ice": {"name": "Ice Bee", "score": 100, "model": "bee_voxel_ice", "size": 1.0, "speed": 1.0, "glow": false},
+	"grape": {"name": "Grape Bee", "score": 150, "model": "bee_voxel_grape", "size": 1.0, "speed": 1.0, "glow": false},
+	"queen": {"name": "Queen Bee", "score": 220, "model": "bee_voxel_queen", "size": 1.0, "speed": 1.0, "glow": false},
+	"shining": {"name": "Silver Bee", "score": 300, "model": "bee_voxel_shining", "size": 1.0, "speed": 1.0, "glow": true},
 }
-const BEE_ORDER := ["normal", "shining"]
+# menu order: easiest to hardest
+const BEE_ORDER := ["normal", "rosy", "mint", "ice", "grape", "queen", "shining"]
 const GOLD := Color(1, 0.82, 0.18)
 # Widest sideways distance, at max difficulty, between a gap and the next
 # flower or between a flower and the next gap (see _spawn_row).
@@ -162,6 +166,19 @@ const ICON_ARROW := [
 	"......XX...",
 	"......X....",
 ]
+const ICON_VIBRATE := [
+	"...XXXXX...",
+	"...X...X...",
+	"...X...X...",
+	"X..X...X..X",
+	"X..X...X..X",
+	"X..X...X..X",
+	"X..X...X..X",
+	"X..X...X..X",
+	"...X...X...",
+	"...X.X.X...",
+	"...XXXXX...",
+]
 const ICON_SLASH := [
 	"X..........",
 	"XX.........",
@@ -263,10 +280,14 @@ var pause_button: Button
 var pause_screen: Control
 var music_note: Control
 var music_slash: Control
+var vibrate_icon: Control
+var vibrate_slash: Control
 var view3d: Node3D
 var applied_bee_skin := ""
 var bee_menu: Control
 var bee_notice: Control
+var bee_notice_icon: TextureRect
+var bee_notice_title: Label
 var bee_cards := {}                      # skin id -> its card's nodes in the bee menu
 var bee_button_icons: Array[TextureRect] = []
 
@@ -280,7 +301,6 @@ func _ready() -> void:
 
 	sky = SkyScript.new()
 	add_child(sky)
-	sky.shining_bee_unlock_requested.connect(_on_shining_bee_unlock_requested)
 	sky.moon_spawn_requested.connect(_on_moon_spawn_requested)
 	sky.jupiter_spawn_requested.connect(_on_jupiter_spawn_requested)
 	sky.ship_spawn_requested.connect(_on_ship_spawn_requested)
@@ -784,6 +804,7 @@ func on_flower_collected(flower: Area2D) -> void:
 	collect_step = (collect_step + 1) % COLLECT_PITCH_STEPS.size()
 	score += 1
 	_update_score_label()
+	_check_bee_unlocks()
 	if record_line and score == SaveData.best_score + 1:
 		_flash_record_line()
 
@@ -810,6 +831,7 @@ func _trigger_game_over() -> void:
 	pause_button.visible = false
 	_start_camera_shake(DEATH_SHAKE_DURATION, DEATH_SHAKE_MAGNITUDE)
 	_play_sfx(SFX_HIT, SFX_HIT_DB)
+	_vibrate(70)
 	bee.die()
 	# The bee keeps falling under its own gravity — no impact effect, no
 	# reposition. Tested and decided explicitly (spec 4.7): any collision FX
@@ -827,6 +849,7 @@ func _end_game() -> void:
 		SaveData.best_score = score
 		SaveData.save_data()
 		_play_sfx(SFX_RECORD, SFX_RECORD_DB)
+		_vibrate(160)
 
 	final_score_label.text = "%d" % score
 	final_best_label.text = "%d" % SaveData.best_score
@@ -992,28 +1015,51 @@ func _apply_music_mute() -> void:
 	music_note.modulate = Color(1, 1, 1, 0.4) if SaveData.music_muted else Color.WHITE
 
 
+func _on_vibration_toggle_pressed() -> void:
+	SaveData.vibration = not SaveData.vibration
+	SaveData.save_data()
+	_apply_vibration_setting()
+	_vibrate(40)
+
+
+func _apply_vibration_setting() -> void:
+	vibrate_slash.visible = not SaveData.vibration
+	vibrate_icon.modulate = Color.WHITE if SaveData.vibration else Color(1, 1, 1, 0.4)
+
+
+# A short buzz for the moments that matter (death, a new record, a new
+# bee); does nothing on devices without a vibrator.
+func _vibrate(ms: int) -> void:
+	if SaveData.vibration:
+		Input.vibrate_handheld(ms)
+
+
 func _update_score_label() -> void:
 	score_label.text = "%d" % score
-
-
-func _on_shining_bee_unlock_requested() -> void:
-	# sky.gd asks again every session (its own flag isn't saved); only the
-	# first time ever is news.
-	if SaveData.shining_bee_unlocked:
-		return
-	SaveData.shining_bee_unlocked = true
-	SaveData.save_data()
-	_refresh_bee_menu()
-	_show_bee_notice()
 
 
 # ------------------------------------------------------------------
 # Bee skins
 # ------------------------------------------------------------------
 
+func _bee_unlocked(id: String) -> bool:
+	return SaveData.best_score >= BEE_SKINS[id]["score"] or SaveData.unlocked_bees.has(id)
+
+
+# Called on every flower: a skin is won the moment the run reaches its
+# score, not when the run ends, so dying right after still keeps it.
+func _check_bee_unlocks() -> void:
+	for id in BEE_ORDER:
+		if score >= BEE_SKINS[id]["score"] and not _bee_unlocked(id):
+			SaveData.unlocked_bees.append(id)
+			SaveData.save_data()
+			_refresh_bee_menu()
+			_show_bee_notice(id)
+
+
 func _current_bee_skin() -> String:
 	var id: String = SaveData.selected_bee
-	if not BEE_SKINS.has(id) or (id == "shining" and not SaveData.shining_bee_unlocked):
+	if not BEE_SKINS.has(id) or not _bee_unlocked(id):
 		return "normal"
 	return id
 
@@ -1030,12 +1076,18 @@ func _apply_bee_skin() -> void:
 		bee.position.y = -bee.radius
 
 
-func _show_bee_notice() -> void:
+func _show_bee_notice(id: String) -> void:
 	_play_sfx(SFX_RECORD, SFX_RECORD_DB)
+	_vibrate(120)
+	bee_notice_icon.texture = load(_bee_icon_path(id))
+	bee_notice_title.text = "%s unlocked!" % BEE_SKINS[id]["name"]
 	bee_notice.visible = true
 	bee_notice.modulate.a = 0.0
+	if bee_notice.has_meta("tween") and bee_notice.get_meta("tween").is_valid():
+		bee_notice.get_meta("tween").kill()
 	# Bound to the notice itself so it keeps running if the run gets paused.
 	var tw := bee_notice.create_tween()
+	bee_notice.set_meta("tween", tw)
 	tw.tween_property(bee_notice, "modulate:a", 1.0, 0.25)
 	tw.tween_interval(3.2)
 	tw.tween_property(bee_notice, "modulate:a", 0.0, 0.6)
@@ -1060,7 +1112,7 @@ func _on_bee_menu_closed() -> void:
 
 
 func _on_bee_card_pressed(id: String) -> void:
-	if id == "shining" and not SaveData.shining_bee_unlocked:
+	if not _bee_unlocked(id):
 		return
 	if SaveData.selected_bee != id:
 		SaveData.selected_bee = id
@@ -1073,20 +1125,19 @@ func _refresh_bee_menu() -> void:
 	var current := _current_bee_skin()
 	for id in bee_cards:
 		var card: Dictionary = bee_cards[id]
-		var locked: bool = id == "shining" and not SaveData.shining_bee_unlocked
+		var locked: bool = not _bee_unlocked(id)
 		var selected: bool = id == current
 		card["plate"].set_ink(GOLD if selected else Color(1, 1, 1, 0.45 if locked else 0.9))
 		# a locked bee shows as a dark silhouette
 		card["icon"].modulate = Color(0.08, 0.06, 0.14, 0.85) if locked else Color.WHITE
-		card["trait"].text = "?" if locked else BEE_SKINS[id]["trait"]
 		var status: Label = card["status"]
 		if locked:
-			status.text = "Score %d to unlock" % SkyScript.SHINING_BEE_SCORE
+			status.text = "Score %d" % BEE_SKINS[id]["score"]
 		else:
-			status.text = "Selected" if selected else "Tap to select"
+			status.text = "Selected" if selected else "Tap to pick"
 		status.add_theme_color_override("font_color", GOLD if selected else Color(1, 1, 1, 0.85))
 	for icon in bee_button_icons:
-		icon.texture = load(BEE_SKINS[current]["icon"])
+		icon.texture = load(_bee_icon_path(current))
 
 
 # ------------------------------------------------------------------
@@ -1297,7 +1348,8 @@ func _build_start_screen() -> Control:
 	var play_face: Control = play_button.get_meta("content")
 	play_icon.position = ((play_face.size - play_icon.size) / 2.0 + Vector2(2, 0)).floor()
 	play_face.add_child(play_icon)
-	play_button.position = Vector2(SCREEN_W / 2.0 - play_button.size.x / 2.0, screen_h - 144)
+	# high enough to leave the bee waiting on the grass in view
+	play_button.position = Vector2(SCREEN_W / 2.0 - play_button.size.x / 2.0, screen_h - 166)
 	play_button.pressed.connect(_on_play_pressed)
 	screen.add_child(play_button)
 	# a slow breath, so the one thing to tap on this screen asks for it
@@ -1326,9 +1378,14 @@ func _make_bee_button() -> Button:
 	return btn
 
 
+# Rendered from the models by tools/godot/render_bee_icons.gd.
+func _bee_icon_path(id: String) -> String:
+	return "res://art/ui/bee_%s.png" % id
+
+
 func _make_bee_icon(id: String, side: float) -> TextureRect:
 	var icon := TextureRect.new()
-	icon.texture = load(BEE_SKINS[id]["icon"])
+	icon.texture = load(_bee_icon_path(id))
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -1347,23 +1404,30 @@ func _build_bee_menu() -> Control:
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	screen.add_child(dim)
 
-	var top := screen_h * 0.2
+	var top := maxf(64.0, screen_h * 0.2 - 30.0)
 	var title := _make_label("Choose your bee", 38, Color.WHITE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, top)
+	title.position = Vector2(0, top - 2)
 	title.size = Vector2(SCREEN_W, 44)
 	screen.add_child(title)
 
-	const CARD := Vector2(165, 216)
-	const GAP := 16.0
-	var left := (SCREEN_W - (CARD.x * BEE_ORDER.size() + GAP * (BEE_ORDER.size() - 1))) / 2.0
+	# Three to a row; a last row that isn't full is centred, which leaves the
+	# silver bee alone at the bottom like a trophy.
+	const CARD := Vector2(114, 132)
+	const GAP := 9.0
+	const COLS := 3
+	var row_count := ceili(BEE_ORDER.size() / float(COLS))
 	for i in BEE_ORDER.size():
+		var row := i / COLS
+		var in_row := mini(COLS, BEE_ORDER.size() - row * COLS)
+		var left := (SCREEN_W - (CARD.x * in_row + GAP * (in_row - 1))) / 2.0
 		var card := _make_bee_card(BEE_ORDER[i], CARD)
-		card.position = Vector2(left + i * (CARD.x + GAP), top + 70)
+		card.position = Vector2(left + (i % COLS) * (CARD.x + GAP), top + 54 + row * (CARD.y + GAP))
 		screen.add_child(card)
 
 	var back := _make_text_button("Back")
-	back.position = Vector2((SCREEN_W - back.size.x) / 2.0, top + 70 + CARD.y + 34)
+	back.position = Vector2(
+		(SCREEN_W - back.size.x) / 2.0, top + 54 + row_count * (CARD.y + GAP) + 9)
 	back.pressed.connect(_on_bee_menu_closed)
 	screen.add_child(back)
 
@@ -1375,24 +1439,27 @@ func _make_bee_card(id: String, card_size: Vector2) -> Button:
 	btn.pressed.connect(_on_bee_card_pressed.bind(id))
 	var face: Control = btn.get_meta("content")
 
-	var icon := _make_bee_icon(id, 126.0)
-	icon.position = Vector2((face.size.x - 126.0) / 2.0, 6)
+	var icon := _make_bee_icon(id, 84.0)
+	icon.position = Vector2((face.size.x - 84.0) / 2.0, 0)
 	face.add_child(icon)
 
-	var rows := {}
-	for row in [["name", BEE_SKINS[id]["name"], 26, 128.0], ["trait", "", 18, 154.0], ["status", "", 18, 177.0]]:
-		var label := _make_label(row[1], row[2], Color.WHITE if row[0] == "name" else Color(1, 1, 1, 0.75))
-		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		label.position = Vector2(0, row[3])
-		label.size = Vector2(face.size.x, 24)
-		face.add_child(label)
-		rows[row[0]] = label
+	var name_label := _make_label(BEE_SKINS[id]["name"], 20, Color.WHITE)
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.position = Vector2(0, 76)
+	name_label.size = Vector2(face.size.x, 22)
+	face.add_child(name_label)
 
-	bee_cards[id] = {"plate": btn.get_meta("plate"), "icon": icon, "trait": rows["trait"], "status": rows["status"]}
+	var status := _make_label("", 16, Color(1, 1, 1, 0.85))
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status.position = Vector2(0, 98)
+	status.size = Vector2(face.size.x, 20)
+	face.add_child(status)
+
+	bee_cards[id] = {"plate": btn.get_meta("plate"), "icon": icon, "status": status}
 	return btn
 
 
-# A banner for the moment the silver bee is won (score 300, first time ever).
+# A banner for the moment a run wins a new bee (_check_bee_unlocks).
 func _build_bee_notice() -> Control:
 	var panel := VoxelPlate.new()
 	panel.setup("dark", Vector2(300, 72), UI_CELL)
@@ -1400,14 +1467,14 @@ func _build_bee_notice() -> Control:
 	panel.position = Vector2((SCREEN_W - panel.size.x) / 2.0, 172)
 	panel.visible = false
 
-	var icon := _make_bee_icon("shining", 60.0)
-	icon.position = Vector2(8, 3)
-	panel.add_child(icon)
+	bee_notice_icon = _make_bee_icon("normal", 60.0)
+	bee_notice_icon.position = Vector2(8, 3)
+	panel.add_child(bee_notice_icon)
 
-	var title := _make_label("Silver Bee unlocked!", 26, GOLD)
-	title.position = Vector2(74, 6)
-	title.size = Vector2(220, 28)
-	panel.add_child(title)
+	bee_notice_title = _make_label("", 26, GOLD)
+	bee_notice_title.position = Vector2(74, 6)
+	bee_notice_title.size = Vector2(220, 28)
+	panel.add_child(bee_notice_title)
 
 	var hint := _make_label("Pick it in the bee menu", 18, Color(1, 1, 1, 0.9))
 	hint.position = Vector2(74, 35)
@@ -1459,6 +1526,18 @@ func _build_pause_screen() -> Control:
 	music_slash.position = music_note.position
 	music_slash.visible = false
 	music_note.get_parent().add_child(music_slash)
+
+	vibrate_icon = _build_pixel_icon(ICON_VIBRATE, 3.0, Color.WHITE)
+	var vibrate_button := _make_icon_button(vibrate_icon, 57.0)
+	vibrate_button.pressed.connect(_on_vibration_toggle_pressed)
+	screen.add_child(vibrate_button)
+	vibrate_slash = _build_pixel_icon(ICON_SLASH, 3.0, Color.WHITE)
+	vibrate_slash.position = vibrate_icon.position
+	vibrate_icon.get_parent().add_child(vibrate_slash)
+	_apply_vibration_setting()
+	# the two toggles side by side under the buttons
+	music_button.position.x = SCREEN_W / 2.0 - music_button.size.x - 9.0
+	vibrate_button.position = Vector2(SCREEN_W / 2.0 + 9.0, music_button.position.y)
 
 	return screen
 

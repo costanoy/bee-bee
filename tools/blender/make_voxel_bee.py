@@ -1,15 +1,18 @@
-"""Bee Bee — the bee as voxel art (a style test before converting the rest).
+"""Bee Bee — the bee as voxel art.
 
-  blender --background --factory-startup --python make_voxel_bee.py -- <models_dir> <preview_dir>
+  blender --background --factory-startup --python make_voxel_bee.py -- <models_dir> <preview_dir> [skin] [export_only]
 
-Builds the bee cube by cube on a grid, shapes carved from simple volumes,
-colour per voxel (with a slight per-cube jitter, the usual voxel-art
-touch), only the faces that touch air kept. Wings are separate
+Builds the bee cube by cube on the world's own grid (voxel_kit.py VOX =
+0.04), at the size it has in the game, so the game draws it unscaled and
+its cubes are the same size as everything else's. Shapes are carved from
+simple volumes, colour per voxel (with a slight per-cube jitter, the usual
+voxel-art touch), only the faces that touch air kept. Wings are separate
 translucent voxel slabs under "WingPivotL/R" hinges (rotate about X), eyes
 sit under "LiveEyes", and an X-eyed variant under "DeadEyes".
 
-Exports <models_dir>/bee_voxel.glb (vertex colours, flat faces) and
-renders preview images to <preview_dir>.
+`skin` picks the colours (SKINS below; default "normal") and the file:
+bee_voxel.glb for the normal bee, bee_voxel_<skin>.glb for the others.
+"export_only" skips the review renders.
 """
 import bpy, bmesh, math, random, sys, os
 from mathutils import Vector
@@ -19,12 +22,12 @@ MODELS, PREVIEW = ARGS[0], ARGS[1]
 os.makedirs(MODELS, exist_ok=True)
 os.makedirs(PREVIEW, exist_ok=True)
 
-V = 0.05                           # voxel edge, in game units (1 unit = 40 game px)
+V = 0.04                           # voxel edge, in game units (1 unit = 40 game px)
 rng = random.Random(11)
 
-YELLOW = (1.0, 0.74, 0.10)
-YELLOW_LIGHT = (1.0, 0.88, 0.36)
-DARK = (0.16, 0.10, 0.16)
+YELLOW = (1.0, 0.74, 0.10)         # the body
+STRIPE = (0.16, 0.10, 0.16)
+DARK = (0.16, 0.10, 0.16)          # antennae, sting, the dead bee's X eyes
 FLUFF = (1.0, 0.93, 0.68)
 EYE = (0.06, 0.04, 0.09)
 WHITE = (1.0, 1.0, 1.0)
@@ -32,23 +35,39 @@ PINK = (1.0, 0.44, 0.56)
 MOUTH = (0.45, 0.13, 0.18)
 WING = (0.78, 0.92, 1.0)
 WING_RIM = (0.95, 0.99, 1.0)
+CROWN = (1.0, 0.86, 0.22)
+CROWN_BAND = (0.80, 0.14, 0.22)
+CROWN_GEM = (0.30, 0.85, 0.95)
 
-# Optional third argument "shining": the skin unlocked at score 300. Same
-# bee, cube for cube, all in silver chrome. Chrome only reads as chrome if it
-# mirrors something, so the mirror is painted on: a white sky highlight on
-# top, a dark horizon line round the middle with a bright streak under it,
-# and a paler ground reflection underneath. Stripes and antennae are
-# near-black, the wings cool glass, and a few sparkles float around it under
-# a "Sparkles" node. The game is meant to draw it unshaded, so the painted
-# mirror stays crisp and it shines just as bright at night; unshaded, the
-# game shows the stored colour as linear light, so glow() darkens the
-# palette to make it come out on screen as written here (which is also why
-# it looks dark in the Blender previews).
-# Exports bee_voxel_shining.glb instead of bee_voxel.glb.
-# A fourth argument "export_only" skips the review renders.
-SHINING = len(ARGS) > 2 and ARGS[2] == "shining"
+# The skins a player can unlock: the same bee, cube for cube, in other
+# colours. Each entry overrides the palette above.
+SKINS = {
+    "normal": {},
+    "rosy": {"YELLOW": (1.0, 0.56, 0.72), "STRIPE": (0.62, 0.14, 0.38), "FLUFF": (1.0, 0.92, 0.96),
+             "PINK": (1.0, 0.30, 0.46)},
+    "mint": {"YELLOW": (0.47, 0.88, 0.58), "STRIPE": (0.10, 0.34, 0.26), "FLUFF": (0.92, 1.0, 0.90)},
+    "ice": {"YELLOW": (0.56, 0.83, 1.0), "STRIPE": (0.13, 0.22, 0.52), "FLUFF": (1.0, 1.0, 1.0)},
+    "grape": {"YELLOW": (0.69, 0.48, 0.97), "STRIPE": (0.24, 0.11, 0.42), "FLUFF": (0.94, 0.88, 1.0)},
+    # the queen also wears a crown (crown_voxels)
+    "queen": {"STRIPE": (0.40, 0.15, 0.56), "FLUFF": (1.0, 1.0, 1.0)},
+    "shining": {},
+}
+SKIN = ARGS[2] if len(ARGS) > 2 and ARGS[2] in SKINS else "normal"
+globals().update(SKINS[SKIN])
+
+# "shining" is the skin unlocked at score 300: all silver chrome. Chrome only
+# reads as chrome if it mirrors something, so the mirror is painted on: a
+# white sky highlight on top, a dark horizon line round the middle with a
+# bright streak under it, and a paler ground reflection underneath. Stripes
+# and antennae are near-black, the wings cool glass, and a few sparkles float
+# around it under a "Sparkles" node. The game is meant to draw it unshaded,
+# so the painted mirror stays crisp and it shines just as bright at night;
+# unshaded, the game shows the stored colour as linear light, so glow()
+# darkens the palette to make it come out on screen as written here (which
+# is also why it looks dark in the Blender previews).
+SHINING = SKIN == "shining"
 EXPORT_ONLY = "export_only" in ARGS
-OUT_NAME = "bee_voxel_shining" if SHINING else "bee_voxel"
+OUT_NAME = "bee_voxel" if SKIN == "normal" else "bee_voxel_" + SKIN
 
 
 def glow(c):
@@ -56,14 +75,14 @@ def glow(c):
 
 
 # chrome from the top of a ball down to its underside: (lowest height above the middle, colour)
-CHROME = [(6, glow((1.0, 1.0, 1.0))), (4, glow((0.80, 0.84, 0.90))), (2, glow((0.66, 0.70, 0.78))),
+CHROME = [(5, glow((1.0, 1.0, 1.0))), (3, glow((0.80, 0.84, 0.90))), (2, glow((0.66, 0.70, 0.78))),
           (1, glow((0.52, 0.56, 0.64))), (-1, glow((0.30, 0.33, 0.41))), (-2, glow((0.96, 0.98, 1.0))),
-          (-4, glow((0.46, 0.49, 0.56))), (-6, glow((0.60, 0.63, 0.69))), (-99, glow((0.74, 0.76, 0.80)))]
+          (-3, glow((0.46, 0.49, 0.56))), (-5, glow((0.60, 0.63, 0.69))), (-99, glow((0.74, 0.76, 0.80)))]
 SPARKLE = (1.0, 1.0, 1.0)
 SPARKLE_CORE = glow((0.86, 0.93, 1.0))
 if SHINING:
     YELLOW = glow((0.64, 0.68, 0.76))
-    DARK = glow((0.08, 0.09, 0.13))
+    STRIPE = DARK = glow((0.08, 0.09, 0.13))
     FLUFF = glow((0.96, 0.98, 1.0))
     EYE = glow((0.04, 0.04, 0.07))
     PINK = glow((0.92, 0.72, 0.82))
@@ -84,24 +103,24 @@ def ell(p, c, r):
 def bee_voxels():
     """{(x, y, z): colour}. +X is the front, +Z up, -Y faces the camera."""
     vox = {}
-    head_c, head_r = (9, 0, 3), (6.5, 6.5, 6.2)
-    body_c, body_r = (-4, 0, 0), (10.5, 7.2, 7.2)
-    for x in range(-18, 17):
-        for y in range(-9, 10):
-            for z in range(-9, 11):
+    head_c, head_r = (7, 0, 2), (5.2, 5.2, 5.0)
+    body_c, body_r = (-3, 0, 0), (8.4, 5.8, 5.8)
+    for x in range(-15, 14):
+        for y in range(-7, 8):
+            for z in range(-7, 9):
                 p = (x, y, z)
                 if ell(p, head_c, head_r):
                     vox[p] = YELLOW
                 elif ell(p, body_c, body_r):
                     # abdomen tapers towards the sting
-                    if x < -10 and (y * y + z * z) > (7.2 - (-10 - x) * 0.9) ** 2:
+                    if x < -8 and (y * y + z * z) > (5.8 - (-8 - x) * 0.9) ** 2:
                         continue
-                    band = (-11 <= x <= -9) or (-5 <= x <= -3) or x <= -14
-                    vox[p] = DARK if band else YELLOW
-                elif ell(p, (2, 0, 1), (2.2, 6.4, 6.4)):
+                    band = (-9 <= x <= -7) or (-4 <= x <= -3) or x <= -11
+                    vox[p] = STRIPE if band else YELLOW
+                elif ell(p, (2, 0, 1), (1.8, 5.2, 5.2)):
                     vox[p] = FLUFF
     # sting
-    for x in range(-17, -14):
+    for x in range(-14, -11):
         vox[(x, 0, -1)] = DARK
     return vox
 
@@ -111,28 +130,28 @@ def face_voxels(vox):
     live, dead = {}, {}
     for side in (-1, 1):
         # big eyes: tall ovals on the front-side of the head
-        ec = (12.6, 4.4 * side, 4.6)
+        ec = (10.0, 3.6 * side, 3.4)
         for (x, y, z) in list(vox):
-            if ell((x, y, z), ec, (2.1, 1.7, 2.9)) and _surface(vox, (x, y, z)):
+            if ell((x, y, z), ec, (1.8, 1.5, 2.4)) and _surface(vox, (x, y, z)):
                 live[(x, y, z)] = EYE
-        # catchlights: a bright 2x2 up-front, a single speck below
-        for dx, dz in ((1, 6), (2, 6), (1, 5), (2, 5), (1, 3)):
-            q = _surface_along(vox, (12 + dx, int(4.4 * side), dz), side)
+        # catchlights: a bright pair up-front, a single speck below
+        for px, pz in ((10, 5), (11, 5), (11, 4), (10, 2)):
+            q = _surface_along(vox, (px, int(3.6 * side), pz), side)
             if q and q in live:
                 live[q] = WHITE
         # cheeks
         for (x, y, z) in list(vox):
-            if ell((x, y, z), (12, 5.8 * side, 0), (1.8, 1.4, 1.2)) and _surface(vox, (x, y, z)):
+            if ell((x, y, z), (9.5, 4.6 * side, -0.5), (1.5, 1.3, 1.0)) and _surface(vox, (x, y, z)):
                 vox[(x, y, z)] = PINK
         # X eyes for the dead pose
         for d in range(-2, 3):
             for sgn in (-1, 1):
-                p = _surface_along(vox, (13 + d, int(3.6 * side), 5 + d * sgn), side)
+                p = _surface_along(vox, (10 + d, int(3.0 * side), 3 + d * sgn), side)
                 if p:
                     dead[p] = DARK
     # smile across the front
-    for y in range(-2, 3):
-        z = 0 if abs(y) < 2 else 1
+    for y in range(-1, 2):
+        z = -1 if y == 0 else 0
         p = _front(vox, y, z)
         if p:
             vox[p] = MOUTH
@@ -155,7 +174,7 @@ def _surface_along(vox, p, side):
 
 
 def _front(vox, y, z):
-    xs = [x for (x, vy, vz) in vox if vy == y and vz == z and x > 8]
+    xs = [x for (x, vy, vz) in vox if vy == y and vz == z and x > 6]
     return (max(xs), y, z) if xs else None
 
 
@@ -164,7 +183,7 @@ def antenna_voxels():
     touch at an edge or corner read as separate floating bits."""
     vox = {}
     for side in (-1, 1):
-        waypoints = [(9, 2 * side, 8), (9, 2 * side, 10), (11, 2 * side, 12), (13, 3 * side, 13), (15, 3 * side, 14)]
+        waypoints = [(7, 2 * side, 6), (7, 2 * side, 8), (9, 2 * side, 10), (11, 2 * side, 11), (12, 2 * side, 11)]
         x, y, z = waypoints[0]
         vox[(x, y, z)] = DARK
         for tx, ty, tz in waypoints[1:]:
@@ -206,8 +225,26 @@ def polish(vox):
     for (x, y, z), c in list(vox.items()):
         if c != YELLOW:
             continue
-        rel = z - (1 if x >= 5 else 0)
+        rel = z - (1 if x >= 4 else 0)
         vox[(x, y, z)] = next(col for low, col in CHROME if rel >= low)
+
+
+def crown_voxels(vox):
+    """The queen's crown: a gold ring sunk a little into the top of the head,
+    a red band round its foot, points all the way round and a gem in front."""
+    crown = {}
+    cx, cy = 6, 0
+    for x in range(cx - 3, cx + 4):
+        for y in range(cy - 3, cy + 4):
+            d = math.hypot(x - cx, y - cy)
+            if not 1.6 < d <= 3.2:
+                continue
+            top = 10 if (x + y) % 2 == 0 else 9
+            for z in range(6, top + 1):
+                if (x, y, z) not in vox:
+                    crown[(x, y, z)] = CROWN_BAND if z <= 7 else CROWN
+    crown[(cx + 3, 0, 8)] = CROWN_GEM
+    return crown
 
 
 def sparkle_voxels(size):
@@ -293,6 +330,8 @@ if SHINING:
     polish(body)
 live, dead = face_voxels(body)
 body.update(antenna_voxels())
+if SKIN == "queen":
+    body.update(crown_voxels(body))
 build_mesh("Body", body, solid, root)
 face_mat = solid
 eyes = empty("LiveEyes", parent=root)
@@ -305,9 +344,9 @@ for o in (eyes.children[0], dead_node.children[0]):
     for v in me.vertices:
         v.co *= 1.004
 
-fore, hind = wing_voxels(14, 4), wing_voxels(9, 3)
+fore, hind = wing_voxels(11, 3), wing_voxels(7, 2)
 for side, tag in ((-1, "L"), (1, "R")):
-    piv = empty("WingPivot" + tag, (1 * V, 5 * side * V, 6 * V), root)
+    piv = empty("WingPivot" + tag, (1 * V, 4 * side * V, 5 * V), root)
     f = build_mesh("ForeWing", fore, glass, piv, alpha=0.6)
     f.rotation_euler = (0, math.radians(-30), 0)
     h = build_mesh("HindWing", hind, glass, piv, loc=(-2 * V, 0.02 * side, 0), alpha=0.6)
@@ -319,8 +358,8 @@ if SHINING:
     p = twinkle.node_tree.nodes["Principled BSDF"]
     p.inputs["Emission Color"].default_value = (0.90, 0.95, 1.0, 1)
     p.inputs["Emission Strength"].default_value = 1.5
-    for i, (at, size) in enumerate((((-13, -9, 10), 2), ((6, -10, -8), 1), ((17, -8, 11), 1), ((-3, 9, 12), 2),
-                                    ((-17, 8, -6), 1), ((11, 9, -9), 1))):
+    for i, (at, size) in enumerate((((-11, -7, 8), 2), ((5, -8, -7), 1), ((14, -7, 9), 1), ((-3, 7, 10), 2),
+                                    ((-14, 7, -5), 1), ((9, 7, -7), 1))):
         build_mesh("Sparkle%d" % i, sparkle_voxels(size), twinkle, sparkles, loc=tuple(c * V for c in at))
 
 dead_node.hide_render = False
@@ -363,7 +402,7 @@ s.collection.objects.link(cam)
 s.camera = cam
 
 
-def shoot(name, direction, scale=2.4, res=900, target=(0.05, 0, 0.1)):
+def shoot(name, direction, scale=1.55, res=900, target=(0.03, 0, 0.06)):
     d = Vector(direction).normalized()
     cam.location = Vector(target) + d * 12
     cam.rotation_euler = (-d).to_track_quat("-Z", "Y").to_euler()
