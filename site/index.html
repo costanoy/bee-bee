@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bee Bee — suba e não perca nenhuma flor</title>
+<meta name="description" content="Bee Bee é um jogo de subir sem parar, feito de cubinhos. Toque para a esquerda ou para a direita, passe pelas roseiras e pegue todas as flores. Jogue no navegador ou baixe para Android.">
+<meta name="theme-color" content="#2a7bd8">
+<meta property="og:title" content="Bee Bee">
+<meta property="og:description" content="Toque para a esquerda ou para a direita, suba e não perca nenhuma flor.">
+<meta property="og:image" content="assets/cover.png">
+<meta property="og:type" content="website">
+<link rel="icon" href="assets/favicon.png">
+<link rel="apple-touch-icon" href="assets/icon.png">
+<link rel="preload" href="assets/Jersey10-Regular.ttf" as="font" type="font/ttf" crossorigin>
+<style>
+@font-face {
+  font-family: "Jersey 10";
+  src: url("assets/Jersey10-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+:root {
+  --ink: #3d2152;            /* the game's outline plum */
+  --ink-soft: #5a3a78;
+  --panel: #472a63;
+  --panel-light: #6a4a8c;
+  --sky-top: #1f6fd0;
+  --sky-low: #54b3ed;
+  --honey: #ffc42e;
+  --honey-light: #ffe680;
+  --honey-side: #c9741a;
+  --green: #58c14f;
+  --green-light: #8be37f;
+  --green-side: #2f8f3c;
+  --cream: #fff8e6;
+  --earth: #a27b60;
+  --pixel: "Jersey 10", "Trebuchet MS", system-ui, sans-serif;
+  --body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: var(--body);
+  font-size: 18px;
+  line-height: 1.55;
+  color: #fff;
+  background: var(--sky-low);
+  overflow-x: hidden;
+}
+img { max-width: 100%; height: auto; display: block; }
+a { color: inherit; }
+.wrap { width: min(1120px, 100% - 40px); margin-inline: auto; }
+
+/* ------------------------------------------------------------ pixel text */
+.pixel {
+  font-family: var(--pixel);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  -webkit-text-stroke: 0.17em var(--ink);
+  paint-order: stroke fill;
+  text-shadow: 0 0.09em 0 rgba(61, 33, 82, 0.45);
+}
+h1, h2, h3 { margin: 0; }
+h2.pixel { font-size: clamp(44px, 6.4vw, 72px); text-align: center; }
+h3.pixel { font-size: 34px; color: var(--honey); }
+.lead { text-align: center; max-width: 620px; margin: 14px auto 0; font-size: 19px; color: #eaf5ff; }
+
+/* ------------------------------------------------------------ voxel buttons */
+.btn {
+  --face: var(--honey); --light: var(--honey-light); --side: var(--honey-side);
+  display: inline-flex; align-items: center; justify-content: center; gap: 14px;
+  min-height: 72px; padding: 10px 28px 12px;
+  font-family: var(--pixel); font-size: 34px; line-height: 1; color: #fff; text-decoration: none;
+  -webkit-text-stroke: 7px var(--ink); paint-order: stroke fill;
+  background: var(--face);
+  border: 4px solid var(--ink);
+  box-shadow: inset 0 5px 0 var(--light), 0 9px 0 var(--side), 0 9px 0 4px var(--ink), 0 18px 22px rgba(20, 30, 80, 0.28);
+  cursor: pointer; user-select: none;
+  transition: transform 0.07s ease, box-shadow 0.07s ease, filter 0.15s ease;
+}
+.btn:hover { filter: brightness(1.06); }
+.btn:active {
+  transform: translateY(7px);
+  box-shadow: inset 0 5px 0 var(--light), 0 2px 0 var(--side), 0 2px 0 4px var(--ink), 0 6px 10px rgba(20, 30, 80, 0.25);
+}
+.btn:focus-visible { outline: 4px solid #fff; outline-offset: 8px; }
+.btn.green { --face: var(--green); --light: var(--green-light); --side: var(--green-side); }
+.btn svg { width: 30px; height: 30px; flex: none; shape-rendering: crispEdges; }
+.btn small {
+  display: block; font-family: var(--body); font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em;
+  -webkit-text-stroke: 0; color: var(--ink); text-shadow: none; margin-top: 3px; opacity: 0.85;
+}
+.btn .label { text-align: left; }
+
+/* ------------------------------------------------------------ hero */
+.hero {
+  position: relative;
+  background: linear-gradient(180deg, var(--sky-top) 0%, #3e97e4 55%, var(--sky-low) 100%);
+  padding: 34px 0 0;
+  overflow: hidden;
+}
+.hero-grid {
+  position: relative; z-index: 2;
+  display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 40px; align-items: center;
+  padding-bottom: 20px;
+}
+.logo { width: min(560px, 100%); filter: drop-shadow(0 10px 0 rgba(20, 40, 110, 0.22)); }
+.tagline { font-size: clamp(20px, 2.4vw, 25px); font-weight: 600; margin: 22px 0 30px; max-width: 520px; text-shadow: 0 2px 0 rgba(31, 60, 140, 0.35); }
+.cta { display: flex; flex-wrap: wrap; gap: 24px 20px; }
+.fineprint { margin-top: 26px; font-size: 14.5px; color: #dff0ff; max-width: 520px; }
+.fineprint a { font-weight: 700; }
+
+.cloud { position: absolute; z-index: 1; background: #fff; opacity: 0.55; height: 24px; width: 120px; animation: drift 60s linear infinite; }
+.cloud::before, .cloud::after { content: ""; position: absolute; background: #fff; }
+.cloud::before { left: 18px; bottom: 24px; width: 54px; height: 20px; }
+.cloud::after { left: 34px; bottom: 44px; width: 26px; height: 14px; }
+.cloud.c1 { top: 70px; left: -140px; }
+.cloud.c2 { top: 260px; left: -140px; transform: scale(0.7); animation-duration: 85s; animation-delay: -40s; }
+.cloud.c3 { top: 420px; left: -140px; transform: scale(1.25); animation-duration: 110s; animation-delay: -75s; opacity: 0.4; }
+@keyframes drift { to { translate: calc(100vw + 300px) 0; } }
+
+.flyer { position: absolute; z-index: 1; width: 86px; animation: bob 2.6s ease-in-out infinite; }
+.flyer.f1 { right: 46%; top: 54px; animation-delay: -1.1s; }
+.flyer.f2 { right: 3%; top: 120px; width: 70px; transform: scaleX(-1); }
+@keyframes bob { 50% { translate: 0 -12px; } }
+
+/* ------------------------------------------------------------ phone */
+.phone {
+  position: relative; width: min(330px, 78vw); aspect-ratio: 1 / 2; margin-inline: auto;
+  background: #1c0f29; border: 9px solid #1c0f29; border-radius: 34px;
+  box-shadow: 0 0 0 3px #5a3a78, 0 26px 50px rgba(15, 30, 90, 0.45);
+  overflow: hidden;
+}
+.phone img, .phone iframe { width: 100%; height: 100%; border: 0; border-radius: 25px; display: block; object-fit: cover; }
+.phone .start {
+  position: absolute; inset: 0; display: grid; place-items: center; align-content: end; gap: 0; padding-bottom: 20%;
+  background: linear-gradient(180deg, rgba(28, 15, 41, 0) 45%, rgba(28, 15, 41, 0.55) 100%);
+  border-radius: 25px; border: 0; cursor: pointer; width: 100%;
+}
+.phone .start .btn { font-size: 30px; min-height: 64px; pointer-events: none; }
+.phone-note { text-align: center; font-size: 14px; color: #dff0ff; margin: 18px 0 0; }
+
+/* ------------------------------------------------------------ the ground under the hero */
+.ground {
+  height: clamp(150px, 24vw, 330px);
+  background: url("assets/ground.webp") center 62% / cover no-repeat;
+  position: relative; z-index: 1;
+}
+
+/* ------------------------------------------------------------ sections */
+section { padding: 84px 0; }
+.earth { background: var(--earth); background-image: linear-gradient(180deg, #a27b60 0, #8f6a52 100%); }
+.night { background: linear-gradient(180deg, #2a2473 0%, #3b2f8a 100%); }
+.dusk { background: linear-gradient(180deg, #8f6a52 0%, #5a3a78 26%, #3a2a78 100%); }
+
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px; margin-top: 48px; }
+.card {
+  background: var(--cream); color: var(--ink);
+  border: 4px solid var(--ink);
+  box-shadow: inset 0 5px 0 #fff, 0 9px 0 #d9c69a, 0 9px 0 4px var(--ink);
+  padding: 26px 24px 28px;
+}
+.card .num {
+  font-family: var(--pixel); font-size: 54px; line-height: 0.9; color: var(--honey);
+  -webkit-text-stroke: 9px var(--ink); paint-order: stroke fill; margin-bottom: 12px;
+}
+.card h3 { font-family: var(--pixel); font-size: 32px; font-weight: 400; line-height: 1; margin-bottom: 10px; }
+.card p { margin: 0; font-size: 17px; }
+
+/* tap illustration */
+.tap { display: grid; grid-template-columns: 1fr 1fr; height: 78px; margin-bottom: 18px; border: 4px solid var(--ink); background: #54b3ed; position: relative; }
+.tap span { display: grid; place-items: center; font-family: var(--pixel); font-size: 34px; color: #fff; -webkit-text-stroke: 6px var(--ink); paint-order: stroke fill; }
+.tap span + span { border-left: 4px dashed rgba(61, 33, 82, 0.55); }
+.tap img { position: absolute; left: 50%; top: 50%; width: 52px; translate: -50% -50%; }
+.hedge { height: 78px; margin-bottom: 18px; border: 4px solid var(--ink); background: #54b3ed; position: relative; overflow: hidden; }
+.hedge i { position: absolute; top: 26px; height: 24px; background: repeating-linear-gradient(90deg, #3f9d4a 0 8px, #4fb257 8px 16px); border-block: 4px solid #2f7d3c; }
+.hedge i:first-child { left: 0; width: 34%; }
+.hedge i:nth-child(2) { right: 0; width: 34%; }
+.hedge i::after { content: ""; position: absolute; inset: 4px 6px; background: radial-gradient(circle, #ff6fa5 0 3px, transparent 3.5px) 0 0 / 20px 12px; }
+.hedge img { position: absolute; left: 50%; top: 50%; width: 48px; translate: -50% -50%; }
+.flowers { height: 78px; margin-bottom: 18px; border: 4px solid var(--ink); background: #54b3ed; display: flex; align-items: center; justify-content: space-evenly; }
+.flower { width: 34px; height: 34px; position: relative; }
+.flower::before { content: ""; position: absolute; inset: 0; background: var(--c); clip-path: polygon(35% 0, 65% 0, 65% 12%, 88% 12%, 88% 35%, 100% 35%, 100% 65%, 88% 65%, 88% 88%, 65% 88%, 65% 100%, 35% 100%, 35% 88%, 12% 88%, 12% 65%, 0 65%, 0 35%, 12% 35%, 12% 12%, 35% 12%); }
+.flower::after { content: ""; position: absolute; inset: 36%; background: #ffd12e; box-shadow: 0 0 0 3px rgba(61, 33, 82, 0.35); }
+
+/* ------------------------------------------------------------ bees */
+.bees { display: grid; grid-template-columns: repeat(7, 1fr); gap: 14px; margin-top: 48px; }
+.bee {
+  background: var(--panel); border: 4px solid #241336;
+  box-shadow: inset 0 5px 0 var(--panel-light), 0 8px 0 #2f1a45, 0 8px 0 4px #241336;
+  padding: 16px 8px 14px; text-align: center;
+}
+.bee img { width: 84px; margin: 0 auto 8px; }
+.bee b { display: block; font-family: var(--pixel); font-weight: 400; font-size: 25px; line-height: 1; }
+.bee span { display: block; font-size: 13.5px; color: #d9c8f0; margin-top: 4px; }
+.bee.gold b { color: var(--honey); }
+
+/* ------------------------------------------------------------ gallery */
+.gallery { display: flex; gap: 22px; overflow-x: auto; padding: 46px 20px 30px; scroll-snap-type: x mandatory; scrollbar-color: #ffffff66 transparent; }
+.gallery img {
+  flex: none; width: min(250px, 62vw); height: auto; aspect-ratio: 1 / 2; scroll-snap-align: center;
+  border: 7px solid #1c0f29; border-radius: 26px; box-shadow: 0 0 0 3px #5a3a78, 0 16px 30px rgba(8, 10, 50, 0.45);
+}
+.gallery::before, .gallery::after { content: ""; flex: 1 0 1px; }
+
+/* ------------------------------------------------------------ install */
+.install { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; align-items: start; margin-top: 46px; }
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: s; display: grid; gap: 16px; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 52px 1fr; gap: 16px; align-items: start; background: rgba(28, 15, 41, 0.42); border: 3px solid rgba(255, 255, 255, 0.14); padding: 16px 18px; }
+.steps li::before { content: counter(s); font-family: var(--pixel); font-size: 44px; line-height: 0.9; color: var(--honey); -webkit-text-stroke: 7px #241336; paint-order: stroke fill; text-align: center; }
+.steps b { display: block; font-size: 18px; }
+.steps span { font-size: 16px; color: #e6dcf5; }
+.box { background: var(--panel); border: 4px solid #241336; box-shadow: inset 0 5px 0 var(--panel-light), 0 9px 0 #2f1a45, 0 9px 0 4px #241336; padding: 28px 26px 30px; text-align: center; }
+.box p { margin: 12px 0 24px; color: #e6dcf5; font-size: 16.5px; }
+.box dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 26px 0 0; text-align: left; font-size: 15px; }
+.box dt { color: #c9b6e6; }
+.box dd { margin: 0; font-weight: 600; }
+
+footer { background: #1c0f29; padding: 30px 0 36px; font-size: 14.5px; color: #c9b6e6; text-align: center; }
+footer img { width: 150px; margin: 0 auto 12px; opacity: 0.95; }
+
+/* ------------------------------------------------------------ small screens */
+@media (max-width: 900px) {
+  .hero-grid { grid-template-columns: 1fr; text-align: center; gap: 34px; }
+  .logo { margin-inline: auto; }
+  .tagline, .fineprint { margin-inline: auto; }
+  .cta { justify-content: center; }
+  .cards { grid-template-columns: 1fr; max-width: 460px; margin-inline: auto; }
+  .bees { grid-template-columns: repeat(4, 1fr); }
+  .install { grid-template-columns: 1fr; }
+  .flyer { display: none; }
+  section { padding: 64px 0; }
+}
+@media (max-width: 520px) {
+  body { font-size: 17px; }
+  .btn { font-size: 30px; width: 100%; }
+  .bees { grid-template-columns: repeat(2, 1fr); }
+  .bee:last-child { grid-column: span 2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cloud, .flyer { animation: none; }
+  html { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="cloud c1"></div><div class="cloud c2"></div><div class="cloud c3"></div>
+  <img class="flyer f1" src="assets/bee_queen.png" alt="">
+  <img class="flyer f2" src="assets/bee_rosy.png" alt="">
+  <div class="wrap hero-grid">
+    <div>
+      <h1><img class="logo" src="assets/logo.png" alt="Bee Bee" width="900" height="312"></h1>
+      <p class="tagline">Toque para a esquerda ou para a direita, suba sem parar e não perca nenhuma flor.</p>
+      <div class="cta">
+        <a class="btn green" href="play/" id="play-link">
+          <svg viewBox="0 0 10 10" aria-hidden="true"><path fill="#fff" stroke="#3d2152" stroke-width="1" d="M2 1h2v1h2v1h2v1h1v2H8v1H6v1H4v1H2z"/></svg>
+          <span class="label">Jogar agora<small>direto no navegador</small></span>
+        </a>
+        <a class="btn" href="BeeBee.apk" download>
+          <svg viewBox="0 0 10 10" aria-hidden="true"><path fill="#fff" stroke="#3d2152" stroke-width="1" d="M4 1h2v4h2v1H7v1H6v1H4V7H3V6H2V5h2zM1 9h8v1H1z"/></svg>
+          <span class="label">Baixar para Android<small>APK · 53 MB · versão 1.0.0</small></span>
+        </a>
+      </div>
+      <p class="fineprint">Versão de teste, gratuita. No Android, veja <a href="#instalar">como instalar o APK</a>. No iPhone e no computador, jogue pelo navegador.</p>
+    </div>
+    <div>
+      <div class="phone" id="phone">
+        <img src="assets/shot2.webp" alt="Bee Bee: a abelha subindo entre roseiras e flores" width="540" height="1080">
+        <button class="start" id="start" type="button" aria-label="Jogar agora no navegador">
+          <span class="btn green">Jogar aqui</span>
+        </button>
+      </div>
+      <p class="phone-note">Clique nos lados da tela para voar para a esquerda ou para a direita.</p>
+    </div>
+  </div>
+  <div class="ground" role="presentation"></div>
+</header>
+
+<main>
+<section class="earth" id="como-jogar">
+  <div class="wrap">
+    <h2 class="pixel">Como jogar</h2>
+    <p class="lead">Leva segundos para aprender e é difícil de largar.</p>
+    <div class="cards">
+      <article class="card">
+        <div class="tap"><span>◀</span><span>▶</span><img src="assets/bee_normal.png" alt=""></div>
+        <div class="num">1</div>
+        <h3>Toque em um lado</h3>
+        <p>A abelha bate as asas para o lado que você tocar: esquerda ou direita. Um toque só, nada mais.</p>
+      </article>
+      <article class="card">
+        <div class="hedge"><i></i><i></i><img src="assets/bee_mint.png" alt=""></div>
+        <div class="num">2</div>
+        <h3>Passe pelas roseiras</h3>
+        <p>Cada fileira tem um buraco. Encostou nos espinhos, a partida acaba.</p>
+      </article>
+      <article class="card">
+        <div class="flowers"><i class="flower" style="--c:#ef3b4a"></i><i class="flower" style="--c:#ffd12e"></i><i class="flower" style="--c:#4a55f0"></i></div>
+        <div class="num">3</div>
+        <h3>Pegue todas as flores</h3>
+        <p>Cada flor vale um ponto, e nenhuma pode ficar para trás. O jogo acelera e o céu muda enquanto você sobe.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="dusk" id="abelhas">
+  <div class="wrap">
+    <h2 class="pixel">Sete abelhas</h2>
+    <p class="lead">Chegue à pontuação de cada uma, em uma única partida, para ganhá-la.</p>
+    <div class="bees">
+      <div class="bee"><img src="assets/bee_normal.png" alt=""><b>Bee</b><span>desde o início</span></div>
+      <div class="bee"><img src="assets/bee_rosy.png" alt=""><b>Rosy</b><span>25 pontos</span></div>
+      <div class="bee"><img src="assets/bee_mint.png" alt=""><b>Mint</b><span>60 pontos</span></div>
+      <div class="bee"><img src="assets/bee_ice.png" alt=""><b>Ice</b><span>100 pontos</span></div>
+      <div class="bee"><img src="assets/bee_grape.png" alt=""><b>Grape</b><span>150 pontos</span></div>
+      <div class="bee"><img src="assets/bee_queen.png" alt=""><b>Queen</b><span>220 pontos</span></div>
+      <div class="bee gold"><img src="assets/bee_shining.png" alt=""><b>Silver</b><span>300 pontos</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="night" id="telas" style="padding-bottom:60px">
+  <h2 class="pixel">Do dia até a noite</h2>
+  <p class="lead">O dia vira entardecer, a noite chega, e quem vai longe encontra a lua, Júpiter e uma visita inesperada.</p>
+  <div class="gallery">
+    <img src="assets/shot1.webp" alt="Tela inicial do Bee Bee" loading="lazy" width="540" height="1080">
+    <img src="assets/shot2.webp" alt="Partida de dia" loading="lazy" width="540" height="1080">
+    <img src="assets/shot3.webp" alt="Partida ao entardecer, sobre a cidade" loading="lazy" width="540" height="1080">
+    <img src="assets/shot4.webp" alt="Partida à noite, com a lua" loading="lazy" width="540" height="1080">
+    <img src="assets/shot5.webp" alt="Menu de escolha das abelhas" loading="lazy" width="540" height="1080">
+    <img src="assets/shot6.webp" alt="Tela de novo recorde" loading="lazy" width="540" height="1080">
+  </div>
+</section>
+
+<section class="night" id="instalar" style="padding-top:40px">
+  <div class="wrap">
+    <h2 class="pixel">Instalar no Android</h2>
+    <p class="lead">O jogo ainda não está na Google Play, então a instalação é pelo arquivo APK.</p>
+    <div class="install">
+      <ol class="steps">
+        <li><div><b>Baixe o APK</b><span>Toque em “Baixar para Android”. O navegador pode avisar que o arquivo é de um tipo incomum: escolha manter o download.</span></div></li>
+        <li><div><b>Abra o arquivo</b><span>Toque na notificação do download, ou abra a pasta Downloads no app Arquivos.</span></div></li>
+        <li><div><b>Permita a instalação</b><span>Na primeira vez o Android pede para liberar “instalar apps desconhecidos” para o navegador. Libere e volte.</span></div></li>
+        <li><div><b>Instale e jogue</b><span>Se o Play Protect disser que não conhece o app, toque em “Instalar mesmo assim”. Ele só aparece porque o jogo ainda não está na loja.</span></div></li>
+      </ol>
+      <div class="box">
+        <img src="assets/icon.png" alt="" width="96" height="96" style="margin:0 auto 14px;border-radius:22px;border:4px solid #241336" loading="lazy">
+        <h3 class="pixel">Bee Bee</h3>
+        <p>Gratuito, funciona sem internet e não tem compras dentro do jogo.</p>
+        <a class="btn" href="BeeBee.apk" download>
+          <svg viewBox="0 0 10 10" aria-hidden="true"><path fill="#fff" stroke="#3d2152" stroke-width="1" d="M4 1h2v4h2v1H7v1H6v1H4V7H3V6H2V5h2zM1 9h8v1H1z"/></svg>
+          <span class="label">Baixar APK<small>53 MB</small></span>
+        </a>
+        <dl>
+          <dt>Versão</dt><dd>1.0.0 (teste)</dd>
+          <dt>Requer</dt><dd>Android 10 ou mais novo, aparelho de 64 bits</dd>
+          <dt>Anúncios</dt><dd>Um anúncio de teste entre algumas partidas</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <img src="assets/logo.png" alt="Bee Bee" loading="lazy" width="900" height="312">
+    Qual é o seu recorde?
+  </div>
+</footer>
+
+<script>
+// The game is ~40 MB of WebAssembly, so it only loads when asked for. On a
+// wide screen it runs inside the phone frame; on a phone the green button
+// already leads to play/, where it gets the whole screen.
+(function () {
+  var start = document.getElementById("start");
+  var phone = document.getElementById("phone");
+  var link = document.getElementById("play-link");
+  var wide = window.matchMedia("(min-width: 901px)");
+  function embed() {
+    var frame = document.createElement("iframe");
+    frame.src = "play/";
+    frame.title = "Bee Bee";
+    frame.allow = "autoplay; fullscreen";
+    phone.replaceChildren(frame);
+    frame.focus();
+  }
+  start.addEventListener("click", function () {
+    if (wide.matches) { embed(); } else { location.href = "play/"; }
+  });
+  link.addEventListener("click", function (e) {
+    if (wide.matches) { e.preventDefault(); embed(); phone.scrollIntoView({ block: "center", behavior: "smooth" }); }
+  });
+})();
+</script>
+</body>
+</html>
