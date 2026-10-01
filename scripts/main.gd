@@ -175,6 +175,19 @@ const ICON_VIBRATE := [
 	"...X.X.X...",
 	"...XXXXX...",
 ]
+const ICON_TROPHY := [
+	"XXXXXXXXXXX",
+	"X.XXXXXXX.X",
+	"X.XXXXXXX.X",
+	".XXXXXXXXX.",
+	"..XXXXXXX..",
+	"...XXXXX...",
+	"....XXX....",
+	".....X.....",
+	".....X.....",
+	"...XXXXX...",
+	"..XXXXXXX..",
+]
 const ICON_SLASH := [
 	"X..........",
 	"XX.........",
@@ -195,6 +208,7 @@ const CloudScript := preload("res://scripts/cloud.gd")
 const SeagullScript := preload("res://scripts/seagull.gd")
 const SkyScript := preload("res://scripts/sky.gd")
 const AdsScript := preload("res://scripts/ads.gd")
+const LeaderboardScript := preload("res://scripts/leaderboard.gd")
 const View3DScript := preload("res://scripts/view3d.gd")
 const VoxelPlate := preload("res://scripts/voxel_plate.gd")
 const VoxelLogo := preload("res://scripts/voxel_logo.gd")
@@ -243,6 +257,7 @@ var celestials: Array = []
 var bee: CharacterBody2D
 var music: AudioStreamPlayer
 var ads: Node
+var leaderboard: Node
 # "Play Again" was pressed and an ad is up: the run starts when it closes.
 var restart_after_ad := false
 var sfx_pool: Array[AudioStreamPlayer] = []
@@ -321,6 +336,10 @@ func _ready() -> void:
 		voice.process_mode = Node.PROCESS_MODE_ALWAYS
 		add_child(voice)
 		sfx_pool.append(voice)
+
+	leaderboard = LeaderboardScript.new()
+	add_child(leaderboard)
+	leaderboard.start()
 
 	_build_ui()
 
@@ -777,6 +796,7 @@ func _end_game() -> void:
 		SaveData.save_data()
 		_play_sfx(SFX_RECORD, SFX_RECORD_DB)
 		_vibrate(160)
+	leaderboard.submit(score)
 
 	final_score_label.text = "%d" % score
 	final_best_label.text = "%d" % SaveData.best_score
@@ -1307,7 +1327,19 @@ func _build_start_screen() -> Control:
 	bee_button.position = Vector2(26, play_button.position.y + (play_button.size.y - bee_button.size.y) / 2.0)
 	screen.add_child(bee_button)
 
+	var trophy_button := _make_leaderboard_button()
+	trophy_button.position = Vector2(SCREEN_W - 26 - trophy_button.size.x, bee_button.position.y)
+	screen.add_child(trophy_button)
+
 	return screen
+
+
+# Opens the online leaderboard. Hidden while leaderboard.gd is switched off.
+func _make_leaderboard_button() -> Button:
+	var btn := _make_icon_button(_build_pixel_icon(ICON_TROPHY, 3.0, GOLD), 63.0)
+	btn.visible = leaderboard.available
+	btn.pressed.connect(func(): leaderboard.show())
+	return btn
 
 
 # Opens the bee menu; shows the bee currently in use. One sits on the start
@@ -1636,6 +1668,10 @@ func _build_game_over_screen() -> Control:
 	var bee_button := _make_bee_button()
 	bee_button.position = Vector2(14, restart_button.position.y + 2)
 	screen.add_child(bee_button)
+
+	var trophy_button := _make_leaderboard_button()
+	trophy_button.position = Vector2(SCREEN_W - 14 - trophy_button.size.x, bee_button.position.y)
+	screen.add_child(trophy_button)
 
 	return screen
 

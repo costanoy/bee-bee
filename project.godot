@@ -21,6 +21,7 @@ config/icon="res://art/icon_bg.png"
 [autoload]
 
 SaveData="*res://autoload/save_data.gd"
+GodotPlayGameServices="*res://addons/GodotPlayGameServices/scripts/autoloads/godot_play_game_services.gd"
 
 [display]
 
