@@ -61,6 +61,8 @@ Pipeline: `tools/blender/voxel_kit.py` (grade compartilhada `VOX = 0.04` = 1,6 p
 - **Menu de abelhas** ("Choose your bee"): botão com o ícone da abelha na tela inicial e na de game over; grade de 3 colunas, a prateada sozinha na última linha; trancadas aparecem como silhueta com "Score N". Escolha salva em `SaveData.selected_bee`.
 - **Aviso de desbloqueio**: faixa "<nome> unlocked!" por ~4 s + som de recorde + vibração, na primeira vez que o score chega ao valor da skin.
 - **Vibração** (`_vibrate`): ao morrer, ao bater recorde e ao ganhar skin; botão liga/desliga no menu de pausa, ao lado do da música (`SaveData.vibration`). Precisa de `permissions/vibrate=true` no preset Android (`export_presets.cfg` não vai para o git).
+- **Virada da abelha instantânea** (TEST, pedido do usuário para dar sensação de velocidade): em `_sync_bee` (`view3d.gd`) ela passa a olhar para o lado do toque de uma vez; antes girava com `lerp_angle(..., delta * 12)`.
+- **Movimento mais liso**: `view3d.gd` guarda as duas últimas posições de física da abelha e da câmera e desenha cada quadro entre elas (`_between_ticks`), porque a física roda a 60 ticks/s e a tela pode ter 90/120 Hz. Custa até um tick (~17 ms) de atraso visual; a física e a colisão não mudaram. Saltos maiores que `TELEPORT_PX` (reinício de partida) não são interpolados.
 - Velocidade de scroll `SCROLL_BASE 90` / `SCROLL_MAX 170` (TEST, era 78/148); rampa de dificuldade 35 s (TEST, era 50).
 - Distância lateral máxima gap↔flor limitada a 200 px na dificuldade máxima (evita fileiras impossíveis).
 - Morte: queda de 0,8 s (TEST, era 1,4), tremor de tela; "near miss" (raspou a 8 px da roseira) dá tremor leve + som.

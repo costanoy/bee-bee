@@ -70,8 +70,16 @@ var wing_l: Node3D
 var wing_r: Node3D
 var dead_eyes: Node3D
 var live_eyes: Array[Node3D] = []
-var bee_yaw := 0.0
 var bee_roll_x := 0.0
+# The simulation moves in fixed physics ticks, which don't line up with the
+# screen's frames (and a 90/120 Hz phone draws several frames per tick), so
+# drawing the bee and the camera straight from the tick positions makes them
+# advance in uneven steps. These keep the last two ticks of each; every
+# frame is drawn part-way between them.
+var bee_prev := Vector2.ZERO
+var bee_now := Vector2.ZERO
+var cam_prev := Vector2.ZERO
+var cam_now := Vector2.ZERO
 var idle_time := 0.0
 
 var sun_disc: MeshInstance3D
@@ -133,6 +141,8 @@ func setup(p_main: Node2D) -> void:
 
 	_build_bee()
 	_build_stars()
+	# sample the tick positions after main.gd and the bee have moved
+	process_physics_priority = 100
 
 
 # ------------------------------------------------------------------ helpers
@@ -173,6 +183,33 @@ func _meshes(n: Node) -> Array:
 
 
 # ------------------------------------------------------------------ per-frame sync
+# Further than anything travels in one tick: a jump this big is a reset
+# (new run, skin change), which has to land at once rather than be slid to.
+const TELEPORT_PX := 40.0
+
+
+func _physics_process(_delta: float) -> void:
+	if main == null:
+		return
+	bee_prev = bee_now
+	bee_now = main.bee.position
+	if bee_prev.distance_to(bee_now) > TELEPORT_PX:
+		bee_prev = bee_now
+	cam_prev = cam_now
+	cam_now = main.camera.position
+	if cam_prev.distance_to(cam_now) > TELEPORT_PX:
+		cam_prev = cam_now
+
+
+# Where something is right now, between its last two ticks. `live` is its
+# current position: if that isn't the last tick's, it was moved outside the
+# physics step (a reset from a button press), so it's shown there directly.
+func _between_ticks(prev: Vector2, now: Vector2, live: Vector2) -> Vector2:
+	if not live.is_equal_approx(now):
+		return live
+	return prev.lerp(now, Engine.get_physics_interpolation_fraction())
+
+
 func _process(delta: float) -> void:
 	if main == null:
 		return
@@ -188,7 +225,8 @@ func _process(delta: float) -> void:
 
 func _sync_camera() -> void:
 	var dist := _cam_dist()
-	var c: Vector2 = main.camera.position        # top-left of the 2D view, shake included
+	# top-left of the 2D view, shake included
+	var c := _between_ticks(cam_prev, cam_now, main.camera.position)
 	var centre := Vector3(c.x / PX, -(c.y + main.screen_h / 2.0) / PX, 0)
 	# Tilted slightly down so the tops of the hedges show. Everything that
 	# collides lives on the same plane, so the tilt can't make a hit look
@@ -574,15 +612,17 @@ func _build_bee(model := "bee") -> void:
 
 func _sync_bee(delta: float) -> void:
 	var b = main.bee
-	bee3d.position = to3(b.position, 0.15)
+	bee3d.position = to3(_between_ticks(bee_prev, bee_now, b.position), 0.15)
 	var dead: bool = b.dead
 	dead_eyes.visible = dead
 	for e in live_eyes:
 		e.visible = not dead
 
-	# turn to face the way the last tap sent it (a real turn, not a flip)
-	var target_yaw := 0.0 if b.facing > 0 else PI
-	bee_yaw = lerp_angle(bee_yaw, target_yaw, clampf(delta * 12.0, 0.0, 1.0))
+	# TEST — faces the way the last tap sent it at once, with no turn in
+	# between: asked for so a change of direction reads as instant and the
+	# game feels faster. Previous: eased round with
+	# lerp_angle(bee_yaw, target_yaw, delta * 12.0).
+	var bee_yaw := 0.0 if b.facing > 0 else PI
 	# roll belly-up on death
 	bee_roll_x = lerpf(bee_roll_x, PI if dead else 0.0, clampf(delta * 6.0, 0.0, 1.0))
 	var lean: float = -b.tilt * b.facing
