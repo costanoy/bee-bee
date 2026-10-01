@@ -47,8 +47,9 @@ Pipeline: `tools/blender/voxel_kit.py` (grade compartilhada `VOX = 0.04` = 1,6 p
 | Árvores | `make_voxel_tree.py` → `tree_voxel_round_a/b/c.glb` e `tree_voxel_pine_a/b/c.glb` (a/b/c = grande/média/pequena, 58/49/41 cubos de altura; sem as faces de trás e de baixo, que a câmera nunca vê) | ✅ no jogo (sem escala nem giro aleatório; posição presa à grade) |
 | Lua | `make_voxel_moon.py` → `moon_voxel.glb` (raio 25 cubos, crateras em volta toda porque o jogo gira a lua; faces fundidas, ~6,9 mil polígonos) | ✅ no jogo, **brilhante** (`_glowing()` em `view3d.gd` põe o material sem sombreamento; iluminada pela luz fraca da noite ela ficava cinza e com riscos pretos nos degraus do lado escuro) |
 | Júpiter | `make_voxel_jupiter.py` → `jupiter_voxel.glb` (raio 31 cubos = 1,25 un., já no tamanho final; faixas em volta toda e a Grande Mancha; ~9,1 mil polígonos) | ✅ no jogo, brilhante como a lua, escala 1.0 |
-| OVNI | `make_voxel_ufo.py` → `ufo_voxel.glb` (49 cubos de diâmetro, já no tamanho final; malhas `Hull`, `Alien` e `Dome` — cúpula translúcida; paleta escurecida com `glow()` porque sem sombreamento o jogo mostra a cor do vértice como luz linear, bem mais clara) | ⏳ **aguardando aprovação** do usuário. Para ligar: em `view3d.gd` `"ufo": "ufo_voxel"` no `voxel` e, em `_build_celestial`, trocar o `u.scale = 0.7` por `_glowing(u)` (escala 1.0) |
-| Próximos (um por vez) | fundos (colinas/montanhas e cidade) | ainda low poly (`make_lowpoly_models.py`) |
+| OVNI | `make_voxel_ufo.py` → `ufo_voxel.glb` (49 cubos de diâmetro, já no tamanho final; malhas `Hull`, `Alien` e `Dome` — cúpula translúcida; paleta escurecida com `glow()` porque sem sombreamento o jogo mostra a cor do vértice como luz linear, bem mais clara) | ✅ no jogo, brilhante, escala 1.0 |
+| Fundo: montanhas | `make_voxel_backdrop_hills.py` → `backdrop_voxel_hills.glb` (três camadas — colinas verdes, colinas azuis, montanhas com neve — em **cubos de 0,2 un.**, 5× maiores, porque a 95 un. de distância a perspectiva os reduz ao tamanho dos outros cubos na tela; luz e sombra pintadas; ~4,2 mil polígonos) | ⏳ **aguardando aprovação** do usuário. Para ligar: em `view3d.gd` `"backdrop_hills": "backdrop_voxel_hills"` no `voxel` |
+| Próximos (um por vez) | fundo: cidade (`backdrop_city`) | ainda low poly (`make_lowpoly_models.py`) |
 
 ## Estado da jogabilidade (valores atuais)
 - Velocidade de scroll `SCROLL_BASE 90` / `SCROLL_MAX 170` (TEST, era 78/148); rampa de dificuldade 35 s (TEST, era 50).
@@ -64,7 +65,7 @@ Pipeline: `tools/blender/voxel_kit.py` (grade compartilhada `VOX = 0.04` = 1,6 p
 - O usuário vai gerar sons novos no **ElevenLabs** (lista de prompts já entregue): `sfx_flap`, `sfx_collect` (nota única em Lá — o jogo sobe o tom a cada flor), `sfx_hit`, `sfx_near_miss`, `sfx_record`, `sfx_ui_tap`, `music_theme` (loop). Quando chegarem: trocar em `audio/` e ajustar os volumes (constantes `SFX_*_DB` em `main.gd`).
 
 ## Pendências
-1. Aprovar/ajustar o **OVNI voxel** e ligá-lo no jogo.
+1. Aprovar/ajustar o **fundo de montanhas voxel** e ligá-lo no jogo.
 2. Seguir convertendo os demais assets para voxel, um por vez, sempre mostrando antes.
 3. Abelha brilhosa (skin desbloqueada no score 300) — lógica pronta, falta o visual.
 4. Integrar os sons do ElevenLabs quando o usuário enviar.

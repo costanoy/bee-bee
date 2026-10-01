@@ -136,18 +136,19 @@ class Preview:
         bpy.ops.render.render(write_still=True)
 
 
-def build_mesh_merged(name, cells, mat, parent=None, origin=(0, 0, 0), size=VOX, solid=None):
+def build_mesh_merged(name, cells, mat, parent=None, origin=(0, 0, 0), size=VOX, solid=None, skip=()):
     """Like build_mesh, for big flat assets (the ground): neighbouring cube
     faces of the same colour are merged into one quad, so a surface of
     thousands of cubes costs a few hundred polygons. No per-cube jitter —
     the caller varies colour in patches instead, which is what lets faces
     merge. cells: {(x, y, z): sRGB} for the cubes that show; solid(x, y, z)
-    says where the unseen bulk is (faces against it are skipped)."""
+    says where the unseen bulk is (faces against it are skipped). skip: face
+    directions to leave out altogether, as in build_mesh."""
     planes = {}
     for (x, y, z), c in cells.items():
         for di, ((dx, dy, dz), _) in enumerate(_DIRS):
             n = (x + dx, y + dy, z + dz)
-            if n in cells or (solid is not None and solid(*n)):
+            if (dx, dy, dz) in skip or n in cells or (solid is not None and solid(*n)):
                 continue
             if dx:
                 key, uv = (di, x), (y, z)
