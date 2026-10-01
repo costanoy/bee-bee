@@ -32,6 +32,7 @@ var voxel := {
 	"ufo": "ufo_voxel",
 	"backdrop_hills": "backdrop_voxel_hills",
 	"backdrop_city": "backdrop_voxel_city",
+	"sun": "sun_voxel",
 }
 const BACKDROP_DEPTH := 95.0     # far enough to scroll at ~1/5 of the climb rate
 const SUN_Y := 26.0
@@ -61,6 +62,9 @@ var wing_r: Node3D
 var dead_eyes: Node3D
 var live_eyes: Array[Node3D] = []
 var bee_yaw := 0.0
+# The flower-pickup burst as little cubes instead of smooth balls. Built for
+# review: off until approved.
+var voxel_burst := false
 var bee_roll_x := 0.0
 var idle_time := 0.0
 
@@ -78,7 +82,7 @@ func setup(p_main: Node2D) -> void:
 			"cloud_voxel_a", "cloud_voxel_b", "cloud_voxel_c", "gull", "moon", "jupiter", "ufo", "ground",
 			"tree_voxel_round_a", "tree_voxel_round_b", "tree_voxel_round_c",
 			"tree_voxel_pine_a", "tree_voxel_pine_b", "tree_voxel_pine_c",
-			"backdrop_hills", "backdrop_city"]:
+			"backdrop_hills", "backdrop_city", "sun"]:
 		models[f] = load("res://models/%s.glb" % voxel.get(f, f))
 
 	cam = Camera3D.new()
@@ -267,17 +271,17 @@ func _sync_scenery() -> void:
 	base.material_override = bmat
 	base.position = Vector3(0, foot_y - 45.0 + 0.5, -BACKDROP_DEPTH + 4.0)
 	scenery.add_child(base)
-	# a glowing sun hung behind everything
+	# A glowing sun hung behind everything: the voxel sun's flat disc, with a
+	# material made here rather than the model's own, so it can fade out as
+	# the sun sets (its colours come from the model's vertex colours).
 	var sun := MeshInstance3D.new()
-	var sm := SphereMesh.new()
-	sm.radius = 7.0
-	sm.height = 14.0
-	sm.radial_segments = 20
-	sm.rings = 10
-	sun.mesh = sm
+	var sun_model: Node3D = models["sun"].instantiate()
+	sun.mesh = (_meshes(sun_model)[0] as MeshInstance3D).mesh
+	sun_model.free()
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(1.0, 0.88, 0.45)
+	mat.vertex_color_use_as_albedo = true
+	mat.albedo_color = Color.WHITE
 	mat.emission_enabled = true
 	mat.emission = Color(1.0, 0.82, 0.35)
 	mat.emission_energy_multiplier = 1.6
@@ -383,6 +387,9 @@ func _build_flower(f) -> Node3D:
 
 
 func _burst(at: Vector3, color: Color) -> void:
+	if voxel_burst:
+		_burst_cubes(at, color)
+		return
 	var p := CPUParticles3D.new()
 	p.one_shot = true
 	p.amount = 14
@@ -411,6 +418,35 @@ func _burst(at: Vector3, color: Color) -> void:
 	add_child(p)
 	p.emitting = true
 	get_tree().create_timer(1.0).timeout.connect(p.queue_free)
+
+
+# The burst in voxels: cubes of two exact grid sizes (two cubes across and
+# one), never scaled in between, the small ones in a lighter tint.
+func _burst_cubes(at: Vector3, color: Color) -> void:
+	for spec in [[10, 0.08, color], [8, 0.04, color.lightened(0.45)]]:
+		var p := CPUParticles3D.new()
+		p.one_shot = true
+		p.amount = spec[0]
+		p.lifetime = 0.55
+		p.explosiveness = 1.0
+		p.direction = Vector3.UP
+		p.spread = 180.0
+		p.gravity = Vector3(0, -4, 0)
+		p.initial_velocity_min = 2.0
+		p.initial_velocity_max = 5.0
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3.ONE * spec[1]
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = spec[2]
+		mat.emission_enabled = true
+		mat.emission = spec[2]
+		mat.emission_energy_multiplier = 0.6
+		mesh.material = mat
+		p.mesh = mesh
+		p.position = at
+		add_child(p)
+		p.emitting = true
+		get_tree().create_timer(1.0).timeout.connect(p.queue_free)
 
 
 func _sync_decor(delta: float) -> void:
