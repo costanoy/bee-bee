@@ -10,3 +10,6 @@ build/
 .DS_Store
 Thumbs.db
 __pycache__/
+
+# Portfolio preview: the screen recording and the clips cut from it
+portfolio-preview/
