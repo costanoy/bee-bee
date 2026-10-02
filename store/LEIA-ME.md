@@ -46,7 +46,7 @@ O jogo está com os **IDs de teste do Google**: mostram anúncios de teste e nã
    testar com os IDs reais, cadastre o aparelho como dispositivo de teste no AdMob.
 
 Como os anúncios funcionam no jogo: um intersticial ao tocar em "Play Again", no máximo a cada
-3 partidas e nunca com menos de 90 segundos do anterior. Os números estão no topo de
+6 partidas e nunca com menos de 3 minutos do anterior nem nos 3 primeiros minutos de jogo. Os números estão no topo de
 `scripts/ads.gd` (`RUNS_BETWEEN_ADS`, `MIN_SECONDS_BETWEEN_ADS`).
 
 ## 3. Placar online (opcional)

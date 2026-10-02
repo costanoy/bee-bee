@@ -15,9 +15,15 @@ extends Node
 const INTERSTITIAL_ID := "ca-app-pub-3940256099942544/1033173712"
 
 # An ad is offered on "Play Again" once this many runs have ended since the
-# last one, and never sooner than MIN_SECONDS_BETWEEN_ADS after it.
-const RUNS_BETWEEN_ADS := 3
-const MIN_SECONDS_BETWEEN_ADS := 90.0
+# last one, and never sooner than MIN_SECONDS_BETWEEN_ADS after it. The same
+# wait applies from the moment the game opens, so a session never starts
+# with an ad.
+# TEST — 6 runs and 180 s (was 3 and 90, and no wait at the start). Runs are
+# short, often a few seconds, so three of them went by in no time and the
+# 90 s were the only real limit: an ad every minute and a half, the first
+# one seconds after opening the game. The user found that far too often.
+const RUNS_BETWEEN_ADS := 6
+const MIN_SECONDS_BETWEEN_ADS := 180.0
 # Ads carry a content rating; PG keeps out anything a cartoon bee game
 # shouldn't sit next to.
 const MAX_CONTENT_RATING := "PG"
@@ -34,11 +40,12 @@ var _ad: InterstitialAd
 var _loader: InterstitialAdLoader
 var _loading := false
 var _runs_since_ad := 0
-var _last_ad_msec := -1000000
+var _last_ad_msec := 0
 
 
 func start() -> void:
 	_available = OS.get_name() == "Android" and Engine.has_singleton("PoingGodotAdMob")
+	_last_ad_msec = Time.get_ticks_msec()
 	if not _available:
 		return
 	_request_consent()
