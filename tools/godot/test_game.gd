@@ -10,8 +10,13 @@ extends SceneTree
 #   godot --headless --path . --fixed-fps 60 --script tools/godot/test_game.gd -- --lang=pt
 #
 # The game saves as it goes (a record kept on pause, a bee won), so this
-# writes to the real save file; tools/test.sh puts the player's save back.
+# writes to the real save file. The player's save is read first and put back
+# at the end; tools/test.sh does the same from outside, in case a run stops
+# before it gets there.
 
+const SAVE_FILES := ["user://bee_bee_save.cfg", "user://bee_bee_save.cfg.bak"]
+
+var kept := {}
 var g: Node2D
 var sd: Node
 var fails := 0
@@ -49,6 +54,16 @@ func voices() -> int:
 	return n
 
 
+# Waits until no sound is playing, so a count of voices means what it says.
+# This waits on the clock, not on a number of frames: a sound lasts real
+# time, while a headless run takes its frames as fast as the machine allows
+# and can go through hundreds of them before a wingbeat has finished.
+func silence() -> void:
+	var deadline := Time.get_ticks_msec() + 8000
+	while voices() > 0 and Time.get_ticks_msec() < deadline:
+		await process_frame
+
+
 func key(code: int) -> void:
 	var e := InputEventKey.new()
 	e.keycode = code
@@ -62,6 +77,23 @@ func key(code: int) -> void:
 	await frames(1)
 
 
+func keep_save() -> void:
+	for path in SAVE_FILES:
+		kept[path] = FileAccess.get_file_as_bytes(path) if FileAccess.file_exists(path) else null
+
+
+func restore_save() -> void:
+	for path in SAVE_FILES:
+		var data = kept.get(path)
+		if data == null:
+			if FileAccess.file_exists(path):
+				DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+			continue
+		var f := FileAccess.open(path, FileAccess.WRITE)
+		f.store_buffer(data)
+		f.close()
+
+
 func fresh() -> void:
 	paused = false
 	g.restart_after_ad = false
@@ -72,6 +104,7 @@ func fresh() -> void:
 
 func _run() -> void:
 	await process_frame
+	keep_save()
 	var lang := ""
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--lang="):
@@ -96,7 +129,7 @@ func _run() -> void:
 	ok(g.state == g.State.PLAYING, "space on the title starts the run")
 
 	# ------------------------------------------------ one touch, one flap
-	await frames(20)                      # let the button's own click sound finish
+	await silence()                       # let the button's own click sound finish
 	var before := voices()
 	var t := InputEventScreenTouch.new()
 	t.position = Vector2(300, 400)
@@ -105,7 +138,8 @@ func _run() -> void:
 	await frames(2)
 	ok(voices() - before == 1, "a touch plays the wingbeat once (voices +%d)" % (voices() - before))
 	ok(g.bee.velocity.x > 0.0 and g.bee.facing == 1, "touch on the right flaps right")
-	await frames(20)
+	await silence()
+	await fresh()                         # the bee has fallen out of the first run by now
 	before = voices()
 	var m := InputEventMouseButton.new()
 	m.position = Vector2(80, 400)
@@ -135,9 +169,10 @@ func _run() -> void:
 
 	# ------------------------------------------------ the sound switch
 	await key(KEY_P)
-	await frames(20)
+	await silence()
 	g._on_sound_toggle_pressed()
 	ok(sd.sfx_muted and g.sound_slash.visible, "the sound switch turns the effects off")
+	await silence()
 	var quiet := voices()
 	g._play_sfx(g.SFX_COLLECT, -6.0)
 	ok(voices() == quiet, "and nothing plays while they are off")
@@ -170,6 +205,21 @@ func _run() -> void:
 	await ticks(3)
 	ok(g.bee.position.y >= g.camera_y + g.bee.radius - 0.01, "the bee is held at the top edge (%.1f px below it)" % (g.bee.position.y - g.camera_y))
 	ok(g.bee.velocity.y >= 0.0, "and stops rising there")
+
+	# ------------------------------------------------ a flower about to be lost blinks
+	await fresh()
+	var low = g.flowers[0]
+	var high = g.flowers[1]
+	g.camera_y = low.position.y - g.screen_h + 60.0      # 60 px from the bottom edge
+	g.bee.position = Vector2(200, g.camera_y + 300.0)
+	var seen_low := {}
+	var seen_high := {}
+	for i in 40:
+		await process_frame
+		seen_low[g.view3d.mirrors[low.get_instance_id()].visible] = true
+		seen_high[g.view3d.mirrors[high.get_instance_id()].visible] = true
+	ok(seen_low.size() == 2, "a flower near the bottom edge blinks")
+	ok(seen_high.size() == 1 and seen_high.has(true), "one higher up does not")
 
 	# ------------------------------------------------ death causes
 	await fresh()
@@ -265,6 +315,37 @@ func _run() -> void:
 	await ticks(3)
 	ok(g.new_record_badge.visible and sd.best_score == 41, "and the game over still counts it as new (best %d)" % sd.best_score)
 
+	# ------------------------------------------------ the tutorial stays out of the pause menu
+	await fresh()
+	g.hint_alpha = 1.0                     # as on a first run, before its first flap
+	g.has_tapped_once = false
+	g.direction_hint.modulate.a = 1.0
+	g.direction_hint.visible = true
+	g._on_pause_pressed()
+	ok(g.state == g.State.PAUSED and not g.direction_hint.visible, "the tutorial arrows are put away behind the pause menu")
+	g._on_resume_pressed()
+	ok(g.state == g.State.PLAYING and g.direction_hint.visible, "and come back when the run resumes")
+	g.hint_alpha = 0.0
+	g.has_tapped_once = true
+	g.direction_hint.visible = false
+
+	# ------------------------------------------------ the top row clears a camera cut-out
+	ok(g.top_inset == 0.0 and g.record_label.position.y == g.RECORD_Y, "with no cut-out the top row stays where it was")
+	Main.forced_cutout = 40.0
+	g._apply_top_inset()
+	ok(is_equal_approx(g.pause_button.position.y, 40.0) and g.record_label.position.y > 40.0,
+			"under a 40 px cut-out the pause button starts at %.0f and the record at %.0f" % [g.pause_button.position.y, g.record_label.position.y])
+	ok(is_equal_approx(g.score_label.position.y - g.record_label.position.y, g.SCORE_Y - g.RECORD_Y), "and the score moves down with them")
+	Main.forced_cutout = 10.0
+	g._apply_top_inset()
+	ok(g.top_inset == 0.0, "a cut-out smaller than the row's own margin moves nothing")
+	Main.forced_cutout = 900.0
+	g._apply_top_inset()
+	ok(g.top_inset == g.TOP_INSET_MAX, "a nonsense cut-out is capped (%.0f)" % g.top_inset)
+	Main.forced_cutout = -1.0
+	g._apply_top_inset()
+	ok(g.top_inset == 0.0, "and a computer has none")
+
 	# ------------------------------------------------ every string fits where it goes
 	var f: Font = g.ui_font
 	var fits := [
@@ -290,5 +371,6 @@ func _run() -> void:
 	for ch in g._t("record_word"):
 		ok(g.view3d.GLYPHS.has(ch), "the record line can spell '%s'" % ch)
 
+	restore_save()
 	print("TESTS done, failures: ", fails)
 	quit()

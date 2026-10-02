@@ -200,6 +200,10 @@ const TEXT := {
 # For the tools that render screenshots in a given language; empty means
 # follow the device.
 static var forced_lang := ""
+# For the tools, which run on a computer: a cut-out this tall, in the game's
+# own pixels, as if the game were on a phone that has one. Negative: ask the
+# device.
+static var forced_cutout := -1.0
 # How long a press of "Play Again" stays swallowed while an ad is supposed
 # to be opening (see _on_restart_pressed).
 const AD_LOCK_MSEC := 3000
@@ -208,6 +212,14 @@ const AD_LOCK_MSEC := 3000
 # before, and a tap already on its way would start the next run (or open an
 # ad) before the player had seen the score.
 const GAME_OVER_LOCK_MSEC := 450
+# Where the top row of the interface sits, from the top edge: the record in
+# the middle, the pause button in the corner, the score under them.
+const RECORD_Y := 22.0
+const PAUSE_Y := 18.0
+const SCORE_Y := 92.0
+# The most a camera cut-out may push that row down. A phone reporting more
+# than this is reporting something else, and the row stays near the top.
+const TOP_INSET_MAX := 48.0
 
 # Icons are drawn as pixel grids rather than imported art, so they match
 # the game's own resolution instead of being scaled-down smooth shapes.
@@ -335,6 +347,7 @@ var lang := "en"
 # taller than 1:2 (nearly all of them) shows more sky instead of black bars.
 # So the visible height is only known at runtime.
 var screen_h := 800.0
+var top_inset := 0.0
 var world_moving := false
 var scrolling_started := false
 var launch_timer := 0.0
@@ -520,6 +533,31 @@ func _ready() -> void:
 
 func _t(key: String) -> String:
 	return TEXT[lang][key]
+
+
+# The game draws edge to edge, under the phone's camera cut-out, and the top
+# row of the interface is exactly where cut-outs are: the record in the
+# middle of the top edge, the pause button in its corner. This is how far
+# down the row has to go to clear one, in the game's own pixels. The row
+# already keeps PAUSE_Y from the edge, so only a cut-out taller than that
+# moves it, and a screen without one leaves everything where it was.
+func _cutout_shift() -> float:
+	var cutout := forced_cutout
+	if cutout < 0.0:
+		# Only a phone can say. On a computer the "safe area" is the desktop
+		# minus its taskbar, which has nothing to do with this window.
+		if not OS.has_feature("mobile"):
+			return 0.0
+		var px_per_unit := float(get_window().size.y) / maxf(1.0, screen_h)
+		cutout = float(DisplayServer.get_display_safe_area().position.y) / maxf(0.01, px_per_unit)
+	return clampf(cutout - PAUSE_Y, 0.0, TOP_INSET_MAX)
+
+
+func _apply_top_inset() -> void:
+	top_inset = _cutout_shift()
+	record_label.position.y = RECORD_Y + top_inset
+	score_label.position.y = SCORE_Y + top_inset
+	pause_button.position.y = PAUSE_Y + top_inset
 
 
 func _notification(what: int) -> void:
@@ -1145,6 +1183,10 @@ func _on_pause_pressed() -> void:
 	# the credits link sits under the privacy one when that is showing
 	credits_button.position.y = privacy_button.position.y + (38.0 if privacy_button.visible else 0.0)
 	pause_screen.visible = true
+	# The tutorial arrows sit right where the menu's buttons are, and showed
+	# through from behind them when a first run was paused before its first
+	# flap.
+	direction_hint.visible = false
 	# Freezing the tree is what actually stops the run: the bee's physics,
 	# the drifting clouds and gulls and their wing animations all advance
 	# on their own, so gating this script alone would leave the world alive
@@ -1158,6 +1200,7 @@ func _on_resume_pressed() -> void:
 	get_tree().paused = false
 	pause_screen.visible = false
 	credits_screen.visible = false
+	direction_hint.visible = hint_alpha > 0.0
 	state = State.PLAYING
 	pause_button.visible = true
 
@@ -1487,13 +1530,13 @@ func _build_ui() -> void:
 
 	record_label = _make_label(_t("record") % 0, 22, Color(1, 1, 1, 0.9))
 	record_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	record_label.position = Vector2(0, 22)
+	record_label.position = Vector2(0, RECORD_Y)
 	record_label.size = Vector2(SCREEN_W, 26)
 	ui_layer.add_child(record_label)
 
 	score_label = _make_label("0", 64, Color.WHITE)
 	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	score_label.position = Vector2(0, 92)
+	score_label.position = Vector2(0, SCORE_Y)
 	score_label.size = Vector2(SCREEN_W, 68)
 	score_label.pivot_offset = score_label.size / 2.0
 	ui_layer.add_child(score_label)
@@ -1511,10 +1554,14 @@ func _build_ui() -> void:
 	ui_layer.add_child(direction_hint)
 
 	pause_button = _make_icon_button(_build_pixel_icon(ICON_PAUSE, 3.0, Color.WHITE), 48.0)
-	pause_button.position = Vector2(SCREEN_W - pause_button.size.x - 14, 18)
+	pause_button.position = Vector2(SCREEN_W - pause_button.size.x - 14, PAUSE_Y)
 	pause_button.visible = false
 	pause_button.pressed.connect(_on_pause_pressed)
 	ui_layer.add_child(pause_button)
+	_apply_top_inset()
+	# Asked again once the window has settled: a phone may not have its
+	# cut-out to report on the very first frame.
+	get_tree().create_timer(0.6).timeout.connect(_apply_top_inset)
 
 	start_screen = _build_start_screen()
 	ui_layer.add_child(start_screen)
