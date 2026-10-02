@@ -12,10 +12,15 @@ street. No two neighbours are the same kind or the same colour.
 Built like the hills backdrop: from cubes five times the usual size
 (BIG = 0.2), because 95 units back the camera shrinks them to the size of
 every other cube on screen, and as thin walls with the shading painted on
-(lit left edge, shaded right edge, a shadow under every roof). The windows
-are a second mesh with a glowing material, so they stay lit when the scene
-goes dark. Same footprint as before (84 units wide, foot at z = 0).
-Exports backdrop_voxel_city.glb and review renders.
+(lit left edge, shaded right edge, a shadow under every roof).
+
+Three meshes: "City" (the street and its trees), "Far" (the skyline and the
+hills) and "Windows", which has a glowing material so they stay lit when
+the scene goes dark. The game hazes "Far" with its depth fog, which takes
+the colour of the sky at every hour, and draws the other two without it:
+fog turned the street's warm walls lilac. Same footprint as before (84
+units wide, foot at z = 0). Exports backdrop_voxel_city.glb and review
+renders.
 """
 import bpy, math, random, sys, os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -409,8 +414,11 @@ walls, solid, windows = city()
 vk.reset()
 root = vk.empty("City")
 UNSEEN = ((0, 1, 0), (0, 0, -1))
-o = vk.build_mesh_merged("City", walls, vk.material("Voxel", rough=0.8), root, size=BIG,
-                         solid=lambda x, y, z: (x, y, z) in solid, skip=UNSEEN)
+filled = lambda x, y, z: (x, y, z) in solid or (x, y, z) in walls
+near = {k: c for k, c in walls.items() if k[1] < FAR_Y}
+far = {k: c for k, c in walls.items() if k[1] >= FAR_Y}
+o = vk.build_mesh_merged("City", near, vk.material("Voxel", rough=0.8), root, size=BIG, solid=filled, skip=UNSEEN)
+fo = vk.build_mesh_merged("Far", far, vk.material("VoxelFar", rough=0.8), root, size=BIG, solid=filled, skip=UNSEEN)
 glow = vk.material("VoxelWindow", rough=0.4)
 p = glow.node_tree.nodes["Principled BSDF"]
 p.inputs["Emission Color"].default_value = (*vk.lin(WINDOW), 1)
@@ -418,7 +426,7 @@ p.inputs["Emission Strength"].default_value = 0.8
 wn = vk.build_mesh_merged("Windows", windows, glow, root, size=BIG,
                           solid=lambda x, y, z: (x, y, z) in walls or ((x, y, z) in solid and (x, y, z) not in windows),
                           skip=UNSEEN)
-print("backdrop city cubes:", len(walls) + len(windows), "polygons:", len(o.data.polygons) + len(wn.data.polygons))
+print("backdrop city cubes:", len(walls) + len(windows), "polygons:", len(o.data.polygons) + len(fo.data.polygons) + len(wn.data.polygons))
 vk.export(os.path.join(MODELS, "backdrop_voxel_city.glb"))
 
 # ---------------------------------------------------------------- review renders

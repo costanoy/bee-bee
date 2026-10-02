@@ -50,7 +50,12 @@ const BACKDROP_DEPTH := 95.0     # far enough to scroll at ~1/5 of the climb rat
 # hung at its real depth it barely moved and looked pinned to the screen
 # (SUN_Y 26.0, no drift), and at 0.35 of the hedges' rate it still lingered
 # in the middle of the play field.
-const SUN_Y := -34.0
+# SUN_HEIGHT is how far above the grass line its centre shows at the start
+# of a run, in units of the play plane (40 px each) — just clear of the
+# skyline. It used to be a fixed height in the world (SUN_Y -34), which put
+# it in a different place on every screen shape: right on the roofs on a
+# short phone, a good way up the sky on a tall one.
+const SUN_HEIGHT := 4.7
 const CELESTIAL_DEPTH := -6.0
 
 # Day sky deepened (was top 0.30/0.60/0.95, horizon 0.72/0.88/1.0): the
@@ -101,11 +106,20 @@ var burst_next := 0
 var bursts_warmed := false
 # the gull model's materials, tinted toward the sky every frame (_sync_sky)
 var gull_mats: Array = []
+# The flowers' materials and the bee's, brightened as night falls: they are
+# what the player has to read, and under the night light a blue flower all
+# but disappeared into the dark blue sky.
+var flower_mats: Array = []
+var bee_mats: Array = []
+var bee_glows := false
+# the city backdrop's wall material, while the city is the backdrop in use
+var city_mat: StandardMaterial3D
 
 var sun_disc: Node3D
 # the sun's turning ball, when its model has one (the flat disc doesn't)
 var sun_ball: Node3D
 var sun_mat: StandardMaterial3D
+var sun_y0 := 0.0                # the sun's height in the world at the start of a run
 var scenery_for := -1            # main.scenery_id this scenery was built for
 var scenery: Node3D
 var record3d: Node3D
@@ -164,11 +178,9 @@ func setup(p_main: Node2D) -> void:
 	_build_bee()
 	_build_stars()
 	_build_bursts()
-	var gull: Node3D = models["gull"].instantiate()
-	for m: MeshInstance3D in _meshes(gull):
-		for i in m.mesh.get_surface_count():
-			gull_mats.append(m.mesh.surface_get_material(i))
-	gull.free()
+	gull_mats = _materials_of(models["gull"])
+	for kind in main.FlowerScript.KINDS:
+		flower_mats.append_array(_materials_of(models["flower_" + kind[0]]))
 	# sample the tick positions after main.gd and the bee have moved
 	process_physics_priority = 100
 
@@ -199,6 +211,20 @@ func _use_vertex_colours(n: Node) -> void:
 			var mat: Material = m.mesh.surface_get_material(i)
 			if mat is StandardMaterial3D and not mat.vertex_color_use_as_albedo:
 				mat.vertex_color_use_as_albedo = true
+
+
+# The materials a model's meshes carry. They belong to the model, not to one
+# copy of it, so changing them changes every copy at once.
+func _materials_of(model: PackedScene) -> Array:
+	var out := []
+	var n: Node3D = model.instantiate()
+	for m: MeshInstance3D in _meshes(n):
+		for i in m.mesh.get_surface_count():
+			var mat: Material = m.mesh.surface_get_material(i)
+			if mat is StandardMaterial3D and not out.has(mat):
+				out.append(mat)
+	n.free()
+	return out
 
 
 func _meshes(n: Node) -> Array:
@@ -287,8 +313,20 @@ func _sync_sky() -> void:
 	env.fog_light_color = horizon
 	# gulls take on some of the sky's colour, like anything seen at a distance
 	for mat in gull_mats:
-		if mat is StandardMaterial3D:
-			mat.albedo_color = Color.WHITE.lerp(horizon, GULL_HAZE)
+		mat.albedo_color = Color.WHITE.lerp(horizon, GULL_HAZE)
+	# and so does the city, lightly — in place of the depth fog, which is
+	# switched off for it (see _sync_scenery)
+	if city_mat:
+		city_mat.albedo_color = Color.WHITE.lerp(horizon, CITY_HAZE)
+	# Flowers and bee give back more of the light they get as it dims (the
+	# colour is multiplied past 1), so they keep close to their daytime look
+	# against the night sky.
+	var gain := lerpf(1.0, NIGHT_GAIN, clampf((d - 0.4) / 0.6, 0.0, 1.0))
+	for mat in flower_mats:
+		mat.albedo_color = Color(gain, gain, gain)
+	if not bee_glows:
+		for mat in bee_mats:
+			mat.albedo_color = Color(gain, gain, gain)
 	# night stays bright enough to read the flowers — they're the goal
 	sun_light.light_energy = lerpf(1.25, 0.6, d)
 	sun_light.light_color = Color(1.0, 0.96, 0.88).lerp(Color(0.66, 0.74, 1.0), d)
@@ -302,7 +340,7 @@ func _sync_sky() -> void:
 		var dist := _cam_dist()
 		var depth_ratio := (dist + BACKDROP_DEPTH + 40.0) / dist
 		var rate := dist / (dist - CELESTIAL_DEPTH)
-		sun_disc.position.y = SUN_Y - d * 70.0 + climb * (1.0 - rate * depth_ratio)
+		sun_disc.position.y = sun_y0 - d * 70.0 + climb * (1.0 - rate * depth_ratio)
 		sun_mat.albedo_color.a = clampf(1.0 - d * 2.2, 0.0, 1.0)
 		sun_disc.visible = sun_mat.albedo_color.a > 0.01
 		if sun_ball and is_instance_valid(sun_ball):
@@ -336,6 +374,24 @@ func _sync_scenery() -> void:
 			t.position = Vector3(snappedf(x, 0.04), 0, snappedf(rng.randf_range(-2.4, -1.4), 0.04))
 			x += rng.randf_range(0.9, 1.5)
 	var back := spawn("backdrop_hills" if hills else "backdrop_city", scenery)
+	# The city's street (mesh "City") and its lit windows are drawn without
+	# the depth fog. Fog blends everything that far away towards the colour
+	# of the sky, which turned the warm walls lilac and the roofs grey. The
+	# street gets a light tint of the sky's colour instead, set in _sync_sky
+	# so it follows the time of day; the skyline and hills behind it (mesh
+	# "Far") keep the fog, which is what makes them recede.
+	city_mat = null
+	if not hills:
+		for m: MeshInstance3D in _meshes(back):
+			var street := String(m.name).begins_with("City")
+			if not street and not String(m.name).begins_with("Windows"):
+				continue
+			for i in m.mesh.get_surface_count():
+				var mat: Material = m.mesh.surface_get_material(i)
+				if mat is StandardMaterial3D:
+					mat.disable_fog = true
+					if street:
+						city_mat = mat
 	# Sink the backdrop so, from the cold-start camera, its foot lines up
 	# just above the near grass: seen through a level perspective camera, a
 	# point at depth d appears pulled towards the view centre by D/(D+d).
@@ -378,7 +434,11 @@ func _sync_scenery() -> void:
 		mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_ALWAYS
 	for m: MeshInstance3D in _meshes(sun):
 		m.material_override = mat
-	sun.position = Vector3(14, SUN_Y, -BACKDROP_DEPTH - 40)
+	# placed as seen from the camera of the start of a run (the same
+	# pull-towards-the-centre as the backdrop's foot, above)
+	var start_cam_y: float = -(main.GROUND_DEPTH - main.screen_h / 2.0) / PX + sin(deg_to_rad(CAM_PITCH)) * dist
+	sun_y0 = start_cam_y + (SUN_HEIGHT - start_cam_y) * (dist + BACKDROP_DEPTH + 40.0) / dist
+	sun.position = Vector3(14, sun_y0, -BACKDROP_DEPTH - 40)
 	sun.name = "Sun"
 	scenery.add_child(sun)
 	sun_disc = sun
@@ -576,6 +636,8 @@ func _sync_decor(delta: float) -> void:
 # (was 9.0). The wing pivots are looked up once instead of every frame.
 const GULL_DEPTH := -7.0
 const GULL_HAZE := 0.5
+const CITY_HAZE := 0.16
+const NIGHT_GAIN := 1.7
 
 
 func _build_gull(_g) -> Node3D:
@@ -698,6 +760,7 @@ func set_bee_skin(model: String, size: float, glow: bool) -> void:
 	if not models.has(model):
 		models[model] = load("res://models/%s.glb" % model)
 	_build_bee(model)
+	bee_glows = glow
 	if glow:
 		_glowing(bee3d)
 
@@ -710,6 +773,7 @@ func _build_bee(model := "bee") -> void:
 	dead_eyes = bee3d.find_child("DeadEyes", true, false)
 	var stars: Node = bee3d.find_child("Sparkles", true, false)
 	sparkles = stars.get_children() if stars else []
+	bee_mats = _materials_of(models[model])
 	var eyes: Node3D = bee3d.find_child("LiveEyes", true, false)
 	if eyes:
 		live_eyes.append(eyes)

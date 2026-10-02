@@ -14,11 +14,19 @@ extends Node
 # passed" — tying the sky's own darkness to that made it read as "the
 # light dims because I picked a flower," which isn't what nightfall is
 # supposed to mean, and it isn't a choice the player is making anyway.
-# Time is unconnected to how the run is going, and stretched this wide
-# (6.5 minutes end to end) the change is barely visible minute to minute
-# — exactly the "suave e pouco perceptível" this was asked to be.
-const DAY_TO_DUSK_START := 90.0
-const DUSK_TO_NIGHT_END := 480.0
+# Time is unconnected to how the run is going, and stretched over minutes
+# the change is barely visible from one moment to the next — the "suave e
+# pouco perceptível" this was asked to be.
+#
+# TEST — 60 to 260 s (was 90 to 480). At the old pace the sky only began to
+# turn at about 78 flowers, was at its sunset at about 250 and reached night
+# at about 445 — a score almost no run gets to, so the night, its stars and
+# two thirds of the dusk were never seen, and the moon (100 flowers) rose in
+# plain daylight. Now the sky starts to warm at about 50 flowers, the moon
+# rises into the sunset, Jupiter (200) into deep twilight and the UFO (250)
+# into the night. The whole change still takes over three minutes.
+const DAY_TO_DUSK_START := 60.0
+const DUSK_TO_NIGHT_END := 260.0
 
 const MOON_SCORE := 100
 const JUPITER_SCORE := 200
