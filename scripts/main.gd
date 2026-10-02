@@ -132,6 +132,73 @@ const COLLECT_PITCH_STEPS := [1.0, 1.1892, 1.3348, 1.4983, 1.7818]
 # art's tinted-ink look.
 const UI_INK := Color(0.24, 0.13, 0.32)
 
+# Everything the interface says. The game speaks Portuguese on a device set
+# to Portuguese and English everywhere else (see `lang`). The bees keep
+# their names in both. "record_word" is spelled in cubes on the record line,
+# so it can only use the letters view3d.gd has glyphs for.
+const TEXT := {
+	"en": {
+		"record": "Record: %d",
+		"left": "LEFT",
+		"right": "RIGHT",
+		"game_over": "Game Over",
+		"score": "Score",
+		"best": "Record",
+		"new": "NEW!",
+		"play_again": "Play Again",
+		"paused": "Paused",
+		"resume": "Resume",
+		"restart": "Restart",
+		"ad_privacy": "Ad privacy",
+		"choose_bee": "Choose your bee",
+		"back": "Back",
+		"selected": "Selected",
+		"pick": "Tap to pick",
+		"locked": "Score %d",
+		"unlocked": "%s unlocked!",
+		"unlocked_hint": "Pick it in the bee menu",
+		"died_hedge": "You hit the roses!",
+		"died_flower": "You missed a flower!",
+		"died_fall": "You fell!",
+		"next_bee": "Next: %s",
+		"next_goal": "%d flowers in one run",
+		"record_word": "RECORD",
+	},
+	"pt": {
+		"record": "Recorde: %d",
+		"left": "ESQUERDA",
+		"right": "DIREITA",
+		"game_over": "Fim de jogo",
+		"score": "Pontos",
+		"best": "Recorde",
+		"new": "NOVO!",
+		"play_again": "Jogar de novo",
+		"paused": "Pausado",
+		"resume": "Continuar",
+		"restart": "Reiniciar",
+		"ad_privacy": "Privacidade dos anúncios",
+		"choose_bee": "Escolha sua abelha",
+		"back": "Voltar",
+		"selected": "Em uso",
+		"pick": "Toque para usar",
+		"locked": "%d pontos",
+		"unlocked": "%s liberada!",
+		"unlocked_hint": "Escolha no menu de abelhas",
+		"died_hedge": "Bateu na roseira!",
+		"died_flower": "Uma flor ficou para trás!",
+		"died_fall": "Caiu!",
+		"next_bee": "Próxima: %s",
+		"next_goal": "%d flores numa partida",
+		"record_word": "RECORDE",
+	},
+}
+# For the tools that render screenshots in a given language; empty means
+# follow the device.
+static var forced_lang := ""
+# How long a press of "Play Again" stays swallowed while an ad is supposed
+# to be opening (see _on_restart_pressed).
+const AD_LOCK_MSEC := 3000
+
 # Icons are drawn as pixel grids rather than imported art, so they match
 # the game's own resolution instead of being scaled-down smooth shapes.
 const ICON_PAUSE := [
@@ -239,6 +306,7 @@ const BeeScript := preload("res://scripts/bee.gd")
 const GROUND_DEPTH := 19.9
 
 var state: State = State.START
+var lang := "en"
 # The stretch mode is keep_width: the world is always 400 wide, and a phone
 # taller than 1:2 (nearly all of them) shows more sky instead of black bars.
 # So the visible height is only known at runtime.
@@ -261,6 +329,13 @@ var last_gap_x := 0.0
 var rows_spawned := 0
 var score := 0
 var dying_timer := 0.0
+# What ended the run ("hedge", "flower" or "fall"); the game-over screen says it.
+var death_cause := ""
+# The record as it stood when the run began: the run may save a new one
+# before it ends (on a pause), and the game-over screen still has to know
+# it was beaten.
+var record_at_run_start := 0
+var bees_won_this_run: Array = []
 # Marks the height of the flower that breaks the record; view3d.gd draws it.
 var record_line: Node2D
 var record_word_on_left := true
@@ -277,6 +352,7 @@ var ads: Node
 var leaderboard: Node
 # "Play Again" was pressed and an ad is up: the run starts when it closes.
 var restart_after_ad := false
+var restart_lock_msec := 0
 var sfx_pool: Array[AudioStreamPlayer] = []
 var collect_step := 0
 var physics_ticks_since_reset := 0
@@ -296,6 +372,12 @@ var play_button: Button
 var game_over_screen: Control
 var final_score_label: Label
 var final_best_label: Label
+var death_label: Label
+var goal_chip: Control
+var goal_icon: TextureRect
+var goal_title: Label
+var goal_hint: Label
+var score_pop: Tween
 var restart_button: Button
 var new_record_badge: Label
 var record_pulse: Tween
@@ -326,6 +408,10 @@ func _ready() -> void:
 		window.content_scale_size = Vector2i(int(SCREEN_W), int(MIN_SCREEN_H))
 		window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
 	screen_h = get_viewport_rect().size.y
+	if TEXT.has(forced_lang):
+		lang = forced_lang
+	else:
+		lang = "pt" if OS.get_locale_language() == "pt" else "en"
 
 	# Jersey 10 (SIL OFL 1.1, see fonts/Jersey10-OFL.txt): a chunky pixel
 	# face, so the text is made of squares like the voxel world behind it.
@@ -400,6 +486,10 @@ func _ready() -> void:
 	# top of it they cut straight through the logo and the Play button.
 	# They fade in with the title's fade-out instead.
 	direction_hint.visible = false
+
+
+func _t(key: String) -> String:
+	return TEXT[lang][key]
 
 
 func _notification(what: int) -> void:
@@ -485,6 +575,9 @@ func _reset_to_ground_scene() -> void:
 	elapsed = 0.0
 	score = 0
 	dying_timer = 0.0
+	death_cause = ""
+	record_at_run_start = SaveData.best_score
+	bees_won_this_run = []
 	# obstacles start comfortably above the ground/trees so they don't
 	# overlap the cold-start framing.
 	highest_spawn_y = -200.0
@@ -497,7 +590,7 @@ func _reset_to_ground_scene() -> void:
 	direction_hint.visible = hint_alpha > 0.0
 
 	_update_score_label()
-	record_label.text = "Record: %d" % SaveData.best_score
+	record_label.text = _t("record") % SaveData.best_score
 
 	for i in range(6):
 		_spawn_row()
@@ -647,6 +740,7 @@ func _update_playing(delta: float) -> void:
 		return
 
 	time_since_first_flap += delta
+	bee.ceiling_y = camera_y + bee.radius
 
 	if not scrolling_started:
 		launch_timer += delta
@@ -696,7 +790,7 @@ func _update_playing(delta: float) -> void:
 	# reads as the game cheating.
 	for f in flowers:
 		if f.position.y - FlowerScript.FLOWER_R > screen_bottom:
-			_trigger_game_over()
+			_trigger_game_over("flower")
 			return
 
 	for o in obstacles:
@@ -712,7 +806,7 @@ func _update_playing(delta: float) -> void:
 			if gap_right < SCREEN_W:
 				clearance = min(clearance, _circle_rect_clearance(bee.position, bee.radius, Vector2(gap_right, band_top), Vector2(SCREEN_W, band_bottom)))
 			if clearance < 0.0:
-				_trigger_game_over()
+				_trigger_game_over("hedge")
 				return
 			# Track the closest the bee gets to either bar while it's in this
 			# row's band — checked once the bee has fully cleared it, below.
@@ -722,7 +816,7 @@ func _update_playing(delta: float) -> void:
 			_trigger_near_miss()
 
 	if time_since_first_flap >= FALL_DEATH_GRACE and bee.position.y - bee.radius > screen_bottom:
-		_trigger_game_over()
+		_trigger_game_over("fall")
 
 
 func _circle_rect_clearance(circle_center: Vector2, radius: float, rect_min: Vector2, rect_max: Vector2) -> float:
@@ -772,9 +866,13 @@ func on_flower_collected(flower: Area2D) -> void:
 	collect_step = (collect_step + 1) % COLLECT_PITCH_STEPS.size()
 	score += 1
 	_update_score_label()
+	_pop_score()
 	_check_bee_unlocks()
 	if record_line and score == SaveData.best_score + 1:
 		_flash_record_line()
+		# passing the record is worth hearing at once, not only at game over
+		_play_sfx(SFX_RECORD, SFX_RECORD_DB - 4.0)
+		_vibrate(60)
 
 
 func _bee_contacts_trustworthy() -> bool:
@@ -791,9 +889,10 @@ func _bee_contacts_trustworthy() -> bool:
 	return physics_ticks_since_reset >= 2
 
 
-func _trigger_game_over() -> void:
+func _trigger_game_over(cause: String) -> void:
 	if state != State.PLAYING:
 		return
+	death_cause = cause
 	state = State.DYING
 	dying_timer = 0.0
 	pause_button.visible = false
@@ -812,26 +911,72 @@ func _end_game() -> void:
 	has_finished_a_run = true
 	bee.physics_enabled = false
 
-	var beat_record := score > SaveData.best_score
+	var beat_record := score > record_at_run_start
+	_keep_record()
 	if beat_record:
-		SaveData.best_score = score
-		SaveData.save_data()
 		_play_sfx(SFX_RECORD, SFX_RECORD_DB)
 		_vibrate(160)
 	leaderboard.submit(score)
 
+	_fill_game_over(beat_record)
+	# The game-over panel carries its own score and record, so the in-run
+	# HUD above it would just print both a second time.
+	_set_hud_visible(false)
+	# ...and its own word about a bee won in this run (the goal chip)
+	_hide_bee_notice()
+	game_over_screen.visible = true
+	ads.run_finished()
+
+
+# Saves the record the moment it is known to be beaten for good: at the end
+# of the run, and whenever the run is paused — a paused game can be closed or
+# killed without ever reaching its game over.
+func _keep_record() -> void:
+	if score > SaveData.best_score:
+		SaveData.best_score = score
+		SaveData.save_data()
+
+
+# Everything the game-over screen says about the run that just ended.
+func _fill_game_over(beat_record: bool) -> void:
 	final_score_label.text = "%d" % score
 	final_best_label.text = "%d" % SaveData.best_score
-	record_label.text = "Record: %d" % SaveData.best_score
+	record_label.text = _t("record") % SaveData.best_score
+	death_label.text = _t("died_" + death_cause) if death_cause != "" else ""
 	if beat_record:
 		_show_new_record_badge()
 	else:
 		_hide_new_record_badge()
-	# The game-over panel carries its own score and record, so the in-run
-	# HUD above it would just print both a second time.
-	_set_hud_visible(false)
-	game_over_screen.visible = true
-	ads.run_finished()
+	_refresh_goal_chip()
+
+
+# The chip under the board: a bee won in this run, or else the next one to
+# win and the score it takes. It gives the next run a goal — without it the
+# skins are only ever seen by someone who opens the bee menu.
+func _refresh_goal_chip() -> void:
+	var title_color := Color.WHITE
+	if not bees_won_this_run.is_empty():
+		var won: String = bees_won_this_run[-1]
+		goal_chip.set_ink(GOLD)
+		goal_icon.texture = load(_bee_icon_path(won))
+		goal_icon.modulate = Color.WHITE
+		goal_title.text = _t("unlocked") % BEE_SKINS[won]["name"]
+		goal_hint.text = _t("unlocked_hint")
+		title_color = GOLD
+		goal_chip.visible = true
+	else:
+		goal_chip.visible = false
+		for id in BEE_ORDER:
+			if not _bee_unlocked(id):
+				goal_chip.set_ink(Color.WHITE)
+				goal_icon.texture = load(_bee_icon_path(id))
+				# a dark silhouette, as in the bee menu
+				goal_icon.modulate = Color(0.08, 0.06, 0.14, 0.85)
+				goal_title.text = _t("next_bee") % BEE_SKINS[id]["name"]
+				goal_hint.text = _t("next_goal") % BEE_SKINS[id]["score"]
+				goal_chip.visible = true
+				break
+	goal_title.add_theme_color_override("font_color", title_color)
 
 
 func _set_hud_visible(on: bool) -> void:
@@ -910,13 +1055,20 @@ func _on_restart_pressed() -> void:
 	# already live (reported bug: mashing "play again" could occasionally
 	# leave the bee looking dead right at the start of the new run) — only
 	# a press from an actual game-over screen should ever reset anything.
-	if state != State.GAMEOVER or restart_after_ad:
+	if state != State.GAMEOVER:
+		return
+	# While an ad is opening, further presses are swallowed — but only for a
+	# few seconds. If the ad never reports back (it failed without saying
+	# so), a lock without an expiry would leave this button dead for good;
+	# a real ad covers the button for longer than the lock lasts anyway.
+	if restart_after_ad and Time.get_ticks_msec() - restart_lock_msec < AD_LOCK_MSEC:
 		return
 	# Between runs is the one place an ad may appear, and only every few
 	# runs (ads.gd). The new run then waits for the ad to close; it starts
 	# with the bee on the ground either way, so nothing is lost to the ad.
-	if ads.show_between_runs():
+	if not restart_after_ad and ads.show_between_runs():
 		restart_after_ad = true
+		restart_lock_msec = Time.get_ticks_msec()
 		return
 	_start_fresh_run()
 
@@ -935,6 +1087,9 @@ func _start_fresh_run() -> void:
 	# the real first flap.
 	_reset_to_ground_scene()
 	state = State.PLAYING
+	# normally cleared by the ad closing; here in case it never said it did
+	restart_after_ad = false
+	music.stream_paused = false
 	start_screen.visible = false
 	game_over_screen.visible = false
 	# The badge rides along with the hidden screen, but its loop would keep
@@ -948,6 +1103,7 @@ func _on_pause_pressed() -> void:
 	if state != State.PLAYING:
 		return
 	state = State.PAUSED
+	_keep_record()
 	pause_button.visible = false
 	privacy_button.visible = ads.privacy_options_required()
 	pause_screen.visible = true
@@ -1023,6 +1179,16 @@ func _update_score_label() -> void:
 	score_label.text = "%d" % score
 
 
+# The score jumps a little with every flower.
+func _pop_score() -> void:
+	if score_pop != null and score_pop.is_valid():
+		score_pop.kill()
+	score_label.scale = Vector2.ONE * 1.25
+	score_pop = score_label.create_tween()
+	score_pop.tween_property(score_label, "scale", Vector2.ONE, 0.22) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
 # ------------------------------------------------------------------
 # Bee skins
 # ------------------------------------------------------------------
@@ -1038,6 +1204,7 @@ func _check_bee_unlocks() -> void:
 		if score >= BEE_SKINS[id]["score"] and not _bee_unlocked(id):
 			SaveData.unlocked_bees.append(id)
 			SaveData.save_data()
+			bees_won_this_run.append(id)
 			_refresh_bee_menu()
 			_show_bee_notice(id)
 
@@ -1066,11 +1233,10 @@ func _show_bee_notice(id: String) -> void:
 	_play_sfx(SFX_RECORD, SFX_RECORD_DB)
 	_vibrate(120)
 	bee_notice_icon.texture = load(_bee_icon_path(id))
-	bee_notice_title.text = "%s unlocked!" % BEE_SKINS[id]["name"]
+	bee_notice_title.text = _t("unlocked") % BEE_SKINS[id]["name"]
+	_hide_bee_notice()
 	bee_notice.visible = true
 	bee_notice.modulate.a = 0.0
-	if bee_notice.has_meta("tween") and bee_notice.get_meta("tween").is_valid():
-		bee_notice.get_meta("tween").kill()
 	# Bound to the notice itself so it keeps running if the run gets paused.
 	var tw := bee_notice.create_tween()
 	bee_notice.set_meta("tween", tw)
@@ -1080,9 +1246,18 @@ func _show_bee_notice(id: String) -> void:
 	tw.tween_callback(func(): bee_notice.visible = false)
 
 
+# The notice belongs to the run. Left up, it sat across the "Game Over" title
+# on short screens and showed through between the cards of the bee menu.
+func _hide_bee_notice() -> void:
+	if bee_notice.has_meta("tween") and bee_notice.get_meta("tween").is_valid():
+		bee_notice.get_meta("tween").kill()
+	bee_notice.visible = false
+
+
 func _on_bee_menu_pressed() -> void:
 	if state != State.START and state != State.GAMEOVER:
 		return
+	_hide_bee_notice()
 	_refresh_bee_menu()
 	# The screen it opened from steps aside: its logo or score would
 	# otherwise sit right behind the menu's title and cards.
@@ -1118,9 +1293,9 @@ func _refresh_bee_menu() -> void:
 		card["icon"].modulate = Color(0.08, 0.06, 0.14, 0.85) if locked else Color.WHITE
 		var status: Label = card["status"]
 		if locked:
-			status.text = "Score %d" % BEE_SKINS[id]["score"]
+			status.text = _t("locked") % BEE_SKINS[id]["score"]
 		else:
-			status.text = "Selected" if selected else "Tap to pick"
+			status.text = _t("selected") if selected else _t("pick")
 		status.add_theme_color_override("font_color", GOLD if selected else Color(1, 1, 1, 0.85))
 	for icon in bee_button_icons:
 		icon.texture = load(_bee_icon_path(current))
@@ -1170,14 +1345,21 @@ func _unhandled_input(event: InputEvent) -> void:
 	var pos: Vector2
 	if event is InputEventScreenTouch and event.pressed:
 		pos = event.position
-	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT \
+			and event.device != InputEvent.DEVICE_ID_EMULATION:
+		# A real mouse only. The engine also turns every touch into a mouse
+		# click of its own (that is how the buttons work by touch); taking
+		# both flapped twice per tap, which played the wingbeat doubled and
+		# used two of the sound voices each time.
 		pos = event.position
 	else:
 		return
 
 	var screen_width: float = get_viewport_rect().size.x
-	var direction := -1 if pos.x < screen_width / 2.0 else 1
+	_flap(-1 if pos.x < screen_width / 2.0 else 1)
 
+
+func _flap(direction: int) -> void:
 	if not world_moving:
 		world_moving = true
 		bee.physics_enabled = true
@@ -1186,6 +1368,44 @@ func _unhandled_input(event: InputEvent) -> void:
 	# a stuck machine gun, so each one is detuned slightly.
 	_play_sfx(SFX_FLAP, SFX_FLAP_DB, randf_range(0.92, 1.08))
 	has_tapped_once = true
+
+
+# Keys, for the browser and desktop builds: the arrows or A and D flap,
+# space or enter presses the green button on screen, escape or P pauses.
+func _on_key(event: InputEventKey) -> void:
+	match event.keycode:
+		KEY_LEFT, KEY_A:
+			if state == State.PLAYING:
+				_flap(-1)
+		KEY_RIGHT, KEY_D:
+			if state == State.PLAYING:
+				_flap(1)
+		KEY_SPACE, KEY_ENTER, KEY_KP_ENTER:
+			if bee_menu.visible:
+				return
+			match state:
+				State.START:
+					play_button.pressed.emit()
+				State.GAMEOVER:
+					restart_button.pressed.emit()
+				State.PAUSED:
+					_on_resume_pressed()
+		KEY_ESCAPE, KEY_P:
+			match state:
+				State.PLAYING:
+					_on_pause_pressed()
+				State.PAUSED:
+					_on_resume_pressed()
+
+
+# Keys come through this node rather than through main.gd's own input,
+# because it has to keep listening while the tree is paused (to resume).
+class KeyRelay extends Node:
+	signal pressed(event: InputEventKey)
+
+	func _unhandled_key_input(event: InputEvent) -> void:
+		if event is InputEventKey and event.pressed and not event.echo:
+			pressed.emit(event)
 
 
 # ------------------------------------------------------------------
@@ -1202,7 +1422,11 @@ func _build_ui() -> void:
 	ui_layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(ui_layer)
 
-	record_label = _make_label("Record: 0", 22, Color(1, 1, 1, 0.9))
+	var keys := KeyRelay.new()
+	ui_layer.add_child(keys)
+	keys.pressed.connect(_on_key)
+
+	record_label = _make_label(_t("record") % 0, 22, Color(1, 1, 1, 0.9))
 	record_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	record_label.position = Vector2(0, 22)
 	record_label.size = Vector2(SCREEN_W, 26)
@@ -1212,6 +1436,7 @@ func _build_ui() -> void:
 	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	score_label.position = Vector2(0, 92)
 	score_label.size = Vector2(SCREEN_W, 68)
+	score_label.pivot_offset = score_label.size / 2.0
 	ui_layer.add_child(score_label)
 
 	# A digit's glyph and its outline are rasterised the first time they are
@@ -1285,8 +1510,8 @@ func _build_direction_hint() -> Control:
 		hint.add_child(dash)
 		y += dash_h + gap_h
 
-	_add_hint_side(hint, SCREEN_W * 0.25, -1, "LEFT")
-	_add_hint_side(hint, SCREEN_W * 0.75, 1, "RIGHT")
+	_add_hint_side(hint, SCREEN_W * 0.25, -1, _t("left"))
+	_add_hint_side(hint, SCREEN_W * 0.75, 1, _t("right"))
 
 	return hint
 
@@ -1411,7 +1636,7 @@ func _build_bee_menu() -> Control:
 	screen.add_child(dim)
 
 	var top := maxf(64.0, screen_h * 0.2 - 30.0)
-	var title := _make_label("Choose your bee", 38, Color.WHITE)
+	var title := _make_label(_t("choose_bee"), 38, Color.WHITE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.position = Vector2(0, top - 2)
 	title.size = Vector2(SCREEN_W, 44)
@@ -1431,7 +1656,7 @@ func _build_bee_menu() -> Control:
 		card.position = Vector2(left + (i % COLS) * (CARD.x + GAP), top + 54 + row * (CARD.y + GAP))
 		screen.add_child(card)
 
-	var back := _make_text_button("Back")
+	var back := _make_text_button(_t("back"))
 	back.position = Vector2(
 		(SCREEN_W - back.size.x) / 2.0, top + 54 + row_count * (CARD.y + GAP) + 9)
 	back.pressed.connect(_on_bee_menu_closed)
@@ -1482,7 +1707,7 @@ func _build_bee_notice() -> Control:
 	bee_notice_title.size = Vector2(220, 28)
 	panel.add_child(bee_notice_title)
 
-	var hint := _make_label("Pick it in the bee menu", 18, Color(1, 1, 1, 0.9))
+	var hint := _make_label(_t("unlocked_hint"), 18, Color(1, 1, 1, 0.9))
 	hint.position = Vector2(74, 35)
 	hint.size = Vector2(220, 22)
 	panel.add_child(hint)
@@ -1505,18 +1730,18 @@ func _build_pause_screen() -> Control:
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	screen.add_child(dim)
 
-	var title := _make_label("Paused", 52, Color.WHITE)
+	var title := _make_label(_t("paused"), 52, Color.WHITE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.position = Vector2(0, screen_h * 0.26)
 	title.size = Vector2(SCREEN_W, 56)
 	screen.add_child(title)
 
-	var resume_button := _make_text_button("Resume", "green")
+	var resume_button := _make_text_button(_t("resume"), "green")
 	resume_button.position = Vector2((SCREEN_W - resume_button.size.x) / 2.0, screen_h * 0.41)
 	resume_button.pressed.connect(_on_resume_pressed)
 	screen.add_child(resume_button)
 
-	var pause_restart_button := _make_text_button("Restart")
+	var pause_restart_button := _make_text_button(_t("restart"))
 	pause_restart_button.position = Vector2((SCREEN_W - pause_restart_button.size.x) / 2.0, screen_h * 0.41 + 86)
 	pause_restart_button.pressed.connect(_on_pause_restart_pressed)
 	screen.add_child(pause_restart_button)
@@ -1547,21 +1772,28 @@ func _build_pause_screen() -> Control:
 
 	# Only shown where privacy law requires a way back to the ad-consent
 	# choices (see ads.gd); elsewhere there is nothing to choose.
-	privacy_button = Button.new()
-	privacy_button.text = "Ad privacy"
-	privacy_button.flat = true
-	privacy_button.focus_mode = Control.FOCUS_NONE
-	privacy_button.add_theme_font_override("font", ui_font)
-	privacy_button.add_theme_font_size_override("font_size", 22)
-	privacy_button.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
-	privacy_button.size = Vector2(160, 36)
-	privacy_button.position = Vector2((SCREEN_W - 160.0) / 2.0, music_button.position.y + 76)
+	privacy_button = _make_link_button(_t("ad_privacy"))
+	privacy_button.position = Vector2((SCREEN_W - privacy_button.size.x) / 2.0, music_button.position.y + 76)
 	privacy_button.visible = false
 	privacy_button.pressed.connect(func(): ads.show_privacy_options())
-	_add_tap_sound(privacy_button)
 	screen.add_child(privacy_button)
 
 	return screen
+
+
+# A plain line of text that can be tapped, for the minor entries of the
+# pause menu. As wide as its text, so the caller can centre it.
+func _make_link_button(text: String) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.flat = true
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.add_theme_font_override("font", ui_font)
+	btn.add_theme_font_size_override("font_size", 22)
+	btn.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
+	btn.size = Vector2(ui_font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x + 24.0, 36)
+	_add_tap_sound(btn)
+	return btn
 
 
 func _build_pixel_icon(rows: Array, cell: float, color: Color) -> Control:
@@ -1643,17 +1875,42 @@ func _build_game_over_screen() -> Control:
 	screen.visible = false
 
 	var top := screen_h * 0.3
-	var title := _make_label("Game Over", 56, Color.WHITE)
+	var title := _make_label(_t("game_over"), 56, Color.WHITE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.position = Vector2(0, top)
 	title.size = Vector2(SCREEN_W, 60)
 	screen.add_child(title)
 
+	# What ended the run, in a line under the title. That every flower
+	# counts is the one rule a new player doesn't expect, and dying to it
+	# with no word of explanation reads as the game being broken.
+	death_label = _make_label("", 24, Color(1, 1, 1, 0.95))
+	death_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	death_label.position = Vector2(0, top + 62)
+	death_label.size = Vector2(SCREEN_W, 28)
+	screen.add_child(death_label)
+
 	# The run's score and the record side by side on one board.
 	var board := VoxelPlate.new()
 	board.setup("dark", Vector2(258, 114), UI_CELL)
-	board.position = Vector2((SCREEN_W - board.size.x) / 2.0, top + 74)
+	board.position = Vector2((SCREEN_W - board.size.x) / 2.0, top + 100)
 	screen.add_child(board)
+
+	goal_chip = VoxelPlate.new()
+	goal_chip.setup("dark", Vector2(258, 63), UI_CELL)
+	goal_chip.position = Vector2(board.position.x, board.position.y + board.size.y + 12)
+	screen.add_child(goal_chip)
+	goal_icon = _make_bee_icon("normal", 48.0)
+	goal_icon.position = Vector2(8, 3)
+	goal_chip.add_child(goal_icon)
+	goal_title = _make_label("", 22, Color.WHITE)
+	goal_title.position = Vector2(62, 6)
+	goal_title.size = Vector2(190, 24)
+	goal_chip.add_child(goal_title)
+	goal_hint = _make_label("", 17, Color(1, 1, 1, 0.88))
+	goal_hint.position = Vector2(62, 30)
+	goal_hint.size = Vector2(190, 20)
+	goal_chip.add_child(goal_hint)
 	var face := board.face_rect()
 	var col_w := face.size.x / 2.0
 
@@ -1666,7 +1923,7 @@ func _build_game_over_screen() -> Control:
 
 	var values := []
 	for i in 2:
-		var caption := _make_label(["Score", "Record"][i], 22, Color(1, 1, 1, 0.8))
+		var caption := _make_label([_t("score"), _t("best")][i], 22, Color(1, 1, 1, 0.8))
 		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		caption.position = face.position + Vector2(col_w * i, 10)
 		caption.size = Vector2(col_w, 26)
@@ -1681,9 +1938,9 @@ func _build_game_over_screen() -> Control:
 	final_best_label = values[1]
 
 	# Pinned over the board's top-right corner, on the record's side.
-	new_record_badge = _make_label("NEW!", 28, GOLD)
+	new_record_badge = _make_label(_t("new"), 28, GOLD)
 	new_record_badge.size = Vector2(
-		ui_font.get_string_size("NEW!", HORIZONTAL_ALIGNMENT_LEFT, -1, 28).x, 32)
+		ui_font.get_string_size(_t("new"), HORIZONTAL_ALIGNMENT_LEFT, -1, 28).x, 32)
 	new_record_badge.pivot_offset = new_record_badge.size / 2.0
 	new_record_badge.position = Vector2(
 		board.position.x + board.size.x - new_record_badge.size.x * 0.7, board.position.y - 18)
@@ -1691,7 +1948,7 @@ func _build_game_over_screen() -> Control:
 	new_record_badge.visible = false
 	screen.add_child(new_record_badge)
 
-	restart_button = _make_text_button("Play Again", "green")
+	restart_button = _make_text_button(_t("play_again"), "green")
 	restart_button.position = Vector2((SCREEN_W - restart_button.size.x) / 2.0, screen_h - 146)
 	restart_button.pressed.connect(_on_restart_pressed)
 	screen.add_child(restart_button)

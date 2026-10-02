@@ -34,8 +34,8 @@ var voxel := {
 	"sun": "sun_voxel",
 }
 const VOX := 0.04                # the world's cube size (tools/blender/voxel_kit.py VOX)
-const RECORD_WORD := "RECORD"
-# 5x7 cube letters for the record line
+# 5x7 cube letters for the record line (the word itself is main.gd's
+# "record_word", RECORD or RECORDE)
 const GLYPHS := {
 	"R": ["XXXX.", "X...X", "X...X", "XXXX.", "X.X..", "X..X.", "X...X"],
 	"E": ["XXXXX", "X....", "X....", "XXXX.", "X....", "X....", "XXXXX"],
@@ -657,14 +657,15 @@ func _build_record_line() -> Node3D:
 		line.add_child(dash)
 		x += 10 * VOX
 
+	var record_word: String = main._t("record_word")
 	var cells: Array[Vector3] = []
-	for i in RECORD_WORD.length():
-		var rows: Array = GLYPHS[RECORD_WORD[i]]
+	for i in record_word.length():
+		var rows: Array = GLYPHS[record_word[i]]
 		for r in rows.size():
 			for c in (rows[r] as String).length():
 				if rows[r][c] == "X":
 					cells.append(Vector3((i * 6 + c + 0.5) * VOX, (rows.size() - r - 0.5) * VOX, 0))
-	var word_w := (RECORD_WORD.length() * 6 - 1) * VOX
+	var word_w := (record_word.length() * 6 - 1) * VOX
 	var on_left: bool = main.record_word_on_left
 	# Kept well inside the 5-unit half-width: the camera looks down from above
 	# the middle, so the top of the screen is nearer to it and shows less width.

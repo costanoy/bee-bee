@@ -24,6 +24,11 @@ const SCREEN_W := 400.0
 const FLAP_DURATION := 0.25
 
 var facing := 1  # 1 = right, -1 = left
+# The top of what the camera shows, kept up to date by main.gd while a run
+# is on. The bee stops there instead of flying out of view: rows exist above
+# the screen before they scroll into it, and a bee that outran the camera
+# used to die against a hedge nobody could see.
+var ceiling_y := -INF
 var physics_enabled := false
 # Per-skin size and sideways speed (see main.gd BEE_SKINS); the constants
 # above are the normal bee's.
@@ -79,6 +84,10 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
+	if position.y < ceiling_y:
+		position.y = ceiling_y
+		velocity.y = maxf(velocity.y, 0.0)
+
 	if position.x < radius:
 		position.x = radius
 		velocity.x = abs(velocity.x) * 0.4
@@ -112,6 +121,7 @@ func reset_bee(start_position: Vector2) -> void:
 	position = start_position
 	velocity = Vector2.ZERO
 	facing = 1
+	ceiling_y = -INF
 	dead = false
 	tilt = 0.0
 	_flap_time = FLAP_DURATION
