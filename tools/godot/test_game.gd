@@ -133,8 +133,18 @@ func _run() -> void:
 	await key(KEY_ESCAPE)
 	ok(g.state == g.State.PLAYING and not paused, "escape resumes a paused game")
 
-	# ------------------------------------------------ credits
+	# ------------------------------------------------ the sound switch
 	await key(KEY_P)
+	await frames(20)
+	g._on_sound_toggle_pressed()
+	ok(sd.sfx_muted and g.sound_slash.visible, "the sound switch turns the effects off")
+	var quiet := voices()
+	g._play_sfx(g.SFX_COLLECT, -6.0)
+	ok(voices() == quiet, "and nothing plays while they are off")
+	g._on_sound_toggle_pressed()
+	ok(not sd.sfx_muted and not g.sound_slash.visible and voices() == quiet + 1, "switching them back on clicks")
+
+	# ------------------------------------------------ credits
 	g._on_credits_pressed()
 	await frames(2)
 	ok(g.credits_screen.visible and g.credits_box.get_child_count() > 50, "the credits open from the pause menu (%d blocks)" % g.credits_box.get_child_count())
@@ -207,7 +217,11 @@ func _run() -> void:
 	ok(g.death_label.text == g._t("died_flower"), "it says what happened: '%s'" % g.death_label.text)
 	ok(g.goal_chip.visible and g.goal_title.text == g._t("next_bee") % "Rosy Bee", "and names the next bee: '%s' / '%s'" % [g.goal_title.text, g.goal_hint.text])
 
-	# keyboard restart
+	# keyboard restart — but not in the first instant, when a tap meant for
+	# the run could still be on its way
+	g._on_restart_pressed()
+	ok(g.state == g.State.GAMEOVER, "'play again' ignores a press in the first instant of the game-over screen")
+	g.game_over_msec -= 1000
 	await key(KEY_ENTER)
 	ok(g.state == g.State.PLAYING and g.score == 0, "enter on game over starts a new run")
 
@@ -229,6 +243,7 @@ func _run() -> void:
 	g._on_bee_menu_closed()
 
 	# ------------------------------------------------ ad lock expires
+	g.game_over_msec -= 1000
 	g.restart_after_ad = true
 	g.restart_lock_msec = Time.get_ticks_msec()
 	g._on_restart_pressed()

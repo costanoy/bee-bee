@@ -26,6 +26,7 @@ var flapped := false
 var p_rows: Array = []
 var p_fl: Array = []
 var p_r := 12.8
+var p_flower_r := 14.0
 var p_hs := 316.0
 var p_cam := 0.0
 var p_scroll := 0.0
@@ -54,6 +55,7 @@ func step(g: Node) -> int:
 func plan(g: Node) -> int:
 	var b = g.bee
 	p_r = b.radius
+	p_flower_r = g.FlowerScript.FLOWER_R
 	p_hs = b.h_speed
 	p_cam = g.camera_y
 	p_scroll = g._current_scroll_speed() if g.scrolling_started else 0.0
@@ -84,7 +86,7 @@ func _search(depth: int, x: float, y: float, vx: float, vy: float, act: int, mas
 		flaps += 1
 	var rr := p_r + 2.0
 	var rr2 := rr * rr
-	var pick := (p_r + 9.0) * (p_r + 9.0)
+	var pick := (p_r + p_flower_r - 5.0) * (p_r + p_flower_r - 5.0)
 	for k in dec:
 		vy = minf(vy + G * DT, MAX_FALL)
 		vx *= damp
@@ -97,7 +99,12 @@ func _search(depth: int, x: float, y: float, vx: float, vy: float, act: int, mas
 			x = LW - p_r
 			vx = -absf(vx) * 0.4
 		tick += 1
-		var bottom := p_cam - p_scroll * DT * tick + p_h
+		var screen_top := p_cam - p_scroll * DT * tick
+		# the game holds the bee at the top edge of the screen (bee.gd)
+		if y < screen_top + p_r:
+			y = screen_top + p_r
+			vy = maxf(vy, 0.0)
+		var bottom := screen_top + p_h
 		if y - p_r > bottom:
 			return -1e6 + tick * 10.0
 		for row in p_rows:
@@ -120,7 +127,7 @@ func _search(depth: int, x: float, y: float, vx: float, vy: float, act: int, mas
 			var ddy := y - fp.y
 			if ddx * ddx + ddy * ddy <= pick:
 				mask |= 1 << i
-			elif fp.y - 14.0 > bottom:
+			elif fp.y - p_flower_r > bottom:
 				return -1e6 + tick * 10.0
 	if depth > 1:
 		var best := _search(depth - 1, x, y, vx, vy, 0, mask, flaps, tick, clear)

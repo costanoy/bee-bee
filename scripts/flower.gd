@@ -3,7 +3,13 @@ extends Area2D
 # A collectible flower. Created entirely by code from main.gd. It has no
 # picture of its own: view3d.gd draws the voxel model for its `kind`.
 
-const FLOWER_R := 14.0
+# TEST — 17.2 (was 14.0). What matters is the reach, this plus the bee's own
+# radius: 30 px when the bee was 16 px, as in the prototype the feel was
+# tuned on. Shrinking the bee to 12.8 cut it to 26.8 and made every flower a
+# little harder to touch, which nobody had asked for; this puts the 30 back.
+# A pickup that is slightly generous also reads as fair, where one that
+# needs an exact touch reads as the game not counting it.
+const FLOWER_R := 17.2
 
 # [kind (view3d.gd's flower_<kind> model), colour of its pickup burst]
 const KINDS := [

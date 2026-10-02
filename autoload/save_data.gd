@@ -21,6 +21,7 @@ var best_score := 0
 var unlocked_bees: Array = []
 var selected_bee := "normal"  # a key of main.gd BEE_SKINS
 var music_muted := false
+var sfx_muted := false
 var vibration := true
 
 
@@ -46,6 +47,7 @@ func load_data() -> void:
 			unlocked_bees.append("shining")
 		selected_bee = config.get_value("save", "selected_bee", "normal")
 		music_muted = config.get_value("save", "music_muted", false)
+		sfx_muted = config.get_value("save", "sfx_muted", false)
 		vibration = config.get_value("save", "vibration", true)
 
 
@@ -56,6 +58,7 @@ func save_data() -> void:
 	config.set_value("save", "unlocked_bees", unlocked_bees)
 	config.set_value("save", "selected_bee", selected_bee)
 	config.set_value("save", "music_muted", music_muted)
+	config.set_value("save", "sfx_muted", sfx_muted)
 	config.set_value("save", "vibration", vibration)
 	if config.save(SAVE_PATH) == OK:
 		config.save(BACKUP_PATH)

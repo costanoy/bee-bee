@@ -1,30 +1,46 @@
 extends SceneTree
 
-# Renders the Google Play screenshots (1080x2160) into store/screenshots/,
-# from the real game: each shot stages a moment (score, time of day, skin,
-# height) and captures it.
+# Renders the Google Play screenshots (1080x2160) from the real game: each
+# shot stages a moment (score, time of day, skin, height) and captures it.
 #
-#   godot --path . --audio-driver Dummy --script tools/godot/render_store_shots.gd
+#   godot --path . --audio-driver Dummy --script tools/godot/render_store_shots.gd -- --lang=pt
+#   godot --path . --audio-driver Dummy --script tools/godot/render_store_shots.gd -- --lang=en
 #
-# Run WITHOUT --headless. The save file is never written: unlocks, record
-# and skin are changed in memory only.
+# Writes store/screenshots/pt-BR/ or en-US/, one set per language of the
+# store listing, and store/backdrop.png (the title scene with no interface,
+# which tools/make_feature_graphic.py builds on). Run WITHOUT --headless.
+#
+# The save file is never written: record, unlocks and skin are changed in
+# memory only, and the one shot that ends a run is staged so that the game
+# finds nothing new to save.
+#
+# Scores and times go together: the sky runs on the clock of the run, so
+# each shot is given the time a run really takes to reach that score.
 
-const OUT := "res://store/screenshots/"
+const DIRS := {"pt": "pt-BR", "en": "en-US"}
 
 var sv: SubViewport
 var g: Node2D
 var sd: Node
+var out := ""
 
 
 func _init() -> void:
-	await process_frame
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT))
+	var lang := "pt"
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--lang="):
+			lang = a.trim_prefix("--lang=")
+	load("res://scripts/main.gd").forced_lang = lang
+	out = "res://store/screenshots/%s/" % DIRS.get(lang, lang)
+	await process_frame          # the save file is read on the first frame
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(out))
 	sd = root.get_node("SaveData")
 	sd.best_score = 128
 	sd.unlocked_bees = []
 	sd.selected_bee = "normal"
 	sd.seen_tutorial = true
 	sd.music_muted = true
+	sd.vibration = false
 	seed(21)
 
 	sv = SubViewport.new()
@@ -38,38 +54,45 @@ func _init() -> void:
 	g.set_script(load("res://scripts/main.gd"))
 	sv.add_child(g)
 
-	# 1. the title — and the same view with no UI, the backdrop that
-	# tools/make_feature_graphic.py builds the store's feature graphic on
+	# the title scene with no interface, over the hills: the feature graphic
 	_scenery("hills")
-	await _shot("01_title", 20)
 	g.start_screen.visible = false
 	g.record_label.visible = false
 	g.bee.position.x = -200.0
-	await _shot("../backdrop", 4)
+	await _shot("../../backdrop", 20)
 	g.bee.position.x = 200.0
 	g.start_screen.visible = true
 	g.record_label.visible = true
 
+	# 1. the title, over the city
+	_scenery("city")
+	await _shot("01_title", 12)
+
 	# 2. early in a run, the ground still in view
-	await _stage(7, 20.0, "hills", "normal", 150.0, 11)
+	await _stage(7, 12.0, "hills", "normal", 150.0, 11)
 	await _shot("02_play_day")
 
-	# 3. dusk over the city, the queen flying
-	sd.best_score = 240
-	await _stage(88, 265.0, "city", "queen", 190.0, 5)
-	await _shot("03_play_dusk")
-
-	# 4. night, with the moon and Jupiter out, the silver bee
-	sd.best_score = 320
-	await _stage(214, 640.0, "hills", "shining", 5200.0, 9)
+	# 3. the moon rising into the first colours of the sunset
+	await _stage(101, 114.0, "hills", "ice", 3000.0, 6)
 	g._on_moon_spawn_requested()
 	g.celestials[-1].position = Vector2(292.0, g.camera_y + 250.0)
-	g._on_jupiter_spawn_requested()
-	g.celestials[-1].position = Vector2(96.0, g.camera_y + 560.0)
-	await _shot("04_play_night")
+	await _shot("03_play_moonrise", 150)
 
-	# 5. the bees to unlock
+	# 4. the sunset at its height, the queen flying
+	sd.best_score = 240
+	await _stage(146, 162.0, "hills", "queen", 3000.0, 5)
+	await _shot("04_play_dusk", 150)
+
+	# 5. night, a visitor in the sky, the silver bee
+	sd.best_score = 320
+	await _stage(252, 276.0, "hills", "shining", 5200.0, 9)
+	g._on_ship_spawn_requested()
+	g.celestials[-1].position = Vector2(104.0, g.camera_y + 300.0)
+	await _shot("05_play_night", 150)
+
+	# 6. the bees to unlock
 	sd.best_score = 128
+	sd.unlocked_bees = []
 	sd.selected_bee = "ice"
 	g._start_fresh_run()
 	g.state = g.State.START
@@ -77,26 +100,27 @@ func _init() -> void:
 	g.pause_button.visible = false
 	g._set_hud_visible(false)
 	g.record_label.visible = true
-	_scenery("hills")
+	_scenery("city")
 	g._apply_bee_skin()
 	g._on_bee_menu_pressed()
-	await _shot("05_bees", 8, false)
+	await _shot("06_bees", 150, false)
 	g._on_bee_menu_closed()
 
-	# 6. a new record
+	# 7. a new record. The record is put in memory before the run ends, so
+	# the game finds nothing to save; the run still knows it began below it.
 	sd.best_score = 130
-	await _stage(131, 60.0, "city", "ice", 230.0, 14)
-	g.bee.die()
-	g.state = g.State.GAMEOVER
-	g.pause_button.visible = false
-	g._set_hud_visible(false)
-	g.final_score_label.text = "131"
-	g.final_best_label.text = "131"
-	g._show_new_record_badge()
-	g.game_over_screen.visible = true
-	await _shot("06_record", 26, false)
+	await _stage(131, 150.0, "hills", "ice", 3000.0, 14)
+	for k in 150:
+		paused = false
+		await process_frame
+	sd.best_score = 131
+	g.state = g.State.PLAYING
+	g._trigger_game_over("hedge")
+	g.dying_timer = 99.0
+	g.bee.physics_enabled = false
+	await _shot("07_record", 40, false)
 
-	print("wrote 6 screenshots to store/screenshots/")
+	print("wrote the screenshots to ", out)
 	quit()
 
 
@@ -120,6 +144,10 @@ func _stage(score: int, elapsed: float, backdrop: String, skin: String, climb: f
 	while g.highest_spawn_y > g.camera_y - g.screen_h:
 		g._spawn_row()
 	g._update_score_label()
+	# the sky's events are placed by the shots that want them
+	g.sky.moon_spawned = true
+	g.sky.jupiter_spawned = true
+	g.sky.ship_spawned = true
 
 	# the bee flies up at the flower nearest the lower middle of the screen
 	var want_y: float = g.camera_y + g.screen_h * 0.6
@@ -144,6 +172,10 @@ func _stage(score: int, elapsed: float, backdrop: String, skin: String, climb: f
 		await process_frame
 
 
+# `frames` to wait first. The light the sky casts on the scene takes a
+# hundred frames or so to catch up after a jump in the time of day, so the
+# shots that change it wait that long (a shot taken at once comes out lit by
+# the sky of the shot before).
 func _shot(name: String, frames := 14, playing := true) -> void:
 	for k in frames:
 		paused = false
@@ -155,5 +187,6 @@ func _shot(name: String, frames := 14, playing := true) -> void:
 			if k == frames - 4:
 				g.bee._flap_time = 0.0
 		await process_frame
-	sv.get_texture().get_image().save_png(OUT + name + ".png")
+	await RenderingServer.frame_post_draw
+	sv.get_texture().get_image().save_png(out + name + ".png")
 	print("shot ", name)

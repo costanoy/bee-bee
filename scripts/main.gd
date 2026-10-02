@@ -98,7 +98,10 @@ const SFX_NEAR_MISS := preload("res://audio/sfx_near_miss.wav")
 # balanced without re-rendering. The flap sits lowest by a wide margin:
 # it fires on every single tap, and anything louder takes over the mix
 # within one run.
-const SFX_FLAP_DB := -18.0
+# The flap was -18 while every tap played it twice (see _unhandled_input),
+# which is about 3 dB louder than one; it plays once now, so the level moves
+# up to keep the wingbeat as loud as it has always been on a phone.
+const SFX_FLAP_DB := -15.0
 const SFX_COLLECT_DB := -6.0
 const SFX_HIT_DB := -3.0
 const SFX_RECORD_DB := -5.0
@@ -200,6 +203,11 @@ static var forced_lang := ""
 # How long a press of "Play Again" stays swallowed while an ad is supposed
 # to be opening (see _on_restart_pressed).
 const AD_LOCK_MSEC := 3000
+# "Play Again" ignores presses for this long after the game-over screen
+# comes up. The button appears right where the thumbs were tapping a moment
+# before, and a tap already on its way would start the next run (or open an
+# ad) before the player had seen the score.
+const GAME_OVER_LOCK_MSEC := 450
 
 # Icons are drawn as pixel grids rather than imported art, so they match
 # the game's own resolution instead of being scaled-down smooth shapes.
@@ -224,6 +232,19 @@ const ICON_NOTE := [
 	"XXXXX.XXXXX",
 	"XXXXX.XXXXX",
 	".XXX...XXX.",
+]
+const ICON_SOUND := [
+	"....X......",
+	"...XX..X...",
+	"..XXX...X..",
+	"XXXXX.X..X.",
+	"XXXXX..X.X.",
+	"XXXXX..X.X.",
+	"XXXXX..X.X.",
+	"XXXXX.X..X.",
+	"..XXX...X..",
+	"...XX..X...",
+	"....X......",
 ]
 const ICON_PLAY := [
 	"XX.......",
@@ -356,6 +377,7 @@ var leaderboard: Node
 # "Play Again" was pressed and an ad is up: the run starts when it closes.
 var restart_after_ad := false
 var restart_lock_msec := 0
+var game_over_msec := 0
 var sfx_pool: Array[AudioStreamPlayer] = []
 var collect_step := 0
 var physics_ticks_since_reset := 0
@@ -388,6 +410,8 @@ var pause_button: Button
 var pause_screen: Control
 var music_note: Control
 var music_slash: Control
+var sound_icon: Control
+var sound_slash: Control
 var vibrate_icon: Control
 var vibrate_slash: Control
 var privacy_button: Button
@@ -934,6 +958,7 @@ func _end_game() -> void:
 	# ...and its own word about a bee won in this run (the goal chip)
 	_hide_bee_notice()
 	game_over_screen.visible = true
+	game_over_msec = Time.get_ticks_msec()
 	ads.run_finished()
 
 
@@ -1066,6 +1091,8 @@ func _on_restart_pressed() -> void:
 	# a press from an actual game-over screen should ever reset anything.
 	if state != State.GAMEOVER:
 		return
+	if Time.get_ticks_msec() - game_over_msec < GAME_OVER_LOCK_MSEC:
+		return
 	# While an ad is opening, further presses are swallowed — but only for a
 	# few seconds. If the ad never reports back (it failed without saying
 	# so), a lock without an expiry would leave this button dead for good;
@@ -1150,6 +1177,8 @@ func _on_music_toggle_pressed() -> void:
 
 
 func _play_sfx(stream: AudioStream, volume_db: float, pitch := 1.0) -> void:
+	if SaveData.sfx_muted:
+		return
 	for voice in sfx_pool:
 		if voice.playing:
 			continue
@@ -1166,6 +1195,21 @@ func _apply_music_mute() -> void:
 	music.volume_db = MUSIC_MUTED_DB if SaveData.music_muted else MUSIC_VOLUME_DB
 	music_slash.visible = SaveData.music_muted
 	music_note.modulate = Color(1, 1, 1, 0.4) if SaveData.music_muted else Color.WHITE
+
+
+func _on_sound_toggle_pressed() -> void:
+	SaveData.sfx_muted = not SaveData.sfx_muted
+	SaveData.save_data()
+	_apply_sound_setting()
+	# the button's own click was swallowed if the effects were off when it
+	# was pressed; turning them back on should be heard
+	if not SaveData.sfx_muted:
+		_play_sfx(SFX_UI_TAP, SFX_UI_DB)
+
+
+func _apply_sound_setting() -> void:
+	sound_slash.visible = SaveData.sfx_muted
+	sound_icon.modulate = Color(1, 1, 1, 0.4) if SaveData.sfx_muted else Color.WHITE
 
 
 func _on_vibration_toggle_pressed() -> void:
@@ -1776,6 +1820,18 @@ func _build_pause_screen() -> Control:
 	music_slash.visible = false
 	music_note.get_parent().add_child(music_slash)
 
+	# Sound effects have a switch of their own: someone listening to their
+	# own music wants the game's music off but may want its sounds, and
+	# someone playing in public wants neither.
+	sound_icon = _build_pixel_icon(ICON_SOUND, 3.0, Color.WHITE)
+	var sound_button := _make_icon_button(sound_icon, 57.0)
+	sound_button.pressed.connect(_on_sound_toggle_pressed)
+	screen.add_child(sound_button)
+	sound_slash = _build_pixel_icon(ICON_SLASH, 3.0, Color.WHITE)
+	sound_slash.position = sound_icon.position
+	sound_icon.get_parent().add_child(sound_slash)
+	_apply_sound_setting()
+
 	vibrate_icon = _build_pixel_icon(ICON_VIBRATE, 3.0, Color.WHITE)
 	var vibrate_button := _make_icon_button(vibrate_icon, 57.0)
 	vibrate_button.pressed.connect(_on_vibration_toggle_pressed)
@@ -1784,9 +1840,11 @@ func _build_pause_screen() -> Control:
 	vibrate_slash.position = vibrate_icon.position
 	vibrate_icon.get_parent().add_child(vibrate_slash)
 	_apply_vibration_setting()
-	# the two toggles side by side under the buttons
-	music_button.position.x = SCREEN_W / 2.0 - music_button.size.x - 9.0
-	vibrate_button.position = Vector2(SCREEN_W / 2.0 + 9.0, music_button.position.y)
+	# the three toggles side by side under the buttons: music, sounds, vibration
+	var step := music_button.size.x + 12.0
+	music_button.position.x = SCREEN_W / 2.0 - music_button.size.x / 2.0 - step
+	sound_button.position = Vector2(music_button.position.x + step, music_button.position.y)
+	vibrate_button.position = Vector2(music_button.position.x + step * 2.0, music_button.position.y)
 
 	# Only shown where privacy law requires a way back to the ad-consent
 	# choices (see ads.gd); elsewhere there is nothing to choose.

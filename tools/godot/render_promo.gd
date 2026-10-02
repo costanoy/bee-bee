@@ -60,11 +60,17 @@ var fx: Array = []
 var f := -1
 var deaths := 0
 
-var bot: RefCounted = load("res://tools/godot/autopilot.gd").new()
+var bot: RefCounted
 var bot_on := false
 
 
 func _initialize() -> void:
+	var autopilot: GDScript = load("res://tools/godot/autopilot.gd")
+	if autopilot == null or not autopilot.can_instantiate():
+		printerr("PROMO cannot load tools/godot/autopilot.gd")
+		quit(1)
+		return
+	bot = autopilot.new()
 	dry = OS.get_cmdline_user_args().has("--dry")
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--seeds="):
@@ -106,6 +112,11 @@ func _run() -> void:
 	g = Node2D.new()
 	g.set_script(load("res://scripts/main.gd"))
 	game_vp.add_child(g)
+	# The light the sky casts on the scene normally catches up with a change
+	# of sky over a hundred frames or so — fine in a run, where the sky
+	# turns slowly, but here the time of day jumps at every cut.
+	g.view3d.env.sky.radiance_size = Sky.RADIANCE_SIZE_256
+	g.view3d.env.sky.process_mode = Sky.PROCESS_MODE_REALTIME
 
 	game_view = TextureRect.new()
 	game_view.texture = game_vp.get_texture()
@@ -212,6 +223,11 @@ func _stage_run(score: int, elapsed: float, skin: String, climb: float, rng_seed
 	while g.highest_spawn_y > g.camera_y - g.screen_h:
 		g._spawn_row()
 	g._update_score_label()
+	# A run that is already past the moon's score (or Jupiter's, or the
+	# UFO's) saw it long ago: without this they would all rise again at once.
+	g.sky.moon_spawned = g.score >= g.sky.MOON_SCORE
+	g.sky.jupiter_spawned = g.score >= g.sky.JUPITER_SCORE
+	g.sky.ship_spawned = g.score >= g.sky.SHIP_SCORE
 	var want_y: float = g.camera_y + g.screen_h * 0.52
 	var target = null
 	for fl in g.flowers:
@@ -245,11 +261,13 @@ func _direct() -> void:
 		179:
 			_stage_run(3, 10.0, "normal", 150.0, seeds[0], 128)
 		539:
-			_stage_run(88, 265.0, "queen", 2400.0, seeds[1], 240)
+			# the sunset at its height: the score and the time of a real run
+			_stage_run(146, 162.0, "queen", 2400.0, seeds[1], 240)
 		809:
-			# One flower short of the moon's score, so the moon rises alone,
-			# as it does in a real run (Jupiter comes a hundred flowers later).
-			_stage_run(99, 640.0, "shining", 5200.0, seeds[2], 320)
+			# One flower short of Jupiter's score, in the deep twilight a real
+			# run has by then: it rises alone, as it does in the game (the moon
+			# came a hundred flowers earlier).
+			_stage_run(199, 219.0, "shining", 5200.0, seeds[2], 320)
 		1439:
 			_stage_title()
 	# the camera eases in on the title, and drifts in on the end card

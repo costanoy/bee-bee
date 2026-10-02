@@ -516,12 +516,21 @@ func _sync_flowers(delta: float) -> void:
 		# Calmed down on request (was sin(idle_time * 1.8 ...) * 0.55): the
 		# flowers are the targets, and they read better holding still.
 		m.rotation.y = sin(idle_time * 1.2 + f.sway_phase) * 0.2
+		# A flower left behind blinks as it nears the bottom of the screen:
+		# losing it ends the run, and this is the only warning. It also shows
+		# a new player that the flowers are not optional before the game
+		# over says so.
+		var left: float = main.camera_y + main.screen_h - f.position.y
+		m.visible = left > FLOWER_WARN_PX or fmod(idle_time * 6.0, 1.0) < 0.6
 	# collected: the flower gives way to its burst
 	for id in mirrors.keys():
 		var n = instance_from_id(id)
 		if n is Area2D and is_instance_valid(n) and n.collected:
 			var m: Node3D = mirrors[id]
-			if m.visible:
+			# (not `m.visible`: a flower can be caught in the off half of its
+			# warning blink)
+			if not m.has_meta("burst"):
+				m.set_meta("burst", true)
 				m.visible = false
 				_burst(m.position, n.burst_color)
 
@@ -634,6 +643,7 @@ func _sync_decor(delta: float) -> void:
 # hedges and the clouds (was z -1.2), which makes them smaller and slower
 # across the screen, take a share of the sky's colour, and flap lazily
 # (was 9.0). The wing pivots are looked up once instead of every frame.
+const FLOWER_WARN_PX := 110.0
 const GULL_DEPTH := -7.0
 const GULL_HAZE := 0.5
 const CITY_HAZE := 0.16
