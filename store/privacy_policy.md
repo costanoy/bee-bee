@@ -15,8 +15,13 @@ quais dados o jogo usa e por quê.
 ## 1. O que o jogo guarda no seu aparelho
 
 O seu progresso (recorde, abelhas desbloqueadas, abelha escolhida e as opções de música e
-vibração) fica salvo **apenas no seu aparelho**. Nós não recebemos esses dados, não temos
-servidor próprio e não criamos conta para você. Desinstalar o jogo apaga tudo.
+vibração) fica salvo **no seu aparelho**. Nós não recebemos esses dados, não temos
+servidor próprio e não criamos conta para você. Desinstalar o jogo apaga o que está no aparelho.
+
+Se o backup do Android estiver ativado na sua conta Google, o próprio Android pode guardar uma
+cópia desse progresso junto com o backup do aparelho, para devolvê-lo quando você reinstalar o
+jogo ou trocar de aparelho. Esse backup é feito e guardado pelo Google, não por nós, e pode ser
+desligado nas configurações do Android, em *Google > Backup*.
 
 ## 2. Anúncios
 
@@ -77,8 +82,13 @@ data the game uses and why.
 ## 1. What the game stores on your device
 
 Your progress (record, unlocked bees, chosen bee, and the music and vibration options) is saved
-**only on your device**. We do not receive this data, we run no server of our own, and we do
-not create an account for you. Uninstalling the game erases it.
+**on your device**. We do not receive this data, we run no server of our own, and we do
+not create an account for you. Uninstalling the game erases what is on the device.
+
+If Android backup is turned on for your Google account, Android itself may keep a copy of this
+progress with the device's backup, to give it back when you reinstall the game or change
+devices. That backup is made and stored by Google, not by us, and can be turned off in Android
+settings, under *Google > Backup*.
 
 ## 2. Ads
 

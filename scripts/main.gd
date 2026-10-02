@@ -150,6 +150,7 @@ const TEXT := {
 		"resume": "Resume",
 		"restart": "Restart",
 		"ad_privacy": "Ad privacy",
+		"credits": "Credits",
 		"choose_bee": "Choose your bee",
 		"back": "Back",
 		"selected": "Selected",
@@ -177,6 +178,7 @@ const TEXT := {
 		"resume": "Continuar",
 		"restart": "Reiniciar",
 		"ad_privacy": "Privacidade dos anúncios",
+		"credits": "Créditos",
 		"choose_bee": "Escolha sua abelha",
 		"back": "Voltar",
 		"selected": "Em uso",
@@ -296,6 +298,7 @@ const LeaderboardScript := preload("res://scripts/leaderboard.gd")
 const View3DScript := preload("res://scripts/view3d.gd")
 const VoxelPlate := preload("res://scripts/voxel_plate.gd")
 const VoxelLogo := preload("res://scripts/voxel_logo.gd")
+const Licenses := preload("res://scripts/licenses.gd")
 # One cube of the interface's grid, in UI pixels: every plate is a whole
 # number of these, about two of the world's cubes across.
 const UI_CELL := 3.0
@@ -388,6 +391,9 @@ var music_slash: Control
 var vibrate_icon: Control
 var vibrate_slash: Control
 var privacy_button: Button
+var credits_button: Button
+var credits_screen: Control
+var credits_box: VBoxContainer
 var view3d: Node3D
 var applied_bee_skin := ""
 var bee_menu: Control
@@ -508,7 +514,10 @@ func _notification(what: int) -> void:
 				State.PLAYING:
 					_on_pause_pressed()
 				State.PAUSED:
-					_on_resume_pressed()
+					if credits_screen.visible:
+						credits_screen.visible = false
+					else:
+						_on_resume_pressed()
 				State.START, State.GAMEOVER:
 					if bee_menu.visible:
 						_on_bee_menu_closed()
@@ -1106,6 +1115,8 @@ func _on_pause_pressed() -> void:
 	_keep_record()
 	pause_button.visible = false
 	privacy_button.visible = ads.privacy_options_required()
+	# the credits link sits under the privacy one when that is showing
+	credits_button.position.y = privacy_button.position.y + (38.0 if privacy_button.visible else 0.0)
 	pause_screen.visible = true
 	# Freezing the tree is what actually stops the run: the bee's physics,
 	# the drifting clouds and gulls and their wing animations all advance
@@ -1119,6 +1130,7 @@ func _on_resume_pressed() -> void:
 		return
 	get_tree().paused = false
 	pause_screen.visible = false
+	credits_screen.visible = false
 	state = State.PLAYING
 	pause_button.visible = true
 
@@ -1381,7 +1393,7 @@ func _on_key(event: InputEventKey) -> void:
 			if state == State.PLAYING:
 				_flap(1)
 		KEY_SPACE, KEY_ENTER, KEY_KP_ENTER:
-			if bee_menu.visible:
+			if bee_menu.visible or credits_screen.visible:
 				return
 			match state:
 				State.START:
@@ -1395,7 +1407,10 @@ func _on_key(event: InputEventKey) -> void:
 				State.PLAYING:
 					_on_pause_pressed()
 				State.PAUSED:
-					_on_resume_pressed()
+					if credits_screen.visible:
+						credits_screen.visible = false
+					else:
+						_on_resume_pressed()
 
 
 # Keys come through this node rather than through main.gd's own input,
@@ -1473,6 +1488,9 @@ func _build_ui() -> void:
 	bee_menu = _build_bee_menu()
 	ui_layer.add_child(bee_menu)
 	_refresh_bee_menu()
+
+	credits_screen = _build_credits_screen()
+	ui_layer.add_child(credits_screen)
 
 
 func _make_label(text: String, font_size: int, color: Color) -> Label:
@@ -1778,7 +1796,71 @@ func _build_pause_screen() -> Control:
 	privacy_button.pressed.connect(func(): ads.show_privacy_options())
 	screen.add_child(privacy_button)
 
+	credits_button = _make_link_button(_t("credits"))
+	credits_button.position = Vector2((SCREEN_W - credits_button.size.x) / 2.0, privacy_button.position.y)
+	credits_button.pressed.connect(_on_credits_pressed)
+	screen.add_child(credits_button)
+
 	return screen
+
+
+# Credits and licence notices, opened from the pause menu. The text itself
+# is licenses.gd's; it is only put together the first time the screen is
+# opened, as most players never will.
+func _build_credits_screen() -> Control:
+	var screen := Control.new()
+	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
+	screen.visible = false
+
+	var fill := ColorRect.new()
+	fill.color = Color(0.11, 0.06, 0.16, 0.97)
+	fill.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fill.mouse_filter = Control.MOUSE_FILTER_STOP
+	screen.add_child(fill)
+
+	var title := _make_label(_t("credits"), 44, Color.WHITE)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.position = Vector2(0, 34)
+	title.size = Vector2(SCREEN_W, 50)
+	screen.add_child(title)
+
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(20, 98)
+	scroll.size = Vector2(SCREEN_W - 40, screen_h - 98 - 108)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	screen.add_child(scroll)
+	credits_box = VBoxContainer.new()
+	credits_box.custom_minimum_size.x = scroll.size.x - 14.0
+	credits_box.add_theme_constant_override("separation", 9)
+	scroll.add_child(credits_box)
+
+	var back := _make_text_button(_t("back"))
+	back.position = Vector2((SCREEN_W - back.size.x) / 2.0, screen_h - 90)
+	back.pressed.connect(func(): credits_screen.visible = false)
+	screen.add_child(back)
+	return screen
+
+
+func _on_credits_pressed() -> void:
+	if credits_box.get_child_count() == 0:
+		for block in Licenses.blocks():
+			var heading: bool = block[0]
+			var label := Label.new()
+			label.text = block[1]
+			label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			label.custom_minimum_size.x = credits_box.custom_minimum_size.x
+			label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			if heading:
+				# headings in the game's own face, the small print in the
+				# engine's plain one, which stays readable at that size
+				label.add_theme_font_override("font", ui_font)
+				label.add_theme_font_size_override("font_size", 26)
+				label.add_theme_color_override("font_color", GOLD)
+			else:
+				label.add_theme_font_size_override("font_size", 12)
+				label.add_theme_color_override("font_color", Color(1, 1, 1, 0.86))
+			credits_box.add_child(label)
+	credits_screen.visible = true
 
 
 # A plain line of text that can be tapped, for the minor entries of the
