@@ -23,7 +23,13 @@ const OBSTACLE_SPACING := 190.0
 const SCROLL_BASE := 103.0
 # Prototype's original ramp topped out at 165 (too punishing with mandatory
 # flowers + shrinking gaps); 110 was too tame, 135 still felt easy.
-const SCROLL_MAX := 195.0
+# TEST — the top of the ramp eased (was 195.0, with gaps down to 93.6 and
+# legs up to 200): at those values the game was reported as impossible, and
+# tools/godot/bench_difficulty.gd agreed — even a near-perfect autopilot got
+# through a minute of it in only 2 runs of 16. These three numbers (this,
+# the narrowest gap in _spawn_row and MAX_LEG_HARD) were picked with that
+# bench so the plateau is hard but always possible; see MAX_LEG_HARD.
+const SCROLL_MAX := 180.0
 # TEST — shortened from 50 so every run gets tense sooner; top speed and
 # narrowest gap are unchanged, they're just reached earlier.
 const DIFFICULTY_RAMP_TIME := 35.0
@@ -46,7 +52,14 @@ const BEE_ORDER := ["normal", "rosy", "mint", "ice", "grape", "queen", "shining"
 const GOLD := Color(1, 0.82, 0.18)
 # Widest sideways distance, at max difficulty, between a gap and the next
 # flower or between a flower and the next gap (see _spawn_row).
-const MAX_LEG_HARD := 200.0
+# TEST — 150 (was 200.0). This was what made the top impossible rather than
+# hard: a bee climbing at full scroll covers about 220 px a second sideways,
+# and a row leaves it half a second per leg. At 200 a near-perfect autopilot
+# survived a minute in 2 runs of 16 (13 of 16 even with the scroll back at
+# 170); at 150 it survives every time, and one playing like a good player
+# (five taps a second, 0.8 s of foresight) lasts a minute in 16 runs of 40
+# with the scroll and gap as they are now — it managed none of 30 before.
+const MAX_LEG_HARD := 150.0
 
 # How long after the first flap the camera waits before it starts climbing
 # (the bee itself is already flying/falling normally during this pause).
@@ -499,7 +512,9 @@ func _spawn_row() -> void:
 	# The bee's hitbox went from 16 to 12.8 px in radius, which in effect
 	# widened every gap by that much; this gives back the old free space
 	# around the bee.
-	var gap_width: float = 168.6 - diff * 75.0
+	# TEST — narrowest gap 97 (was 93.6, from `diff * 75.0`), eased together
+	# with the top scroll speed; see SCROLL_MAX.
+	var gap_width: float = 168.6 - diff * 71.6
 	var margin: float = gap_width / 2.0 + 24.0
 	var flower_clear: float = gap_width / 2.0 + 20.0
 
@@ -507,10 +522,9 @@ func _spawn_row() -> void:
 	# at top speed there's only ~0.55s per leg. Fully random placement could
 	# put a flower on the far side of both gaps, a sideways run past what the
 	# bee can physically make in that time (~1 row in 35 at max speed), so
-	# each leg is capped, tightening with difficulty. Measured against the
-	# bee's own flap physics, the worst row at the cap is ~130% of its
-	# sustained sideways speed (was 213%), while the average still asks for
-	# nearly half of it.
+	# each leg is capped, tightening with difficulty. (The figures above
+	# date from a slower game; the cap itself is now set by measurement, see
+	# MAX_LEG_HARD.)
 	var max_leg: float = lerp(SCREEN_W, MAX_LEG_HARD, diff)
 	var gap_x: float
 	var fx: float

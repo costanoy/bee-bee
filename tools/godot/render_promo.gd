@@ -60,24 +60,8 @@ var fx: Array = []
 var f := -1
 var deaths := 0
 
-# autopilot
-const DEC := 4               # ticks between decisions
-const DEPTH := 13            # decisions looked ahead
-const G := 1500.0
-const MAX_FALL := 700.0
-const FLAP_V := -480.0
-const DT := 1.0 / 60.0
-var damp := exp(-2.0 * DT)
+var bot: RefCounted = load("res://tools/godot/autopilot.gd").new()
 var bot_on := false
-var bot_tick := 0
-var bot_flapped := false
-var p_rows: Array = []
-var p_fl: Array = []
-var p_r := 12.8
-var p_hs := 316.0
-var p_cam := 0.0
-var p_scroll := 0.0
-var p_h := 711.0
 
 
 func _initialize() -> void:
@@ -253,8 +237,7 @@ func _stage_run(score: int, elapsed: float, skin: String, climb: float, rng_seed
 	g.pause_button.visible = false
 	g.record_label.visible = false
 	bot_on = true
-	bot_tick = 0
-	bot_flapped = false
+	bot.reset()
 
 
 func _direct() -> void:
@@ -299,141 +282,15 @@ func _direct() -> void:
 
 
 # ------------------------------------------------------------------ autopilot
-# Looks a second ahead over every sensible sequence of taps (none, left or
-# right, every DEC ticks, never two in a row), simulating the bee's own
-# physics against the hedges and flowers actually on screen, and takes the
-# first tap of the best one. Losing is failing to finish the take, so the
-# search treats a hit, a missed flower or a fall as the worst outcomes.
+# tools/godot/autopilot.gd decides; this taps, with the sound and the ring.
 func _bot() -> void:
 	if not bot_on or g.state != g.State.PLAYING:
 		return
-	bot_tick += 1
-	if bot_tick % DEC != 0:
-		return
-	if bot_flapped:
-		bot_flapped = false
-		return
-	var act := _plan()
+	var act: int = bot.step(g)
 	if act != 0:
-		bot_flapped = true
 		g.bee.flap(act)
 		g._play_sfx(g.SFX_FLAP, g.SFX_FLAP_DB, randf_range(0.92, 1.08))
 		ripples.tap(act)
-
-
-func _plan() -> int:
-	var b = g.bee
-	p_r = b.radius
-	p_hs = b.h_speed
-	p_cam = g.camera_y
-	p_scroll = g._current_scroll_speed() if g.scrolling_started else 0.0
-	p_h = g.screen_h
-	p_rows = []
-	for o in g.obstacles:
-		if is_instance_valid(o) and o.position.y < b.position.y + 80.0 and o.position.y > b.position.y - 560.0:
-			p_rows.append([o.position.y, o.gap_x - o.gap_width / 2.0, o.gap_x + o.gap_width / 2.0])
-	p_rows.sort_custom(func(a, c): return a[0] > c[0])
-	p_fl = []
-	for fl in g.flowers:
-		if is_instance_valid(fl) and not fl.collected and fl.position.y > b.position.y - 560.0:
-			p_fl.append(fl.position)
-	var best := -INF
-	var best_act := 0
-	for act in [0, -1, 1]:
-		var v := _search(DEPTH, b.position.x, b.position.y, b.velocity.x, b.velocity.y, act, 0, 0, 0, 99.0)
-		if v > best:
-			best = v
-			best_act = act
-	if dry and f < 0:
-		print("  f", f, " bee ", (b.position - Vector2(0, p_cam)).round(), " v ", b.velocity.round(), " act ", best_act, " val ", snappedf(best, 1.0), " state ", g.state, " moving ", g.world_moving, " fl ", p_fl.map(func(v): return (v - Vector2(0, p_cam)).round()), " rows ", p_rows.map(func(r): return [roundf(r[0] - p_cam), roundf(r[1]), roundf(r[2])]))
-	return best_act
-
-
-func _search(depth: int, x: float, y: float, vx: float, vy: float, act: int, mask: int, flaps: int, tick: int, clear: float) -> float:
-	if act != 0:
-		vy = FLAP_V
-		vx = act * p_hs
-		flaps += 1
-	var rr := p_r + 2.0
-	var rr2 := rr * rr
-	var pick := (p_r + 9.0) * (p_r + 9.0)
-	for k in DEC:
-		vy = minf(vy + G * DT, MAX_FALL)
-		vx *= damp
-		x += vx * DT
-		y += vy * DT
-		if x < p_r:
-			x = p_r
-			vx = absf(vx) * 0.4
-		elif x > LW - p_r:
-			x = LW - p_r
-			vx = -absf(vx) * 0.4
-		tick += 1
-		var bottom := p_cam - p_scroll * DT * tick + p_h
-		if y - p_r > bottom:
-			return -1e6 + tick * 10.0
-		for row in p_rows:
-			var top: float = row[0]
-			if y + rr < top or y - rr > top + 22.0:
-				continue
-			var ny := clampf(y, top, top + 22.0)
-			var dy := y - ny
-			var dxl := x - minf(x, row[1])
-			var dxr := maxf(x, row[2]) - x
-			var d2 := minf(dxl * dxl, dxr * dxr) + dy * dy
-			if d2 < rr2:
-				return -1e6 + tick * 10.0
-			clear = minf(clear, sqrt(d2) - p_r)
-		for i in p_fl.size():
-			if mask & (1 << i):
-				continue
-			var fp: Vector2 = p_fl[i]
-			var ddx := x - fp.x
-			var ddy := y - fp.y
-			if ddx * ddx + ddy * ddy <= pick:
-				mask |= 1 << i
-			elif fp.y - 14.0 > bottom:
-				return -1e6 + tick * 10.0
-	if depth > 1:
-		var best := _search(depth - 1, x, y, vx, vy, 0, mask, flaps, tick, clear)
-		if act == 0:
-			best = maxf(best, _search(depth - 1, x, y, vx, vy, -1, mask, flaps, tick, clear))
-			best = maxf(best, _search(depth - 1, x, y, vx, vy, 1, mask, flaps, tick, clear))
-		return best
-	# how good this place is to have reached
-	var val := -flaps * 14.0
-	var row_above = null
-	for row in p_rows:
-		if row[0] + 22.0 < y - p_r:
-			row_above = row
-			break
-	var low = null
-	for i in p_fl.size():
-		if mask & (1 << i):
-			val += 600.0
-		elif low == null or p_fl[i].y > low.y:
-			low = p_fl[i]
-	# a flower left under a hedge the bee is already past is as good as lost
-	for i in p_fl.size():
-		if not (mask & (1 << i)):
-			for row in p_rows:
-				if row[0] > y and p_fl[i].y > row[0]:
-					val -= 3000.0
-					break
-	var tx := x
-	if low != null and (row_above == null or low.y > row_above[0]):
-		tx = low.x
-		val -= absf(y - (low.y + 20.0)) * 0.5
-	elif row_above != null:
-		tx = (row_above[1] + row_above[2]) / 2.0
-	val -= absf(x - tx) * 1.6
-	var cam_end := p_cam - p_scroll * DT * tick
-	val -= absf(y - (cam_end + p_h * 0.46)) * 0.9
-	if y < cam_end + 90.0:
-		val -= (cam_end + 90.0 - y) * 6.0
-	if clear < 10.0:
-		val -= (10.0 - clear) * 25.0
-	return val
 
 
 # ------------------------------------------------------------------ motion design
