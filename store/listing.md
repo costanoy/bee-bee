@@ -1,7 +1,8 @@
 # Bee Bee — textos da ficha na Google Play
 
 Limites do Play Console: nome 30 caracteres, descrição curta 80, descrição completa 4000.
-Arquivos de imagem: `screenshots/` (6 capturas, 1080x2160) e `feature_graphic.png` (1024x500).
+Arquivos de imagem: `screenshots/pt-BR/` e `screenshots/en-US/` (7 capturas de 1080x2160 em cada
+uma, com a interface no idioma da ficha) e `feature_graphic.png` (1024x500).
 O ícone de 512x512 sai do ícone do app (não foi alterado).
 
 ---
@@ -31,6 +32,7 @@ Toque no lado esquerdo ou direito da tela para a abelha bater as asas naquela di
 • Partidas rápidas, perfeitas para jogar em qualquer intervalo
 • Funciona sem internet
 • Sem compras dentro do app
+• Em português e em inglês
 
 Qual é o seu recorde?
 
@@ -61,6 +63,7 @@ It takes seconds to learn and it is hard to put down. Every flower is a point, t
 • Quick runs, perfect for any spare minute
 • Works offline
 • No in-app purchases
+• In English and Portuguese
 
 What's your record?
 

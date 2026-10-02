@@ -30,9 +30,17 @@ func _init() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--lang="):
 			lang = a.trim_prefix("--lang=")
-	load("res://scripts/main.gd").forced_lang = lang
 	out = "res://store/screenshots/%s/" % DIRS.get(lang, lang)
-	await process_frame          # the save file is read on the first frame
+	# Nothing of the game can be loaded before the first frame: its scripts
+	# use the SaveData autoload, which does not exist until then (and the
+	# save file is read on that frame, overwriting anything set earlier).
+	await process_frame
+	var main_script: GDScript = load("res://scripts/main.gd")
+	if main_script == null or not main_script.can_instantiate():
+		printerr("cannot load scripts/main.gd")
+		quit(1)
+		return
+	main_script.forced_lang = lang
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(out))
 	sd = root.get_node("SaveData")
 	sd.best_score = 128
@@ -59,6 +67,11 @@ func _init() -> void:
 	g.start_screen.visible = false
 	g.record_label.visible = false
 	g.bee.position.x = -200.0
+	for k in 4:
+		await process_frame
+	# no sun in this one: it sits low over the hills, right where the feature
+	# graphic puts the logo (the next scenery built gets its sun back)
+	g.view3d.sun_y0 -= 500.0
 	await _shot("../../backdrop", 20)
 	g.bee.position.x = 200.0
 	g.start_screen.visible = true
@@ -87,7 +100,7 @@ func _init() -> void:
 	sd.best_score = 320
 	await _stage(252, 276.0, "hills", "shining", 5200.0, 9)
 	g._on_ship_spawn_requested()
-	g.celestials[-1].position = Vector2(104.0, g.camera_y + 300.0)
+	g.celestials[-1].position = Vector2(118.0, g.camera_y + 372.0)
 	await _shot("05_play_night", 150)
 
 	# 6. the bees to unlock

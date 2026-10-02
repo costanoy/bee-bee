@@ -109,6 +109,8 @@ func _run() -> void:
 	game_vp.msaa_3d = Viewport.MSAA_4X
 	game_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	comp.add_child(game_vp)
+	# the video is in Portuguese, whatever the machine that renders it speaks
+	load("res://scripts/main.gd").forced_lang = "pt"
 	g = Node2D.new()
 	g.set_script(load("res://scripts/main.gd"))
 	game_vp.add_child(g)

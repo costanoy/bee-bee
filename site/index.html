@@ -135,7 +135,7 @@ h3.pixel { font-size: 34px; color: var(--honey); }
   box-shadow: 0 0 0 3px #5a3a78, 0 26px 50px rgba(15, 30, 90, 0.45);
   overflow: hidden;
 }
-.phone img, .phone iframe { width: 100%; height: 100%; border: 0; border-radius: 25px; display: block; object-fit: cover; }
+.phone img, .phone iframe, .phone video { width: 100%; height: 100%; border: 0; border-radius: 25px; display: block; object-fit: cover; }
 .phone .start {
   position: absolute; inset: 0; display: grid; place-items: center; align-content: end; gap: 0; padding-bottom: 20%;
   background: linear-gradient(180deg, rgba(28, 15, 41, 0) 45%, rgba(28, 15, 41, 0.55) 100%);
@@ -264,19 +264,20 @@ footer img { width: 150px; margin: 0 auto 12px; opacity: 0.95; }
         </a>
         <a class="btn" href="BeeBee.apk" download>
           <svg viewBox="0 0 10 10" aria-hidden="true"><path fill="#fff" stroke="#3d2152" stroke-width="1" d="M4 1h2v4h2v1H7v1H6v1H4V7H3V6H2V5h2zM1 9h8v1H1z"/></svg>
-          <span class="label">Baixar para Android<small>APK · 53 MB · versão 1.0.0</small></span>
+          <span class="label">Baixar para Android<small>APK · %APK_MB% MB · versão 1.0.0</small></span>
         </a>
       </div>
       <p class="fineprint">Versão de teste, gratuita. No Android, veja <a href="#instalar">como instalar o APK</a>. No iPhone e no computador, jogue pelo navegador.</p>
     </div>
     <div>
       <div class="phone" id="phone">
-        <img src="assets/shot2.webp" alt="Bee Bee: a abelha subindo entre roseiras e flores" width="540" height="1080">
+        <video src="assets/trailer.mp4" poster="assets/shot2.webp" muted loop playsinline autoplay preload="metadata"
+               aria-label="Trailer do Bee Bee: a abelha subindo entre roseiras e flores, do dia até a noite"></video>
         <button class="start" id="start" type="button" aria-label="Jogar agora no navegador">
           <span class="btn green">Jogar aqui</span>
         </button>
       </div>
-      <p class="phone-note">Clique nos lados da tela para voar para a esquerda ou para a direita.</p>
+      <p class="phone-note">No jogo, toque ou clique nos lados da tela. No computador, as setas ← → do teclado também funcionam.</p>
     </div>
   </div>
   <div class="ground" role="presentation"></div>
@@ -330,12 +331,13 @@ footer img { width: 150px; margin: 0 auto 12px; opacity: 0.95; }
   <h2 class="pixel">Do dia até a noite</h2>
   <p class="lead">O dia vira entardecer, a noite chega, e quem vai longe encontra a lua, Júpiter e uma visita inesperada.</p>
   <div class="gallery">
-    <img src="assets/shot1.webp" alt="Tela inicial do Bee Bee" loading="lazy" width="540" height="1080">
-    <img src="assets/shot2.webp" alt="Partida de dia" loading="lazy" width="540" height="1080">
-    <img src="assets/shot3.webp" alt="Partida ao entardecer, sobre a cidade" loading="lazy" width="540" height="1080">
-    <img src="assets/shot4.webp" alt="Partida à noite, com a lua" loading="lazy" width="540" height="1080">
-    <img src="assets/shot5.webp" alt="Menu de escolha das abelhas" loading="lazy" width="540" height="1080">
-    <img src="assets/shot6.webp" alt="Tela de novo recorde" loading="lazy" width="540" height="1080">
+    <img src="assets/shot1.webp" alt="Tela inicial do Bee Bee, com a cidade ao fundo" loading="lazy" width="540" height="1080">
+    <img src="assets/shot2.webp" alt="Partida de dia, saindo do chão" loading="lazy" width="540" height="1080">
+    <img src="assets/shot3.webp" alt="A Lua nascendo no começo do entardecer" loading="lazy" width="540" height="1080">
+    <img src="assets/shot4.webp" alt="Partida no auge do entardecer, com a abelha Queen" loading="lazy" width="540" height="1080">
+    <img src="assets/shot5.webp" alt="Partida à noite, com a abelha prateada e uma visita no céu" loading="lazy" width="540" height="1080">
+    <img src="assets/shot6.webp" alt="Menu de escolha das abelhas" loading="lazy" width="540" height="1080">
+    <img src="assets/shot7.webp" alt="Tela de novo recorde" loading="lazy" width="540" height="1080">
   </div>
 </section>
 
@@ -356,7 +358,7 @@ footer img { width: 150px; margin: 0 auto 12px; opacity: 0.95; }
         <p>Gratuito, funciona sem internet e não tem compras dentro do jogo.</p>
         <a class="btn" href="BeeBee.apk" download>
           <svg viewBox="0 0 10 10" aria-hidden="true"><path fill="#fff" stroke="#3d2152" stroke-width="1" d="M4 1h2v4h2v1H7v1H6v1H4V7H3V6H2V5h2zM1 9h8v1H1z"/></svg>
-          <span class="label">Baixar APK<small>53 MB</small></span>
+          <span class="label">Baixar APK<small>%APK_MB% MB</small></span>
         </a>
         <dl>
           <dt>Versão</dt><dd>1.0.0 (teste)</dd>
@@ -373,6 +375,7 @@ footer img { width: 150px; margin: 0 auto 12px; opacity: 0.95; }
   <div class="wrap">
     <img src="assets/logo.png" alt="Bee Bee" loading="lazy" width="900" height="312">
     Qual é o seu recorde?
+    <p style="margin:14px 0 0"><a href="privacidade.html">Política de privacidade</a></p>
   </div>
 </footer>
 

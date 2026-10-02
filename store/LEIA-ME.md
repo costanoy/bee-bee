@@ -9,14 +9,15 @@ lista, em ordem, o que só você pode fazer (contas, IDs e declarações) e onde
 |---|---|
 | Bundle assinado para envio (`.aab`) | `build/android/beebee-release.aab`, gerado por `bash tools/build_release.sh` |
 | Chave de assinatura e senha | `..\Bee Bee - chaves\` (fora do git) — **faça backup dessa pasta** |
-| Capturas de tela (6, 1080x2160) | `store/screenshots/` |
+| Capturas de tela (7 por idioma, 1080x2160) | `store/screenshots/pt-BR/` e `store/screenshots/en-US/` |
 | Imagem de destaque (1024x500) | `store/feature_graphic.png` |
 | Nome e descrições (pt-BR e en-US) | `store/listing.md` |
 | Política de privacidade (pt-BR e en) | `store/privacy_policy.md` |
 
 Para refazer as imagens depois de mudar o jogo:
-`godot --path . --audio-driver Dummy --script tools/godot/render_store_shots.gd` e depois
-`python tools/make_feature_graphic.py`.
+`godot --path . --audio-driver Dummy --script tools/godot/render_store_shots.gd -- --lang=pt`
+(e de novo com `--lang=en`), depois `python tools/make_feature_graphic.py` e, para o site,
+`python tools/make_site_assets.py`.
 
 ## 1. Conta e app no Play Console
 
@@ -64,9 +65,11 @@ Cole os textos de `store/listing.md`, envie as capturas e a imagem de destaque. 
 
 ## 5. Política de privacidade
 
-O Play Console exige um endereço público. Preencha os dois campos entre colchetes em
-`store/privacy_policy.md` e hospede o texto (por exemplo, numa página do Google Sites ou num
-repositório público com GitHub Pages; o repositório do jogo é privado e não serve para isso).
+O Play Console exige um endereço público. O site do jogo já leva a página pronta:
+**https://beebee.cyberhat.com.br/privacidade.html** (o `tools/build_site.sh` a gera a partir de
+`store/privacy_policy.md`, em português e inglês). Antes de publicar o site, preencha os dois
+campos entre colchetes nesse `.md` (`[NOME DO DESENVOLVEDOR]` e `[E-MAIL DE CONTATO]`); o
+script avisa se ainda estiverem lá.
 
 ## 6. Declarações do Play Console (Conteúdo do app)
 
@@ -95,10 +98,17 @@ perguntas mudam, e a responsabilidade pela declaração é sua.
 ## 7. Envio
 
 1. `bash tools/build_release.sh` gera `build/android/beebee-release.aab`.
-2. A cada envio novo, aumente `version/code` em 1 no preset "Android Release" de
+2. `python tools/check_android_build.py` confere o que foi gerado: bibliotecas alinhadas para
+   páginas de memória de 16 KB (o Play recusa apps novos sem isso), app declarado como **jogo**,
+   backup do Android permitido, nome do pacote e versão. Tem de terminar em "all good".
+3. A cada envio novo, aumente `version/code` em 1 no preset "Android Release" de
    `export_presets.cfg` (o Play recusa um código repetido).
-3. Envie primeiro para **Teste interno**, instale pelo link de teste e jogue: é a única forma
+4. Envie primeiro para **Teste interno**, instale pelo link de teste e jogue: é a única forma
    de conferir anúncios e placar exatamente como o usuário final vai ver.
+
+O `export_presets.cfg` não fica no git. Se o editor do Godot o regravar, confira nos dois
+presets Android: `package/app_category=2` (Game), `user_data_backup/allow=true`,
+`permissions/vibrate=true`; e no preset "Android", `gradle_build/compress_native_libraries=true`.
 
 ## Requisitos do aparelho
 
