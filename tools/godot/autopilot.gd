@@ -17,6 +17,8 @@ const MAX_FALL := 700.0
 const FLAP_V := -480.0
 const DT := 1.0 / 60.0
 const LW := 400.0
+# how far from the end of a hedge in the middle it aims to pass
+const SIDE_ROOM := 40.0
 
 var dec := 4                 # ticks between decisions
 var depth := 13              # decisions looked ahead
@@ -63,7 +65,8 @@ func plan(g: Node) -> int:
 	p_rows = []
 	for o in g.obstacles:
 		if is_instance_valid(o) and o.position.y < b.position.y + 80.0 and o.position.y > b.position.y - 560.0:
-			p_rows.append([o.position.y, o.gap_x - o.gap_width / 2.0, o.gap_x + o.gap_width / 2.0])
+			# [top, its solid bars, where to aim in each way through it]
+			p_rows.append([o.position.y, o.bars, o.gaps().map(_aim)])
 	p_rows.sort_custom(func(a, c): return a[0] > c[0])
 	p_fl = []
 	for fl in g.flowers:
@@ -77,6 +80,20 @@ func plan(g: Node) -> int:
 			best = v
 			best_act = act
 	return best_act
+
+
+# Where to aim in a way through a row, as a stretch of x. For a gap between
+# two bars that is its middle. Beside a hedge in the middle the way runs to
+# the edge of the screen, which does no harm, so anywhere that keeps
+# SIDE_ROOM from the hedge will do.
+func _aim(way: Array) -> Array:
+	if way[0] <= 0.0 or way[1] >= LW:
+		var lo: float = way[0] + (p_r if way[0] <= 0.0 else SIDE_ROOM)
+		var hi: float = way[1] - (p_r if way[1] >= LW else SIDE_ROOM)
+		if lo <= hi:
+			return [lo, hi]
+	var mid: float = (way[0] + way[1]) / 2.0
+	return [mid, mid]
 
 
 func _search(depth: int, x: float, y: float, vx: float, vy: float, act: int, mask: int, flaps: int, tick: int, clear: float) -> float:
@@ -100,9 +117,14 @@ func _search(depth: int, x: float, y: float, vx: float, vy: float, act: int, mas
 			vx = -absf(vx) * 0.4
 		tick += 1
 		var screen_top := p_cam - p_scroll * DT * tick
-		# the game holds the bee at the top edge of the screen (bee.gd)
-		if y < screen_top + p_r:
-			y = screen_top + p_r
+		# The game holds the bee at the top edge of the screen (bee.gd), where
+		# that edge was before this tick's scroll: main.gd sets the ceiling
+		# and only then moves the camera. Taking the edge as it is after the
+		# scroll put the bee a tick higher than it really gets, enough for it
+		# to plan a pass over a hedge just coming into view and land on it.
+		var ceiling := screen_top + p_scroll * DT + p_r
+		if y < ceiling:
+			y = ceiling
 			vy = maxf(vy, 0.0)
 		var bottom := screen_top + p_h
 		if y - p_r > bottom:
@@ -113,9 +135,10 @@ func _search(depth: int, x: float, y: float, vx: float, vy: float, act: int, mas
 				continue
 			var ny := clampf(y, top, top + 22.0)
 			var dy := y - ny
-			var dxl := x - minf(x, row[1])
-			var dxr := maxf(x, row[2]) - x
-			var d2 := minf(dxl * dxl, dxr * dxr) + dy * dy
+			var dx := INF
+			for bar in row[1]:
+				dx = minf(dx, absf(x - clampf(x, bar[0], bar[1])))
+			var d2 := dx * dx + dy * dy
 			if d2 < rr2:
 				return -1e6 + tick * 10.0
 			clear = minf(clear, sqrt(d2) - p_r)
@@ -160,7 +183,12 @@ func _search(depth: int, x: float, y: float, vx: float, vy: float, act: int, mas
 		tx = low.x
 		val -= absf(y - (low.y + 20.0)) * 0.5
 	elif row_above != null:
-		tx = (row_above[1] + row_above[2]) / 2.0
+		# the nearest way through it
+		tx = INF
+		for aim in row_above[2]:
+			var ax := clampf(x, aim[0], aim[1])
+			if absf(x - ax) < absf(x - tx):
+				tx = ax
 	val -= absf(x - tx) * 1.6
 	var cam_end := p_cam - p_scroll * DT * tick
 	val -= absf(y - (cam_end + p_h * 0.46)) * 0.9

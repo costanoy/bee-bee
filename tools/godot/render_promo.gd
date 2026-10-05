@@ -177,7 +177,7 @@ func _run() -> void:
 				print("PROMO autopilot died at frame ", f, " score ", g.score, " bee ", g.bee.position - Vector2(0, g.camera_y), " vel ", g.bee.velocity)
 				for o in g.obstacles:
 					if absf(o.position.y - g.bee.position.y) < 120.0:
-						print("   row y ", o.position.y - g.camera_y, " gap ", o.gap_x - o.gap_width / 2.0, " .. ", o.gap_x + o.gap_width / 2.0)
+						print("   row y ", o.position.y - g.camera_y, " gaps ", o.gaps())
 				for fl in g.flowers:
 					print("   flower ", fl.position - Vector2(0, g.camera_y))
 	print("PROMO done: seeds ", seeds, " span ", span, " deaths ", deaths, " final score ", g.score)

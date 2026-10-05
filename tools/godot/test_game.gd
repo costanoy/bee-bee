@@ -234,13 +234,58 @@ func _run() -> void:
 	g._flap(1)
 	await ticks(2)
 	var o = g.obstacles[0]
+	var bar: Array = o.bars[0]
 	g.bee.velocity = Vector2.ZERO
-	g.bee.position = Vector2(clampf(o.gap_x + o.gap_width, 20.0, 380.0), o.position.y + 11.0)
-	if absf(g.bee.position.x - o.gap_x) < o.gap_width / 2.0:
-		g.bee.position.x = clampf(o.gap_x - o.gap_width, 20.0, 380.0)
+	g.bee.position = Vector2(clampf((bar[0] + bar[1]) / 2.0, 20.0, 380.0), o.position.y + 11.0)
 	g.camera_y = o.position.y - g.screen_h * 0.5
 	await ticks(2)
 	ok(g.death_cause == "hedge", "inside a hedge: cause 'hedge' (%s)" % g.death_cause)
+
+	# ------------------------------------------------ a hedge in the middle of the screen
+	await fresh()
+	g._flap(1)
+	await ticks(2)
+	g.elapsed = 100.0                      # full difficulty: the narrowest gaps, the shortest legs
+	seed(7)
+	var first: int = g.obstacles.size()
+	for i in 400:
+		g._spawn_row()
+	var mid = null
+	var middles := 0
+	var gap_w := 0.0                       # a gap at this difficulty
+	var narrowest := INF                   # the narrowest way past a hedge in the middle
+	var furthest := 0.0                    # the next flower, from where the bee comes up on either side
+	for i in range(first, g.obstacles.size()):
+		var row = g.obstacles[i]
+		if row.bars.size() == 2:
+			gap_w = row.bars[1][0] - row.bars[0][1]
+			continue
+		middles += 1
+		if mid == null:
+			mid = row
+		for side in row.gaps():
+			narrowest = minf(narrowest, side[1] - side[0])
+		if i + 1 < g.flowers.size():
+			var next_x: float = g.flowers[i + 1].position.x
+			furthest = maxf(furthest, absf(next_x - (row.bars[0][0] - g.MIDDLE_HEDGE_ROOM)))
+			furthest = maxf(furthest, absf(next_x - (row.bars[0][1] + g.MIDDLE_HEDGE_ROOM)))
+	ok(middles > 96 and middles < 144, "about three rows in ten have their hedge in the middle (%d of 400)" % middles)
+	ok(mid != null and mid.bars.size() == 1 and is_equal_approx(mid.bars[0][0] + mid.bars[0][1], g.SCREEN_W), "that hedge is one bar, centred")
+	ok(narrowest >= gap_w, "with a way past on each side at least as wide as a gap (%.0f px, a gap is %.0f)" % [narrowest, gap_w])
+	ok(furthest <= g.MAX_LEG_HARD + 0.01, "and the next flower within reach from either side (%.0f px at most)" % furthest)
+	g.camera_y = mid.position.y - g.screen_h * 0.5
+	for fl in g.flowers.duplicate():
+		if fl.position.y > mid.position.y:          # nothing below to leave behind
+			g.flowers.erase(fl)
+			fl.queue_free()
+	g.bee.velocity = Vector2.ZERO
+	g.bee.position = Vector2(mid.bars[0][0] / 2.0, mid.position.y + 11.0)
+	await ticks(2)
+	ok(g.state == g.State.PLAYING, "the bee gets past beside a hedge in the middle")
+	g.bee.velocity = Vector2.ZERO
+	g.bee.position = Vector2(g.SCREEN_W / 2.0, mid.position.y + 11.0)
+	await ticks(2)
+	ok(g.death_cause == "hedge", "and inside it: cause 'hedge' (%s)" % g.death_cause)
 
 	await fresh()
 	g._flap(1)
@@ -255,7 +300,8 @@ func _run() -> void:
 		# keep clear of hedges: the test is about the flower left behind
 		for ob in g.obstacles:
 			if absf(ob.position.y + 11.0 - g.bee.position.y) < 40.0:
-				g.bee.position.x = ob.gap_x
+				var way: Array = ob.gaps()[0]
+				g.bee.position.x = (way[0] + way[1]) / 2.0
 		guard += 1
 		await ticks(1)
 	ok(g.death_cause == "flower", "a flower left behind: cause 'flower' (%s)" % g.death_cause)

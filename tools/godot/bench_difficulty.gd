@@ -21,8 +21,8 @@ extends SceneTree
 #
 # What it is for: a row the best autopilot cannot get through is a row no
 # player can, so its survival rate separates "hard" from "impossible" when
-# tuning SCROLL_*, the gap width and MAX_LEG_HARD in main.gd. It says nothing
-# about how the game feels; that still takes a person.
+# tuning SCROLL_*, the gap width, MAX_LEG_HARD and MIDDLE_HEDGE_* in main.gd.
+# It says nothing about how the game feels; that still takes a person.
 #
 # The save file is not written: a run only saves on a record or a new skin,
 # and the bench keeps the record out of reach.
@@ -122,7 +122,10 @@ func _run() -> void:
 
 
 func _gap() -> float:
-	return g.obstacles[-1].gap_width if g.obstacles.size() > 0 else 0.0
+	if g.obstacles.is_empty():
+		return 0.0
+	var way: Array = g.obstacles[-1].gaps()[0]
+	return way[1] - way[0]
 
 
 # A run already in full swing, as in render_promo.gd.

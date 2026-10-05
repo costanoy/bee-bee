@@ -361,7 +361,9 @@ func _sync_scenery() -> void:
 	var ground := spawn("ground", scenery)
 	ground.position = Vector3(0, 0, 0)          # grass top at world y=0, where the bee stands
 	var rng := RandomNumberGenerator.new()
-	rng.seed = main.rows_spawned * 7919 + int(main.last_gap_x * 13.0)
+	# (the last flower's place rather than the last gap's: a hedge in the
+	# middle has its gaps in the same place every time)
+	rng.seed = main.rows_spawned * 7919 + int(main.last_flower_x * 13.0)
 	var hills: bool = main.sky.backdrop == "hills"
 	if hills:
 		var x := -8.0
@@ -487,17 +489,17 @@ func _build_hedge_row(o) -> Node3D:
 	add_child(row)
 	var band_mid: float = o.position.y + 11.0     # obstacle.gd THICK / 2
 	row.position = to3(Vector2(main.SCREEN_W / 2.0, band_mid))
-	var gap_left: float = o.gap_x - o.gap_width / 2.0
-	var gap_right: float = o.gap_x + o.gap_width / 2.0
-	# bars run well past the screen edges: the tilted camera shows a little
-	# more of the plane's width near the top of the screen
-	for bar in [[-80.0, gap_left], [gap_right, main.SCREEN_W + 80.0]]:
-		var x1: float = bar[0]
-		var x2: float = bar[1]
+	for bar in o.bars:
+		# a bar that reaches a screen edge runs well past it: the tilted camera
+		# shows a little more of the plane's width near the top of the screen
+		var x1: float = bar[0] if bar[0] > 0.0 else -80.0
+		var x2: float = bar[1] if bar[1] < main.SCREEN_W else main.SCREEN_W + 80.0
 		if x2 <= x1 + 1.0:
 			continue
 		var width_u: float = (x2 - x1) / PX
-		var n := maxi(1, int(ceil(width_u / hedge_seg_w)))
+		# (less a hair, so a bar meant to be a whole number of tiles is not
+		# given one tile more, and all of them squeezed, by a rounding error)
+		var n := maxi(1, int(ceil(width_u / hedge_seg_w - 0.001)))
 		var seg_w := width_u / n
 		for i in n:
 			var h := spawn(hedge_models[randi() % hedge_models.size()], row)
