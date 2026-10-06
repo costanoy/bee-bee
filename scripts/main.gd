@@ -60,29 +60,6 @@ const GOLD := Color(1, 0.82, 0.18)
 # (five taps a second, 0.8 s of foresight) lasts a minute in 16 runs of 40
 # with the scroll and gap as they are now — it managed none of 30 before.
 const MAX_LEG_HARD := 150.0
-# TEST — three rows in ten grow their hedge in the middle of the screen
-# instead, with a way past on either side (asked for, to make a game that
-# had become very hard a little easier). 0.0 puts every row back to a hedge
-# right across the screen with one gap in it, as it always was.
-const MIDDLE_HEDGE_CHANCE := 0.3
-# How wide that hedge is, at the start of a run and at full difficulty: at
-# the start each side is as wide as the first rows' gap, at the top the hedge
-# is three tiles of the voxel one (view3d.gd HEDGE_TILE_W). The second number
-# is the one that sets how much easier the top gets. By the same bench as
-# MAX_LEG_HARD, the autopilot playing like a good player lasts a minute up
-# there in 99 runs of 120 with it, against 64 with a gap in every row; a
-# hedge of four tiles (153.6) gave 66, hardly any help at all. (A hedge half
-# the screen wide, each side no wider than a gap, made the top harder.)
-const MIDDLE_HEDGE_W_EASY := 62.8
-const MIDDLE_HEDGE_W_HARD := 115.2
-# The bee may come up on either side of that hedge, so the next row's flower
-# has to be within reach of both: at every difficulty, no more than
-# MAX_LEG_HARD from a point this far out from each end of the hedge (half the
-# narrowest gap), which keeps it more or less over the hedge. Left to fall
-# anywhere it made the easy row a guess, the wrong side costing a run right
-# across the screen, and the autopilot's runs ended sooner with these rows
-# than without them.
-const MIDDLE_HEDGE_ROOM := 48.5
 
 # How long after the first flap the camera waits before it starts climbing
 # (the bee itself is already flying/falling normally during this pause).
@@ -386,11 +363,6 @@ var camera_shake_total := 0.0
 var camera_shake_magnitude := 0.0
 var highest_spawn_y := 0.0
 var last_gap_x := 0.0
-# How far from last_gap_x the next row's flower may be at most, whatever the
-# difficulty allows: no limit after a gap, but see MIDDLE_HEDGE_ROOM.
-var last_gap_reach := INF
-# where the last flower went; view3d.gd seeds the trees of a new scene with it
-var last_flower_x := 0.0
 var rows_spawned := 0
 var score := 0
 var dying_timer := 0.0
@@ -681,7 +653,6 @@ func _reset_to_ground_scene() -> void:
 	# overlap the cold-start framing.
 	highest_spawn_y = -200.0
 	last_gap_x = SCREEN_W / 2.0   # the bee starts centred on the ground
-	last_gap_reach = INF
 	rows_spawned = 0
 
 	has_tapped_once = SaveData.seen_tutorial
@@ -719,46 +690,24 @@ func _spawn_row() -> void:
 	# date from a slower game; the cap itself is now set by measurement, see
 	# MAX_LEG_HARD.)
 	var max_leg: float = lerp(SCREEN_W, MAX_LEG_HARD, diff)
-	var reach: float = minf(max_leg, last_gap_reach)
-	var in_middle: bool = randf() < MIDDLE_HEDGE_CHANCE
-	var hedge_w: float = lerp(MIDDLE_HEDGE_W_EASY, MIDDLE_HEDGE_W_HARD, diff)
 	var gap_x: float
 	var fx: float
-	# (256 tries, where 64 used to do: the row after a hedge in the middle
-	# takes far more of them to place.)
-	if in_middle:
-		# Both sides of the hedge are open, each at least as wide as a gap, so
-		# the flower has nothing to keep clear of: it only has to be within
-		# reach of the row below.
-		for _attempt in 256:
-			fx = 30.0 + randf() * (SCREEN_W - 60.0)
-			if abs(fx - last_gap_x) <= reach:
-				break
-		# the row after this one measures from the middle of the hedge
-		gap_x = SCREEN_W / 2.0
-		last_gap_reach = MAX_LEG_HARD - hedge_w / 2.0 - MIDDLE_HEDGE_ROOM
-	else:
-		for _attempt in 256:
-			gap_x = margin + randf() * (SCREEN_W - margin * 2.0)
-			fx = 30.0 + randf() * (SCREEN_W - 60.0)
-			if abs(fx - gap_x) < flower_clear:
-				continue
-			if abs(fx - last_gap_x) <= reach and abs(fx - gap_x) <= max_leg:
-				break
+	for _attempt in 64:
+		gap_x = margin + randf() * (SCREEN_W - margin * 2.0)
+		fx = 30.0 + randf() * (SCREEN_W - 60.0)
 		if abs(fx - gap_x) < flower_clear:
-			fx = gap_x - flower_clear if gap_x - flower_clear >= 30.0 else gap_x + flower_clear
-		last_gap_reach = INF
+			continue
+		if abs(fx - last_gap_x) <= max_leg and abs(fx - gap_x) <= max_leg:
+			break
+	if abs(fx - gap_x) < flower_clear:
+		fx = gap_x - flower_clear if gap_x - flower_clear >= 30.0 else gap_x + flower_clear
 	last_gap_x = gap_x
-	last_flower_x = fx
 
 	var obstacle := Node2D.new()
 	obstacle.set_script(ObstacleScript)
 	obstacle.position = Vector2(0, y)
 	add_child(obstacle)
-	if in_middle:
-		obstacle.setup_middle(hedge_w)
-	else:
-		obstacle.setup(gap_x, gap_width)
+	obstacle.setup(gap_x, gap_width)
 	obstacles.append(obstacle)
 
 	var fy: float = y + OBSTACLE_SPACING / 2.0 + (randf() * 40.0 - 20.0)
@@ -920,9 +869,13 @@ func _update_playing(delta: float) -> void:
 		var band_bottom: float = band_top + ObstacleScript.THICK
 		var in_band: bool = bee.position.y + bee.radius >= band_top and bee.position.y - bee.radius <= band_bottom
 		if in_band:
+			var gap_left: float = o.gap_x - o.gap_width / 2.0
+			var gap_right: float = o.gap_x + o.gap_width / 2.0
 			var clearance := INF
-			for bar in o.bars:
-				clearance = min(clearance, _circle_rect_clearance(bee.position, bee.radius, Vector2(bar[0], band_top), Vector2(bar[1], band_bottom)))
+			if gap_left > 0.0:
+				clearance = _circle_rect_clearance(bee.position, bee.radius, Vector2(0.0, band_top), Vector2(gap_left, band_bottom))
+			if gap_right < SCREEN_W:
+				clearance = min(clearance, _circle_rect_clearance(bee.position, bee.radius, Vector2(gap_right, band_top), Vector2(SCREEN_W, band_bottom)))
 			if clearance < 0.0:
 				_trigger_game_over("hedge")
 				return
