@@ -60,6 +60,10 @@ const GOLD := Color(1, 0.82, 0.18)
 # (five taps a second, 0.8 s of foresight) lasts a minute in 16 runs of 40
 # with the scroll and gap as they are now — it managed none of 30 before.
 const MAX_LEG_HARD := 150.0
+# TEST — three flowers in ten come up in the middle of the screen (asked
+# for, to make a game that had become very hard a little easier). 0.0 gives
+# every flower a place of its own again, as it always was.
+const MIDDLE_FLOWER_CHANCE := 0.3
 
 # How long after the first flap the camera waits before it starts climbing
 # (the bee itself is already flying/falling normally during this pause).
@@ -692,15 +696,22 @@ func _spawn_row() -> void:
 	var max_leg: float = lerp(SCREEN_W, MAX_LEG_HARD, diff)
 	var gap_x: float
 	var fx: float
-	for _attempt in 64:
+	if randf() < MIDDLE_FLOWER_CHANCE:
+		# The flower in the middle of the screen and the gap wherever it
+		# falls, even right over the flower: these are the easy rows. There
+		# is no leg to check either, the middle being within reach of any gap.
 		gap_x = margin + randf() * (SCREEN_W - margin * 2.0)
-		fx = 30.0 + randf() * (SCREEN_W - 60.0)
+		fx = SCREEN_W / 2.0
+	else:
+		for _attempt in 64:
+			gap_x = margin + randf() * (SCREEN_W - margin * 2.0)
+			fx = 30.0 + randf() * (SCREEN_W - 60.0)
+			if abs(fx - gap_x) < flower_clear:
+				continue
+			if abs(fx - last_gap_x) <= max_leg and abs(fx - gap_x) <= max_leg:
+				break
 		if abs(fx - gap_x) < flower_clear:
-			continue
-		if abs(fx - last_gap_x) <= max_leg and abs(fx - gap_x) <= max_leg:
-			break
-	if abs(fx - gap_x) < flower_clear:
-		fx = gap_x - flower_clear if gap_x - flower_clear >= 30.0 else gap_x + flower_clear
+			fx = gap_x - flower_clear if gap_x - flower_clear >= 30.0 else gap_x + flower_clear
 	last_gap_x = gap_x
 
 	var obstacle := Node2D.new()

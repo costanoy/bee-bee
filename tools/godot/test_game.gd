@@ -242,6 +242,24 @@ func _run() -> void:
 	await ticks(2)
 	ok(g.death_cause == "hedge", "inside a hedge: cause 'hedge' (%s)" % g.death_cause)
 
+	# ------------------------------------------------ flowers in the middle of the screen
+	await fresh()
+	g.elapsed = 100.0                      # full difficulty, where a leg may be shortest
+	seed(7)
+	var first: int = g.flowers.size()
+	for i in 400:
+		g._spawn_row()
+	var in_middle := 0
+	var furthest := 0.0                    # from one of them to the gap before it or after it
+	for i in range(first, g.flowers.size()):
+		if not is_equal_approx(g.flowers[i].position.x, g.SCREEN_W / 2.0):
+			continue
+		in_middle += 1
+		furthest = maxf(furthest, absf(g.obstacles[i - 1].gap_x - g.SCREEN_W / 2.0))
+		furthest = maxf(furthest, absf(g.obstacles[i].gap_x - g.SCREEN_W / 2.0))
+	ok(in_middle > 96 and in_middle < 144, "about three flowers in ten come up in the middle of the screen (%d of 400)" % in_middle)
+	ok(furthest <= g.MAX_LEG_HARD, "and no gap before or after one of them is out of reach (%.0f px at most)" % furthest)
+
 	await fresh()
 	g._flap(1)
 	await ticks(2)
