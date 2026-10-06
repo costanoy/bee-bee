@@ -100,9 +100,14 @@ func _search(depth: int, x: float, y: float, vx: float, vy: float, act: int, mas
 			vx = -absf(vx) * 0.4
 		tick += 1
 		var screen_top := p_cam - p_scroll * DT * tick
-		# the game holds the bee at the top edge of the screen (bee.gd)
-		if y < screen_top + p_r:
-			y = screen_top + p_r
+		# The game holds the bee at the top edge of the screen (bee.gd), where
+		# that edge was before this tick's scroll: main.gd sets the ceiling
+		# and only then moves the camera. Taking the edge as it is after the
+		# scroll put the bee a tick higher than it really gets, enough for it
+		# to plan a pass over a hedge just coming into view and land on it.
+		var ceiling := screen_top + p_scroll * DT + p_r
+		if y < ceiling:
+			y = ceiling
 			vy = maxf(vy, 0.0)
 		var bottom := screen_top + p_h
 		if y - p_r > bottom:
