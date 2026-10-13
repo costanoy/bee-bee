@@ -290,8 +290,13 @@ func _sync_camera() -> void:
 	var pitch := deg_to_rad(CAM_PITCH)
 	cam.rotation.x = -pitch
 	cam.position = centre + Vector3(0, sin(pitch) * dist, cos(pitch) * dist)
-	# stars ride with the camera: an endless sky, however high the climb
-	stars.position = cam.position + Vector3(0, 0, -180)
+	# The stars hang still in the sky, far behind everything, so the climb
+	# slides them slowly down the screen, at about a tenth of the hedges'
+	# rate (asked for: stars that ride with the camera sit still on the
+	# screen, as if painted on the glass). The field is kept around the
+	# camera by moving it whole spans at a time, which its repeats hide.
+	var sky_y := cam.position.y - fposmod(cam.position.y, STAR_SPAN)
+	stars.position = Vector3(cam.position.x, sky_y, cam.position.z - 180.0)
 
 
 func _sync_sky() -> void:
@@ -836,27 +841,36 @@ func _sync_bee(delta: float) -> void:
 # Stars are cubes too. They sit 180 units behind the camera, where a cube of
 # STAR_VOX lands on screen at the size of one world cube; every star is
 # exactly one or two of those across, and a few bigger ones are crosses.
+# One patch of sky STAR_SPAN tall is laid out, and repeated once above and
+# once below itself: the view never reaches past those, wherever in its span
+# the camera is (_sync_camera).
+const STAR_SPAN := 180.0
+
+
 func _build_stars() -> void:
 	const STAR_VOX := 0.34
 	const SQUARES := 140
 	const CROSSES := 12
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var patch: Array[Transform3D] = []
+	for i in SQUARES:
+		var side := 2.0 if rng.randf_range(0.5, 1.4) > 1.08 else 1.0
+		patch.append(Transform3D(Basis().scaled(Vector3.ONE * side),
+			Vector3(rng.randf_range(-60, 60), rng.randf_range(-STAR_SPAN / 2.0, STAR_SPAN / 2.0), 0)))
+	for i in CROSSES:
+		var at := Vector3(rng.randf_range(-60, 60), rng.randf_range(-STAR_SPAN / 2.0, STAR_SPAN / 2.0), 0).snappedf(STAR_VOX)
+		patch.append(Transform3D(Basis().scaled(Vector3(3, 1, 1)), at))
+		patch.append(Transform3D(Basis().scaled(Vector3(1, 3, 1)), at))
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	var cube := BoxMesh.new()
 	cube.size = Vector3.ONE * STAR_VOX
 	mm.mesh = cube
-	mm.instance_count = SQUARES + CROSSES * 2
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 7
-	for i in SQUARES:
-		var side := 2.0 if rng.randf_range(0.5, 1.4) > 1.08 else 1.0
-		var t := Transform3D(Basis().scaled(Vector3.ONE * side),
-			Vector3(rng.randf_range(-60, 60), rng.randf_range(-90, 90), 0))
-		mm.set_instance_transform(i, t)
-	for i in CROSSES:
-		var at := Vector3(rng.randf_range(-60, 60), rng.randf_range(-90, 90), 0).snappedf(STAR_VOX)
-		mm.set_instance_transform(SQUARES + i * 2, Transform3D(Basis().scaled(Vector3(3, 1, 1)), at))
-		mm.set_instance_transform(SQUARES + i * 2 + 1, Transform3D(Basis().scaled(Vector3(1, 3, 1)), at))
+	mm.instance_count = patch.size() * 3
+	for copy in 3:
+		for i in patch.size():
+			mm.set_instance_transform(copy * patch.size() + i, patch[i].translated(Vector3(0, (copy - 1) * STAR_SPAN, 0)))
 	star_mat = StandardMaterial3D.new()
 	star_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	star_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA

@@ -1180,6 +1180,9 @@ func _start_fresh_run() -> void:
 	# The badge rides along with the hidden screen, but its loop would keep
 	# ticking for the whole next run if it isn't stopped here.
 	_hide_new_record_badge()
+	# A bee won just before a restart from the pause menu would otherwise
+	# have its banner hang over the new run for the rest of its 4 seconds.
+	_hide_bee_notice()
 	pause_button.visible = true
 	_set_hud_visible(true)
 
@@ -1481,7 +1484,8 @@ func _flap(direction: int) -> void:
 
 
 # Keys, for the browser and desktop builds: the arrows or A and D flap,
-# space or enter presses the green button on screen, escape or P pauses.
+# space or enter presses the green button on screen, escape or P pauses, or
+# closes whatever menu is open, as the back button does on a phone.
 func _on_key(event: InputEventKey) -> void:
 	match event.keycode:
 		KEY_LEFT, KEY_A:
@@ -1509,6 +1513,9 @@ func _on_key(event: InputEventKey) -> void:
 						credits_screen.visible = false
 					else:
 						_on_resume_pressed()
+				State.START, State.GAMEOVER:
+					if bee_menu.visible:
+						_on_bee_menu_closed()
 
 
 # Keys come through this node rather than through main.gd's own input,

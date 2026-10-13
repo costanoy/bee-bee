@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Runs the game's behaviour checks (tools/godot/test_game.gd), in English and
-# in Portuguese. From Git Bash, in the project folder:   bash tools/test.sh
+# Runs the game's behaviour checks (tools/godot/test_game.gd and
+# test_features.gd), in English and in Portuguese. From Git Bash, in the
+# project folder:   bash tools/test.sh
 #
 # The game writes its save file while the checks play it, so the player's
 # own save is set aside first and put back afterwards.
@@ -15,9 +16,11 @@ KEEP="$(mktemp -d)"
 
 status=0
 for lang in en pt; do
-	out=$("$GODOT" --headless --path . --fixed-fps 60 --script tools/godot/test_game.gd -- --lang=$lang 2>&1)
-	echo "$out" | grep -E "FAIL|TESTS|SCRIPT ERROR|Parse Error"
-	echo "$out" | grep -q "TESTS done, failures: 0" || status=1
+	for checks in test_game test_features; do
+		out=$("$GODOT" --headless --path . --fixed-fps 60 --script tools/godot/$checks.gd -- --lang=$lang 2>&1)
+		echo "$out" | grep -E "FAIL|TESTS|SCRIPT ERROR|Parse Error"
+		echo "$out" | grep -q "TESTS done, failures: 0" || status=1
+	done
 done
 
 [ -f "$KEEP/save.cfg" ] && cp "$KEEP/save.cfg" "$SAVE"
