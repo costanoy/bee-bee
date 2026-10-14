@@ -1,9 +1,10 @@
 # Godot 4+ specific ignores
 .godot/
 
-# Godot-generated export artifacts
+# Godot-generated export artifacts. export_presets.cfg is kept in git: it
+# holds the build settings and no passwords (the signing key comes from
+# environment variables in tools/build_*.sh).
 export.cfg
-export_presets.cfg
 build/
 
 # OS/editor cruft
