@@ -63,7 +63,7 @@ static func blocks() -> Array:
 	out.append([true, "Bee Bee"])
 	if DEVELOPER != "":
 		out.append([false, "A game by %s." % DEVELOPER])
-	out.append([false, "Music and sound effects made with ElevenLabs (elevenlabs.io)."])
+	out.append([false, "Music made with Suno (suno.com). Sound effects made with ElevenLabs (elevenlabs.io)."])
 
 	out.append([true, "Godot Engine"])
 	out.append([false, "This game uses Godot Engine, available under the following license:"])
