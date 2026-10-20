@@ -11,6 +11,7 @@ lista, em ordem, o que só você pode fazer (contas, IDs e declarações) e onde
 | Chave de assinatura e senha | `..\Bee Bee - chaves\` (fora do git) — **faça backup dessa pasta** |
 | Capturas de tela (7 por idioma, 1080x2160) | `store/screenshots/pt-BR/` e `store/screenshots/en-US/` |
 | Imagem de destaque (1024x500) | `store/feature_graphic.png` |
+| Ícone da loja (512x512) | `store/icon_512.png` (o desenho do ícone do app, sem alteração) |
 | Nome e descrições (pt-BR e en-US) | `store/listing.md` |
 | Política de privacidade (pt-BR e en) | `store/privacy_policy.md` |
 
@@ -44,6 +45,11 @@ O jogo está com os **IDs de teste do Google**: mostram anúncios de teste e nã
    Europa e os anúncios lá ficam limitados.
 5. Nunca toque em anúncios reais no seu próprio aparelho: isso pode suspender a conta. Para
    testar com os IDs reais, cadastre o aparelho como dispositivo de teste no AdMob.
+6. O AdMob pede um arquivo **app-ads.txt** no site de desenvolvedor informado na ficha da
+   Play (por exemplo `https://beebee.cyberhat.com.br/app-ads.txt`), com a linha que ele mostra
+   em *Apps > app-ads.txt* (`google.com, pub-XXXX, DIRECT, f08c47fec0942fa0`). Sem ele o app
+   fica sem verificação e pode receber menos anúncios. Coloque o arquivo em `site/` antes de
+   rodar `tools/build_site.sh`.
 
 Como os anúncios funcionam no jogo: um intersticial ao tocar em "Play Again", no máximo a cada
 6 partidas e nunca com menos de 3 minutos do anterior nem nos 3 primeiros minutos de jogo. Os números estão no topo de
@@ -60,8 +66,8 @@ sem banco de dados nosso. Os quatro passos para ligar estão no topo de
 
 ## 4. Ficha da loja
 
-Cole os textos de `store/listing.md`, envie as capturas e a imagem de destaque. O ícone de
-512x512 é o ícone atual do app.
+Cole os textos de `store/listing.md`, envie as capturas, a imagem de destaque e o ícone
+`store/icon_512.png`.
 
 ## 5. Política de privacidade
 
@@ -71,7 +77,14 @@ O Play Console exige um endereço público. O site do jogo já leva a página pr
 campos entre colchetes nesse `.md` (`[NOME DO DESENVOLVEDOR]` e `[E-MAIL DE CONTATO]`); o
 script avisa se ainda estiverem lá.
 
-## 6. Declarações do Play Console (Conteúdo do app)
+## 6. Licenças da música e dos sons
+
+O jogo tem anúncios, então é uso comercial. A música foi feita no **Suno** e os efeitos
+sonoros no **ElevenLabs**: nos dois, só o que foi gerado com um **plano pago** pode ser usado
+comercialmente (pelo que sei dos termos; confira nos sites). Se algo foi gerado no plano
+gratuito, gere de novo num plano pago antes de publicar.
+
+## 7. Declarações do Play Console (Conteúdo do app)
 
 Sugestões de resposta, de acordo com o que o jogo faz hoje. Confira cada uma na hora: as
 perguntas mudam, e a responsabilidade pela declaração é sua.
@@ -95,7 +108,7 @@ perguntas mudam, e a responsabilidade pela declaração é sua.
   https://developers.google.com/admob/android/privacy/play-data-disclosure — confira por ela.
 - **ID de publicidade:** Sim, o app usa (o SDK de anúncios declara a permissão `AD_ID`).
 
-## 7. Envio
+## 8. Envio
 
 1. `bash tools/build_release.sh` gera `build/android/beebee-release.aab`.
 2. `python tools/check_android_build.py` confere o que foi gerado: bibliotecas alinhadas para
@@ -106,8 +119,8 @@ perguntas mudam, e a responsabilidade pela declaração é sua.
 4. Envie primeiro para **Teste interno**, instale pelo link de teste e jogue: é a única forma
    de conferir anúncios e placar exatamente como o usuário final vai ver.
 
-O `export_presets.cfg` não fica no git. Se o editor do Godot o regravar, confira nos dois
-presets Android: `package/app_category=2` (Game), `user_data_backup/allow=true`,
+O `export_presets.cfg` está no git (desde 14/10): se o editor do Godot o regravar, o `git diff`
+mostra o que mudou. Confira nos dois presets Android: `package/app_category=2` (Game), `user_data_backup/allow=true`,
 `permissions/vibrate=true`; e no preset "Android", `gradle_build/compress_native_libraries=true`.
 
 ## Requisitos do aparelho

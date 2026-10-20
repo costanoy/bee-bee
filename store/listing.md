@@ -3,7 +3,7 @@
 Limites do Play Console: nome 30 caracteres, descrição curta 80, descrição completa 4000.
 Arquivos de imagem: `screenshots/pt-BR/` e `screenshots/en-US/` (7 capturas de 1080x2160 em cada
 uma, com a interface no idioma da ficha) e `feature_graphic.png` (1024x500).
-O ícone de 512x512 sai do ícone do app (não foi alterado).
+O ícone de 512x512 é `icon_512.png`, o desenho quadrado do ícone do app (`art/icon_bg.png`) reduzido, sem nenhuma alteração.
 
 ---
 
@@ -27,7 +27,7 @@ Toque no lado esquerdo ou direito da tela para a abelha bater as asas naquela di
 
 • Controle com um toque só: esquerda ou direita
 • Mundo inteiro em voxel, em 3D
-• Sete abelhas para desbloquear: chegue à pontuação de cada uma para ganhá-la
+• Sete abelhas para colecionar: a primeira já vem com o jogo, as outras você ganha chegando à pontuação de cada uma
 • A Abelha Prateada é a mais difícil: só com 300 pontos
 • Partidas rápidas, perfeitas para jogar em qualquer intervalo
 • Funciona sem internet
@@ -58,7 +58,7 @@ It takes seconds to learn and it is hard to put down. Every flower is a point, t
 
 • One-tap controls: left or right
 • A whole world in voxels, in 3D
-• Seven bees to unlock: reach each one's score to win it
+• Seven bees to collect: the first comes with the game, the others are won by reaching each one's score
 • The Silver Bee is the hardest: 300 points, no less
 • Quick runs, perfect for any spare minute
 • Works offline
