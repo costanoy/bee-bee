@@ -1966,7 +1966,7 @@ func _build_credits_screen() -> Control:
 
 func _on_credits_pressed() -> void:
 	if credits_box.get_child_count() == 0:
-		for block in Licenses.blocks():
+		for block in Licenses.blocks(lang):
 			var heading: bool = block[0]
 			var label := Label.new()
 			label.text = block[1]

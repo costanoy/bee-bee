@@ -25,6 +25,10 @@ Para refazer as imagens depois de mudar o jogo:
 1. Crie a conta de desenvolvedor em https://play.google.com/console (taxa única de US$ 25).
    Contas pessoais novas precisam passar por um **teste fechado** antes de liberar a produção
    (até onde sei, 12 testadores por 14 dias; o Play Console mostra a regra atual).
+   Como a dona do jogo é a **Cyberhat**, a conta pode ser de **organização** (pede o número
+   D-U-N-S da empresa, que é gratuito, e o nome da Cyberhat aparece como desenvolvedora na
+   loja). Pelo que sei, a exigência do teste fechado vale só para contas **pessoais** novas;
+   confira as regras atuais na hora de criar.
 2. Crie o app: nome "Bee Bee", idioma padrão pt-BR, tipo **Jogo**, **Gratuito**.
 3. O nome do pacote é `com.beebeegame.beebee`. Ele não pode ser trocado depois do primeiro envio.
 
@@ -52,7 +56,7 @@ O jogo está com os **IDs de teste do Google**: mostram anúncios de teste e nã
    rodar `tools/build_site.sh`.
 
 Como os anúncios funcionam no jogo: um intersticial ao tocar em "Play Again", no máximo a cada
-6 partidas e nunca com menos de 3 minutos do anterior nem nos 3 primeiros minutos de jogo. Os números estão no topo de
+5 partidas e nunca com menos de 2min30s do anterior nem nos primeiros 2min30s de jogo. Os números estão no topo de
 `scripts/ads.gd` (`RUNS_BETWEEN_ADS`, `MIN_SECONDS_BETWEEN_ADS`).
 
 ## 3. Placar online (opcional)
@@ -73,9 +77,9 @@ Cole os textos de `store/listing.md`, envie as capturas, a imagem de destaque e 
 
 O Play Console exige um endereço público. O site do jogo já leva a página pronta:
 **https://beebee.cyberhat.com.br/privacidade.html** (o `tools/build_site.sh` a gera a partir de
-`store/privacy_policy.md`, em português e inglês). Antes de publicar o site, preencha os dois
-campos entre colchetes nesse `.md` (`[NOME DO DESENVOLVEDOR]` e `[E-MAIL DE CONTATO]`); o
-script avisa se ainda estiverem lá.
+`store/privacy_policy.md`, em português e inglês). Ela já diz que o jogo é da **Cyberhat**; antes de publicar o site, preencha o
+e-mail de contato (`[E-MAIL DE CONTATO]`, nas duas línguas) nesse `.md`. O script avisa
+enquanto ele estiver lá.
 
 ## 6. Licenças da música e dos sons
 

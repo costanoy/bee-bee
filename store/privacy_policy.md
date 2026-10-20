@@ -1,7 +1,7 @@
 # Política de Privacidade — Bee Bee
 
-> **Antes de publicar:** troque os dois campos entre colchetes (`[NOME DO DESENVOLVEDOR]` e
-> `[E-MAIL DE CONTATO]`), confira a data e hospede este texto numa página pública. O Play
+> **Antes de publicar:** troque o campo `[E-MAIL DE CONTATO]` (nas duas línguas), confira a
+> data e hospede este texto numa página pública. O Play
 > Console pede o endereço (URL) dela. A versão em inglês está logo abaixo da em português.
 >
 > A seção 4 só vale quando o placar online for ligado. Enquanto ele estiver desligado, pode
@@ -9,7 +9,7 @@
 
 **Última atualização:** 1º de outubro de 2026
 
-O Bee Bee ("o jogo") é desenvolvido por [NOME DO DESENVOLVEDOR] ("nós"). Esta política explica
+O Bee Bee ("o jogo") é um jogo da Cyberhat ("nós"). Esta política explica
 quais dados o jogo usa e por quê.
 
 ## 1. O que o jogo guarda no seu aparelho
@@ -76,7 +76,7 @@ Dúvidas ou pedidos sobre privacidade: [E-MAIL DE CONTATO]
 
 **Last updated:** October 1, 2026
 
-Bee Bee ("the game") is developed by [NOME DO DESENVOLVEDOR] ("we"). This policy explains what
+Bee Bee ("the game") is a game by Cyberhat ("we"). This policy explains what
 data the game uses and why.
 
 ## 1. What the game stores on your device

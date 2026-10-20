@@ -128,6 +128,7 @@ func _run() -> void:
 	await _back_and_focus()
 	await _tutorial()
 	await _ads()
+	await _credits()
 	await _save_file()
 
 	restore_save()
@@ -549,6 +550,24 @@ func _ads() -> void:
 	ok(ads._ad == null and ads._runs_since_ad == 0, "and the count starts again")
 	ads._ad = null
 	ads._loading = false
+
+
+# ------------------------------------------------------------------ credits
+func _credits() -> void:
+	await fresh()
+	g._on_pause_pressed()
+	g._on_credits_pressed()
+	await frames(2)
+	var lines: Array = []
+	for c in g.credits_box.get_children():
+		lines.append(c.text)
+	var L = g.Licenses
+	var own: Dictionary = L.OWN_LINES[g.lang]
+	ok(lines[0] == "Bee Bee" and lines[1] == own["created"] % L.CREATOR, "the credits open with who made the game: '%s'" % lines[1])
+	ok(lines[2] == own["owner"] % [L.YEAR, L.OWNER] and lines[2].contains("Cyberhat"), "and who owns it: '%s'" % lines[2])
+	ok(lines.has(own["audio"]) and lines.has(own["third_party"]), "in the game's language (%s), the licences after them" % g.lang)
+	g.credits_screen.visible = false
+	g._on_resume_pressed()
 
 
 # ------------------------------------------------------------------ save file

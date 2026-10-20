@@ -18,12 +18,14 @@ const INTERSTITIAL_ID := "ca-app-pub-3940256099942544/1033173712"
 # last one, and never sooner than MIN_SECONDS_BETWEEN_ADS after it. The same
 # wait applies from the moment the game opens, so a session never starts
 # with an ad.
-# TEST — 6 runs and 180 s (was 3 and 90, and no wait at the start). Runs are
-# short, often a few seconds, so three of them went by in no time and the
-# 90 s were the only real limit: an ad every minute and a half, the first
-# one seconds after opening the game. The user found that far too often.
-const RUNS_BETWEEN_ADS := 6
-const MIN_SECONDS_BETWEEN_ADS := 180.0
+# TEST — 5 runs and 150 s, asked for as "a little more often" before launch
+# (was 6 and 180). Before that it was 3 and 90 with no wait at the start:
+# runs are short, often a few seconds, so three of them went by in no time
+# and the 90 s were the only real limit, an ad every minute and a half, the
+# first one seconds after opening the game. The user found that far too
+# often.
+const RUNS_BETWEEN_ADS := 5
+const MIN_SECONDS_BETWEEN_ADS := 150.0
 # Ads carry a content rating; PG keeps out anything a cartoon bee game
 # shouldn't sit next to.
 const MAX_CONTENT_RATING := "PG"

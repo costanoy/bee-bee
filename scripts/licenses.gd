@@ -7,9 +7,32 @@ extends RefCounted
 # the plugins' are copied here from fonts/ and addons/, because plain text
 # files are not included in an export.
 #
-# Fill in DEVELOPER to have a "made by" line at the top.
+# The lines that are the game's own come in the game's language; the
+# licence notices stay in English, the language they were written in.
 
-const DEVELOPER := ""
+# Who made the game and who owns it, as the user asked to be credited.
+const CREATOR := "Vinicius Costa"
+const OWNER := "Cyberhat"
+const YEAR := 2026
+
+const OWN_LINES := {
+	"en": {
+		"created": "Created by %s.",
+		"owner": "© %d %s. All rights reserved.",
+		"audio": "Music made with Suno (suno.com). Sound effects made with ElevenLabs (elevenlabs.io).",
+		"godot": "This game uses Godot Engine, available under the following license:",
+		"font": "Jersey 10 (font)",
+		"third_party": "Third-party software in Godot Engine",
+	},
+	"pt": {
+		"created": "Criado por %s.",
+		"owner": "© %d %s. Todos os direitos reservados.",
+		"audio": "Música feita com Suno (suno.com). Efeitos sonoros feitos com ElevenLabs (elevenlabs.io).",
+		"godot": "Este jogo usa a Godot Engine, disponível sob a licença abaixo:",
+		"font": "Jersey 10 (fonte)",
+		"third_party": "Software de terceiros na Godot Engine",
+	},
+}
 
 const FONT_NOTICE := """Copyright 2023 The Soft Type Project Authors (https://github.com/scfried/soft-type-jersey)
 
@@ -57,20 +80,22 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 # The text as a list of [is_heading, text] blocks: the screen makes one
-# label of each, so only the ones in view are drawn.
-static func blocks() -> Array:
+# label of each, so only the ones in view are drawn. `lang` is a key of
+# OWN_LINES (main.gd's language).
+static func blocks(lang := "en") -> Array:
+	var own: Dictionary = OWN_LINES.get(lang, OWN_LINES["en"])
 	var out := []
 	out.append([true, "Bee Bee"])
-	if DEVELOPER != "":
-		out.append([false, "A game by %s." % DEVELOPER])
-	out.append([false, "Music made with Suno (suno.com). Sound effects made with ElevenLabs (elevenlabs.io)."])
+	out.append([false, own["created"] % CREATOR])
+	out.append([false, own["owner"] % [YEAR, OWNER]])
+	out.append([false, own["audio"]])
 
 	out.append([true, "Godot Engine"])
-	out.append([false, "This game uses Godot Engine, available under the following license:"])
+	out.append([false, own["godot"]])
 	for part in _paragraphs(Engine.get_license_text()):
 		out.append([false, part])
 
-	out.append([true, "Jersey 10 (font)"])
+	out.append([true, own["font"]])
 	for part in FONT_NOTICE.split("\n\n"):
 		out.append([false, part])
 
@@ -80,7 +105,7 @@ static func blocks() -> Array:
 	for part in MIT_TERMS.split("\n\n"):
 		out.append([false, part])
 
-	out.append([true, "Third-party software in Godot Engine"])
+	out.append([true, own["third_party"]])
 	for component in Engine.get_copyright_info():
 		var lines := PackedStringArray([component["name"]])
 		for part in component["parts"]:
