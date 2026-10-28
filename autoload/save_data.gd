@@ -23,6 +23,9 @@ var selected_bee := "normal"  # a key of main.gd BEE_SKINS
 var music_muted := false
 var sfx_muted := false
 var vibration := true
+# The camera shake on a death and a near miss, which some players get queasy
+# from or just find too much (an accessibility switch, on by default).
+var screen_shake := true
 
 
 func _ready() -> void:
@@ -49,6 +52,7 @@ func load_data() -> void:
 		music_muted = config.get_value("save", "music_muted", false)
 		sfx_muted = config.get_value("save", "sfx_muted", false)
 		vibration = config.get_value("save", "vibration", true)
+		screen_shake = config.get_value("save", "screen_shake", true)
 
 
 func save_data() -> void:
@@ -60,5 +64,6 @@ func save_data() -> void:
 	config.set_value("save", "music_muted", music_muted)
 	config.set_value("save", "sfx_muted", sfx_muted)
 	config.set_value("save", "vibration", vibration)
+	config.set_value("save", "screen_shake", screen_shake)
 	if config.save(SAVE_PATH) == OK:
 		config.save(BACKUP_PATH)

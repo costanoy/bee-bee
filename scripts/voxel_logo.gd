@@ -61,7 +61,11 @@ var outline := {}
 var gap_anchor := Vector2.ZERO
 
 
-func setup(target_w: float) -> void:
+# `px_scale`: the screen's pixels per interface unit, when known. The cubes
+# are then a whole number of those pixels (the nearest to target_w, and at
+# most 5% wider), so every cube, outline and lit edge is drawn the same
+# thickness; otherwise a whole number of units.
+func setup(target_w: float, px_scale := 0.0) -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var rows: int = LETTER_B.size()
 	var x := 1                    # one cube of margin for the outline
@@ -94,8 +98,13 @@ func setup(target_w: float) -> void:
 					if not face.has(q) and not side.has(q):
 						outline[q] = true
 
-	cell = target_w / cols
-	size = Vector2(target_w, (rows + DEPTH + 2) * cell)
+	cell = floorf(target_w / cols)
+	if px_scale > 0.0 and target_w * px_scale / cols >= 2.0:
+		var px := roundf(target_w * px_scale / cols)
+		if px * cols / px_scale > target_w * 1.05:
+			px -= 1.0
+		cell = px / px_scale
+	size = Vector2(cols * cell, (rows + DEPTH + 2) * cell)
 	gap_anchor = Vector2(gap_x * cell, cell)
 	queue_redraw()
 

@@ -8,7 +8,12 @@ extends SceneTree
 # run after one lost to a flower), the resume's countdown, a milestone, a bee
 # and a milestone on one flower, the record readout once passed, a near
 # miss's "Ufa!", a flower lost (the fall, then the game over), a flower behind
-# the score, and a notice under the pause menu.
+# the score, and a notice under the pause menu; then the menus: the settings
+# from the title and from the game over (with the ad-privacy link, as where
+# the law asks for it), the pause menu with it too, a game over just short
+# of the record, the bee won put on from the game over's chip, the game over
+# coming in (counting up, its buttons held), and the title and the credits
+# under a 40 px camera cut-out.
 #
 #   godot --path . --audio-driver Dummy --script tools/godot/qa_shots.gd -- --lang=pt --w=1080 --h=2400 --out=C:/somewhere
 #   godot --path . --audio-driver Dummy --resolution 600x800 --script tools/godot/qa_shots.gd -- --tablet=1 --out=...
@@ -133,13 +138,13 @@ func _init() -> void:
 	await _stage(9, 12.0, "hills", "rosy", 900.0, 3)
 	g._trigger_game_over("flower")
 	g.dying_timer = 99.0
-	await _shot("11_game_over", 30, false)
+	await _game_over_shot("11_game_over")
 	sd.unlocked_bees = []
 	await _stage(26, 30.0, "city", "normal", 2600.0, 8)
 	g._check_bee_unlocks()
 	g._trigger_game_over("hedge")
 	g.dying_timer = 99.0
-	await _shot("12_game_over_record", 30, false)
+	await _game_over_shot("12_game_over_record")
 
 	# ---- the bee menu
 	sd.best_score = 130
@@ -223,7 +228,7 @@ func _init() -> void:
 	await physics_frame
 	await _shot("21_flower_lost", 1, false)
 	g.dying_timer = 99.0
-	await _shot("22_flower_lost_game_over", 40, false)
+	await _game_over_shot("22_flower_lost_game_over")
 
 	# ---- a flower behind the score's digits
 	await _stage(14, 16.0, "city", "rosy", 1100.0, 31)
@@ -253,6 +258,88 @@ func _init() -> void:
 	await _shot("24_pause_over_notice", 6, false)
 	g._on_resume_pressed()
 
+	# ---- the settings, from the title
+	sd.best_score = 20
+	sd.unlocked_bees = ["rosy"]
+	# (the music on and the effects off, to show both looks of a switch)
+	sd.music_muted = false
+	sd.sfx_muted = true
+	g._apply_music_mute()
+	g._apply_sound_setting()
+	_title("city")
+	g._on_settings_pressed()
+	await _shot("25_settings_title", 14, false)
+	g._on_settings_closed()
+	sd.music_muted = true
+	g._apply_music_mute()
+
+	# ---- ...and from a game over, with the ad-privacy link
+	await _stage(9, 12.0, "hills", "rosy", 900.0, 3)
+	g._trigger_game_over("hedge")
+	g.dying_timer = 99.0
+	for k in 4:
+		await physics_frame
+	g.game_over_msec -= 1000
+	g._on_settings_pressed()
+	g.settings_privacy.visible = true
+	g.settings_credits.position.y = g.settings_privacy.position.y + g.LINK_H
+	await _shot("26_settings_game_over", 14, false)
+	g._on_settings_closed()
+
+	# ---- the pause menu with the ad-privacy link
+	await _stage(18, 24.0, "city", "rosy", 3420.0, 4)
+	g._on_pause_pressed()
+	g.privacy_button.visible = true
+	g.credits_button.position.y = g.privacy_button.position.y + g.LINK_H
+	await _shot("27_pause_privacy", 10, false)
+	g._on_resume_pressed()
+
+	# ---- a game over three short of the record
+	sd.best_score = 20
+	sd.unlocked_bees = ["rosy"]
+	await _stage(17, 22.0, "city", "rosy", 2600.0, 8)
+	g._trigger_game_over("fall")
+	g.dying_timer = 99.0
+	await _game_over_shot("28_game_over_near_record")
+
+	# ---- a bee won, put on with one tap on the chip
+	sd.best_score = 20
+	sd.unlocked_bees = []
+	await _stage(26, 30.0, "city", "normal", 2600.0, 8)
+	g._check_bee_unlocks()
+	g._trigger_game_over("hedge")
+	g.dying_timer = 99.0
+	for k in 30:
+		await process_frame
+	g.game_over_msec -= 1000
+	g._on_goal_chip_pressed()
+	await _shot("29_game_over_bee_equipped", 14, false)
+
+	# ---- the game over coming in: the score counting up, the buttons held
+	sd.best_score = 40
+	sd.unlocked_bees = ["rosy", "mint"]
+	await _stage(31, 32.0, "hills", "mint", 2800.0, 15)
+	g._trigger_game_over("flower")
+	g.dying_timer = 99.0
+	for k in 2:
+		await physics_frame
+	await _shot("30_game_over_entering", 5, false)
+	for k in 40:
+		await process_frame
+
+	# ---- a phone with a camera cut-out: the title's corner, then the credits
+	main_script.forced_cutout = 40.0
+	g._apply_top_inset()
+	_title("hills")
+	await _shot("31_title_cutout", 14, false)
+	g._on_settings_pressed()
+	g._on_credits_pressed()
+	await _shot("32_credits_cutout", 10, false)
+	g._close_top_menu()
+	g._close_top_menu()
+	main_script.forced_cutout = -1.0
+	g._apply_top_inset()
+
 	for path in SAVE_FILES:
 		var data = kept.get(path)
 		if data == null:
@@ -264,6 +351,21 @@ func _init() -> void:
 		f.close()
 	print("QA wrote ", out)
 	quit()
+
+
+# The title screen again, over a fresh ground scene.
+func _title(backdrop: String) -> void:
+	paused = false
+	g.state = g.State.GAMEOVER
+	g.rule_due = false
+	g._start_fresh_run()
+	g.state = g.State.START
+	g.start_screen.visible = true
+	g.pause_button.visible = false
+	g._set_hud_visible(false)
+	g.record_label.visible = true
+	_scenery(backdrop)
+	g._apply_bee_skin()
 
 
 func _scenery(backdrop: String) -> void:
@@ -317,6 +419,17 @@ func _stage(score: int, elapsed: float, backdrop: String, skin: String, climb: f
 func _settle() -> void:
 	for k in 3:
 		await physics_frame
+
+
+# The game-over screen once it is in and its lock has let go (the lock is on
+# the clock, which a run of frames can beat).
+func _game_over_shot(name: String) -> void:
+	var guard := 0
+	while g.state != g.State.GAMEOVER and guard < 120:
+		await physics_frame
+		guard += 1
+	g.game_over_msec -= 1000
+	await _shot(name, 30, false)
 
 
 # `frames` to wait first; the sky's light takes ~100 frames to catch up after

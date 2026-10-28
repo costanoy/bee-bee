@@ -219,7 +219,6 @@ const TEXT := {
 		"game_over": "Game Over",
 		"score": "Score",
 		"best": "Record",
-		"new": "NEW!",
 		"play_again": "Play Again",
 		"paused": "Paused",
 		"resume": "Resume",
@@ -229,15 +228,28 @@ const TEXT := {
 		"choose_bee": "Choose your bee",
 		"back": "Back",
 		"selected": "Selected",
-		"pick": "Tap to pick",
-		"locked": "Score %d",
 		"unlocked": "%s unlocked!",
-		"unlocked_hint": "Pick it in the bee menu",
 		"died_hedge": "You hit the roses!",
 		"died_flower": "You missed a flower!",
 		"died_fall": "You fell!",
 		"next_bee": "Next: %s",
 		"next_goal": "%d flowers in one run",
+		# a locked bee's card says the same as the chip, on two lines
+		"goal_count": "%d flowers",
+		"goal_count_1": "1 flower",
+		"goal_run": "in one run",
+		"to_go": "%d to go",
+		"to_go_1": "1 to go",
+		"use_it": "Use it",
+		"previous_record": "Previous record: %d",
+		"record_short": "%d short of your record!",
+		"record_short_1": "1 short of your record!",
+		"record_tied": "You tied your record!",
+		"settings": "Settings",
+		"music": "Music",
+		"sounds": "Sounds",
+		"vibration": "Vibration",
+		"shake": "Shake",
 		"record_word": "RECORD",
 		"rule": "Take EVERY flower!",
 		"record_beaten": "New record!",
@@ -251,7 +263,6 @@ const TEXT := {
 		"game_over": "Fim de jogo",
 		"score": "Pontos",
 		"best": "Recorde",
-		"new": "NOVO!",
 		"play_again": "Jogar de novo",
 		"paused": "Pausado",
 		"resume": "Continuar",
@@ -261,15 +272,27 @@ const TEXT := {
 		"choose_bee": "Escolha sua abelha",
 		"back": "Voltar",
 		"selected": "Em uso",
-		"pick": "Toque para usar",
-		"locked": "%d pontos",
 		"unlocked": "%s liberada!",
-		"unlocked_hint": "Escolha no menu de abelhas",
 		"died_hedge": "Bateu na roseira!",
 		"died_flower": "Uma flor ficou para trás!",
 		"died_fall": "Caiu!",
 		"next_bee": "Próxima: %s",
 		"next_goal": "%d flores numa partida",
+		"goal_count": "%d flores",
+		"goal_count_1": "1 flor",
+		"goal_run": "numa partida",
+		"to_go": "Faltam %d",
+		"to_go_1": "Falta 1",
+		"use_it": "Usar agora",
+		"previous_record": "Recorde anterior: %d",
+		"record_short": "Faltaram %d para o recorde!",
+		"record_short_1": "Faltou 1 para o recorde!",
+		"record_tied": "Igualou o recorde!",
+		"settings": "Ajustes",
+		"music": "Música",
+		"sounds": "Efeitos",
+		"vibration": "Vibração",
+		"shake": "Tremor",
 		"record_word": "RECORDE",
 		"rule": "Pegue TODAS as flores!",
 		"record_beaten": "Novo recorde!",
@@ -300,6 +323,40 @@ const SCORE_Y := 92.0
 # The most a camera cut-out may push that row down. A phone reporting more
 # than this is reporting something else, and the row stays near the top.
 const TOP_INSET_MAX := 48.0
+# The corner button (the pause button in a run, the gear on the title and
+# game-over screens) is a 48 plate, but it takes taps over CORNER_HIT more
+# towards the top and right edges: 48 u is only about 43 dp on a 360 dp
+# phone, under the 48 dp a finger needs. Growing it only towards the edges
+# keeps it out of the right half's flapping.
+const CORNER_PLATE := 48.0
+const CORNER_HIT := 12.0
+# The text links (credits, ad privacy) take taps over this height, though
+# their text is about 22 tall: 54 u is 48 dp even on a 360 dp phone.
+const LINK_H := 54.0
+
+# The game-over screen: its board and chip are this wide (whole cubes).
+const GO_W := 276.0
+# The score counts up from 0 in this long, with a tick on its steps (one at
+# most every COUNT_UP_GAP), all inside GAME_OVER_LOCK_MSEC, so "Play Again"
+# is never kept waiting by it. The tick is the button click, up through the
+# pickup's own scale, at about -29 LUFS: under the game's events (a pickup
+# is -23 to -24), over the click of a button (-34).
+const COUNT_UP_TIME := 0.4
+const COUNT_UP_GAP := 0.05
+const SFX_COUNT_DB := -8.0
+# How the board comes in: a fade, and the board growing from this.
+const GO_FADE_IN := 0.18
+const GO_GROW_FROM := 0.9
+# A run that ends this close under the record says how close ("Faltaram 3
+# para o recorde!"): within NEAR_RECORD_MIN flowers, or NEAR_RECORD_SHARE
+# of the record if that is more.
+const NEAR_RECORD_MIN := 5
+const NEAR_RECORD_SHARE := 0.25
+# The goal chip's progress bar: this many blocks of two cubes, a cube apart.
+const GOAL_BAR_BLOCKS := 12
+# On the title, the air between the bee waiting on the grass and the Play
+# button over it (_fit_title_to_bee).
+const TITLE_BEE_CLEAR := 8.0
 
 # The run's one slot for messages (_notify): a plate in the top row, where
 # the record readout is, which it covers while it is up. Everything a run
@@ -443,6 +500,55 @@ const ICON_SLASH := [
 	"........XX.",
 	".........XX",
 ]
+# the settings (the corner of the title and game-over screens)
+const ICON_GEAR := [
+	"....XXX....",
+	".XX.XXX.XX.",
+	".XXXXXXXXX.",
+	"..XXXXXXX..",
+	"XXXX...XXXX",
+	"XXXX...XXXX",
+	"XXXX...XXXX",
+	"..XXXXXXX..",
+	".XXXXXXXXX.",
+	".XX.XXX.XX.",
+	"....XXX....",
+]
+# the screen shake switch: a picture in a frame, with the marks of a jolt
+const ICON_SHAKE := [
+	"..XXXXXXX..",
+	"..X.....X..",
+	"X.X.....X.X",
+	"X.X..X..X.X",
+	"..X.XXX.X..",
+	"X.XXXXXXX.X",
+	"X.XXXXXXX.X",
+	"..XXXXXXX..",
+]
+# over a locked bee in the bee menu
+const ICON_LOCK := [
+	"..XXX..",
+	".XX.XX.",
+	".X...X.",
+	"XXXXXXX",
+	"XXX.XXX",
+	"XXX.XXX",
+	"XXXXXXX",
+]
+# The settings' switches, in their order on screen: the save's setting each
+# one flips, its icon and its caption.
+const TOGGLES := [
+	{"id": "music", "icon": ICON_NOTE, "text": "music"},
+	{"id": "sound", "icon": ICON_SOUND, "text": "sounds"},
+	{"id": "vibration", "icon": ICON_VIBRATE, "text": "vibration"},
+	{"id": "shake", "icon": ICON_SHAKE, "text": "shake"},
+]
+const TOGGLE_SIDE := 57.0
+const TOGGLE_GAP := 12.0
+# A locked bee is a flat silhouette in this colour (it was the icon tinted
+# almost black, 1.6:1 on the card, and tinted rather than flat: the queen
+# showed brown, the grape purple). About 3.4:1 on the card's face.
+const SILHOUETTE := Color(0.58, 0.48, 0.74)
 # The flower, as the game's own five-petal one seen from the front: P petal,
 # L the lit rim of the upper petals, C the cream centre, c its golden dot.
 const ICON_FLOWER := [
@@ -557,29 +663,69 @@ var direction_hint: Control
 var start_screen: Control
 var play_button: Button
 var game_over_screen: Control
+# The game-over board (go_board, in go_stack with the goal chip): the title,
+# what ended the run, the score and the record, and a line about the record.
+var go_stack: Control
+var go_board: Control
+var go_title: Label
+var go_rule: ColorRect
+var score_caption: Label
+var best_caption: Label
+var col_divider: ColorRect
 var final_score_label: Label
 var final_best_label: Label
 var death_label: Label
-var goal_chip: Control
+var record_note: Label
+# The chip under the board: a Button, which only takes taps when it offers to
+# put on a bee won in the run (goal_equip, that bee's id).
+var goal_chip: Button
+var goal_plate: Control
 var goal_icon: TextureRect
 var goal_title: Label
 var goal_hint: Label
+var goal_bar: Control
+var goal_left: Label
+var goal_go: Control
+var goal_equip := ""
 var score_pop: Tween
 var restart_button: Button
+# What the game over's lock holds back, dimmed until it lets go.
+var go_bottom: Array[Button] = []
+var go_ready := false
+var go_enter: Tween
+var count_tween: Tween
+var count_shown := 0
+var count_ticks := 0
+var count_last_tick := 0.0
+# The "New record!" caption over the score, on a board that beat it.
 var new_record_badge: Label
 var record_pulse: Tween
 var pause_button: Button
 var pause_screen: Control
+# The settings panel the gear opens from the title and the game over. Its
+# switches and the pause menu's are built by one function (_build_toggle_row)
+# and kept in step by toggle_views: setting id -> one entry per copy. The
+# names below are the pause menu's copy.
+var settings_screen: Control
+var settings_privacy: Button
+var settings_credits: Button
+var gear_buttons: Array[Button] = []
+var toggle_views := {}
 var music_note: Control
 var music_slash: Control
 var sound_icon: Control
 var sound_slash: Control
 var vibrate_icon: Control
 var vibrate_slash: Control
+var shake_icon: Control
+var shake_slash: Control
 var privacy_button: Button
 var credits_button: Button
 var credits_screen: Control
+var credits_title: Label
+var credits_scroll: ScrollContainer
 var credits_box: VBoxContainer
+var silhouette_mat: ShaderMaterial
 var view3d: Node3D
 var applied_bee_skin := ""
 var bee_menu: Control
@@ -615,6 +761,7 @@ var phew_tween: Tween
 var lost_marker: Control
 var lost_blink := 0.0
 var hint_line: Control
+var title_row: Array[Control] = []    # the title's Play button and the buttons beside it
 var bee_cards := {}                    # skin id -> its card's nodes in the bee menu
 var bee_button_icons: Array[TextureRect] = []
 
@@ -701,6 +848,7 @@ func _ready() -> void:
 	add_child(view3d)
 	view3d.setup(self)
 	_apply_bee_skin()
+	_fit_title_to_bee()
 
 	state = State.START
 	start_screen.visible = true
@@ -717,6 +865,14 @@ func _ready() -> void:
 
 func _t(key: String) -> String:
 	return TEXT[lang][key]
+
+
+# A text with a number in it, in the singular when the number is 1 and the
+# table has a "<key>_1" for it: "Falta 1" / "Faltam 2", "1 flor" / "2 flores".
+func _tn(key: String, n: int) -> String:
+	if n == 1 and TEXT[lang].has(key + "_1"):
+		return TEXT[lang][key + "_1"]
+	return TEXT[lang][key] % n
 
 
 # The game draws edge to edge, under the phone's camera cut-out, and the top
@@ -741,7 +897,10 @@ func _apply_top_inset() -> void:
 	top_inset = _cutout_shift()
 	record_label.position.y = RECORD_Y + top_inset
 	score_label.position.y = SCORE_Y + top_inset
-	pause_button.position.y = PAUSE_Y + top_inset
+	# (the buttons' tap areas reach CORNER_HIT above their plates)
+	pause_button.position.y = PAUSE_Y + top_inset - CORNER_HIT
+	for gear in gear_buttons:
+		gear.position.y = pause_button.position.y
 	# the tutorial's centre line starts under the score, wherever that went
 	hint_line.position.y = top_inset
 	if notice.visible and not (notice_tween != null and notice_tween.is_running()):
@@ -771,10 +930,23 @@ func _notification(what: int) -> void:
 					else:
 						_on_resume_pressed()
 				State.START, State.GAMEOVER:
-					if bee_menu.visible:
-						_on_bee_menu_closed()
-					else:
+					if not _close_top_menu():
 						get_tree().quit()
+
+
+# Back (or escape) on the title or the game over closes whatever is open
+# over it, the top one first: the credits over the settings, the settings,
+# the bee menu. False when nothing was.
+func _close_top_menu() -> bool:
+	if credits_screen.visible:
+		credits_screen.visible = false
+	elif settings_screen.visible:
+		_on_settings_closed()
+	elif bee_menu.visible:
+		_on_bee_menu_closed()
+	else:
+		return false
+	return true
 
 
 # ------------------------------------------------------------------
@@ -1030,6 +1202,8 @@ func _physics_process(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_fade_score_over_things(delta)
+	if state == State.GAMEOVER and game_over_screen.visible:
+		_show_game_over_lock()
 	if lost_marker.visible:
 		# the lost flower's marker blinks through the fall, as a flower about
 		# to be lost does (view3d.gd), and holds still on the game over
@@ -1061,6 +1235,9 @@ func _circle_in_rect(c: Vector2, r: float, rect: Rect2) -> bool:
 
 
 func _start_camera_shake(duration: float, magnitude: float) -> void:
+	# the settings' "Shake" switch, for whoever the jolts bother
+	if not SaveData.screen_shake:
+		return
 	camera_shake_time = duration
 	camera_shake_total = duration
 	camera_shake_magnitude = magnitude
@@ -1333,6 +1510,7 @@ func _end_game() -> void:
 		_vibrate(160)
 	leaderboard.submit(score)
 
+	game_over_msec = Time.get_ticks_msec()
 	_fill_game_over(beat_record)
 	# The game-over panel carries its own score and record, so the in-run
 	# HUD above it would just print both a second time.
@@ -1340,7 +1518,7 @@ func _end_game() -> void:
 	# ...and its own word about a bee won in this run (the goal chip)
 	_clear_notices()
 	game_over_screen.visible = true
-	game_over_msec = Time.get_ticks_msec()
+	_enter_game_over()
 	ads.run_finished()
 
 
@@ -1355,44 +1533,245 @@ func _keep_record() -> void:
 
 # Everything the game-over screen says about the run that just ended.
 func _fill_game_over(beat_record: bool) -> void:
-	final_score_label.text = "%d" % score
 	final_best_label.text = "%d" % SaveData.best_score
 	record_label.text = _t("record") % SaveData.best_score
 	death_label.text = _t("died_" + death_cause) if death_cause != "" else ""
+	record_note.text = _record_note(beat_record)
 	if beat_record:
 		_show_new_record_badge()
 	else:
 		_hide_new_record_badge()
 	_refresh_goal_chip()
+	_layout_game_over(beat_record)
+	_count_up(beat_record)
 
 
-# The chip under the board: a bee won in this run, or else the next one to
-# win and the score it takes. It gives the next run a goal — without it the
+# The line under the score: a record beaten says what it was ("26 | 26" said
+# nothing), and a run that ended just under it says by how much.
+func _record_note(beat_record: bool) -> String:
+	if beat_record:
+		return _t("previous_record") % record_at_run_start if record_at_run_start > 0 else ""
+	var best: int = SaveData.best_score
+	if score <= 0 or best <= 0:
+		return ""
+	var short := best - score
+	if short == 0:
+		return _t("record_tied")
+	if short <= maxi(NEAR_RECORD_MIN, ceili(best * NEAR_RECORD_SHARE)):
+		return _tn("record_short", short)
+	return ""
+
+
+# The board's rows, top to bottom: the title, the cause, a rule, then the
+# score and the record side by side, or the score alone under "New record!"
+# when it beat the record (the record is the same number), and the record
+# line if there is one. The board takes the height of what it shows, and the
+# board and the chip are centred between the top row and the buttons.
+func _layout_game_over(beat_record: bool) -> void:
+	var w := GO_W
+	var col_w := (w - 2.0 * UI_CELL) / 2.0
+	death_label.visible = death_label.text != ""
+	score_caption.visible = not beat_record
+	best_caption.visible = not beat_record
+	col_divider.visible = not beat_record
+	final_best_label.visible = not beat_record
+	if beat_record:
+		_set_font_size(final_score_label, 60)
+		final_score_label.add_theme_color_override("font_color", GOLD)
+		final_score_label.position = Vector2(0, 120)
+		final_score_label.size = Vector2(w, 62)
+	else:
+		_set_font_size(final_score_label, 50)
+		final_score_label.add_theme_color_override("font_color", Color.WHITE)
+		final_score_label.position = Vector2(UI_CELL, 124)
+		final_score_label.size = Vector2(col_w, 54)
+	final_score_label.pivot_offset = final_score_label.size / 2.0
+	var bottom := 182.0
+	record_note.visible = record_note.text != ""
+	if record_note.visible:
+		bottom = record_note.position.y + 24.0
+	# down to the face's bottom edge: the side band and the outline under it
+	var h := ceilf((bottom + 3.0 * UI_CELL) / UI_CELL) * UI_CELL
+	go_board.size = Vector2(w, h)
+	go_board.queue_redraw()
+	var total := h
+	if goal_chip.visible:
+		goal_chip.position.y = h + 12.0
+		total = goal_chip.position.y + goal_chip.size.y
+	var top := 64.0 + top_inset
+	var room_end := restart_button.position.y - 18.0
+	var y := maxf(top, roundf((top + room_end - total) / 2.0))
+	go_stack.position = Vector2(floorf((SCREEN_W - w) / 2.0), y)
+	go_stack.size = Vector2(w, total)
+	go_stack.pivot_offset = go_stack.size / 2.0
+
+
+func _set_font_size(label: Label, font_size: int) -> void:
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_constant_override("outline_size", maxi(5, roundi(font_size / 4.5)))
+
+
+# The screen comes in rather than popping up: it fades in while the board
+# grows into place, all well inside the lock against stray taps
+# (GAME_OVER_LOCK_MSEC), which _show_game_over_lock shows on the buttons.
+func _enter_game_over() -> void:
+	if go_enter != null and go_enter.is_valid():
+		go_enter.kill()
+	go_ready = false
+	_show_game_over_lock()
+	game_over_screen.modulate.a = 0.0
+	go_stack.scale = Vector2.ONE * GO_GROW_FROM
+	# bound to the screen, on the interface's layer, which runs through a pause
+	go_enter = game_over_screen.create_tween()
+	go_enter.tween_property(game_over_screen, "modulate:a", 1.0, GO_FADE_IN)
+	go_enter.parallel().tween_property(go_stack, "scale", Vector2.ONE, 0.3) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+# Taps the game over isn't taking yet: in its first instant, and while an ad
+# is opening (see _on_restart_pressed).
+func _game_over_locked() -> bool:
+	var now := Time.get_ticks_msec()
+	if now - game_over_msec < GAME_OVER_LOCK_MSEC:
+		return true
+	return restart_after_ad and now - restart_lock_msec < AD_LOCK_MSEC
+
+
+# While the lock holds, the buttons where the thumbs were tapping are dimmed
+# and take no taps (a press used to click and do nothing); when it lets go
+# they light up with a little jump, which says "now".
+func _show_game_over_lock() -> void:
+	var locked := _game_over_locked()
+	for b in go_bottom:
+		b.disabled = locked
+	for gear in gear_buttons:
+		if game_over_screen.is_ancestor_of(gear):
+			gear.disabled = locked
+	goal_chip.disabled = locked or goal_equip == ""
+	if locked:
+		go_ready = false
+		for b in go_bottom:
+			b.modulate.a = 0.5
+	elif not go_ready:
+		go_ready = true
+		for b in go_bottom:
+			b.modulate.a = 1.0
+		restart_button.pivot_offset = restart_button.size / 2.0
+		restart_button.scale = Vector2.ONE * 1.08
+		var pop := restart_button.create_tween()
+		pop.tween_property(restart_button, "scale", Vector2.ONE, 0.2) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+# The score counts up from 0 (COUNT_UP_TIME, easing out), ticking up the
+# pickup's scale as it goes, and lands with a jump. A record beaten fills
+# the chip's bar from where the record was, at the same time.
+func _count_up(beat_record: bool) -> void:
+	if count_tween != null and count_tween.is_valid():
+		count_tween.kill()
+	count_shown = 0
+	count_ticks = 0
+	count_last_tick = -1.0
+	final_score_label.text = "0"
+	final_score_label.scale = Vector2.ONE
+	if score <= 0:
+		return
+	count_tween = final_score_label.create_tween()
+	count_tween.tween_method(_count_step, 0.0, 1.0, COUNT_UP_TIME)
+	if beat_record and goal_bar.visible:
+		var to: float = goal_bar.value
+		goal_bar.value = clampf(float(record_at_run_start) / goal_bar.get_meta("need"), 0.0, to)
+		count_tween.parallel().tween_property(goal_bar, "value", to, COUNT_UP_TIME) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	count_tween.tween_callback(_count_done)
+
+
+func _count_step(p: float) -> void:
+	var shown := mini(score, roundi((1.0 - (1.0 - p) * (1.0 - p)) * score))
+	if shown == count_shown:
+		return
+	count_shown = shown
+	final_score_label.text = "%d" % shown
+	var t := p * COUNT_UP_TIME
+	if t - count_last_tick < COUNT_UP_GAP:
+		return
+	count_last_tick = t
+	# up the pentatonic steps a flower climbs, an octave higher every five
+	var steps: int = COLLECT_PITCH_STEPS.size()
+	var pitch: float = COLLECT_PITCH_STEPS[count_ticks % steps] * pow(2.0, count_ticks / steps)
+	_play_sfx(SFX_UI_TAP, SFX_COUNT_DB, minf(pitch, 3.0))
+	count_ticks += 1
+
+
+func _count_done() -> void:
+	count_shown = score
+	final_score_label.text = "%d" % score
+	final_score_label.scale = Vector2.ONE * 1.2
+	var pop := final_score_label.create_tween()
+	pop.tween_property(final_score_label, "scale", Vector2.ONE, 0.2) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+# The chip under the board: a bee won in this run, which one tap puts on, or
+# else the next one to win, what it takes and how far the record has got
+# (a bar, and "Faltam N"). It gives the next run a goal — without it the
 # skins are only ever seen by someone who opens the bee menu.
 func _refresh_goal_chip() -> void:
-	var title_color := Color.WHITE
+	goal_equip = ""
+	goal_bar.visible = false
+	goal_left.visible = false
+	goal_go.visible = false
+	goal_chip.visible = false
 	if not bees_won_this_run.is_empty():
 		var won: String = bees_won_this_run[-1]
-		goal_chip.set_ink(GOLD)
+		var in_use := _current_bee_skin() == won
+		goal_plate.set_ink(GOLD)
 		goal_icon.texture = load(_bee_icon_path(won))
-		goal_icon.modulate = Color.WHITE
+		_set_silhouette(goal_icon, false)
 		goal_title.text = _t("unlocked") % BEE_SKINS[won]["name"]
-		goal_hint.text = _t("unlocked_hint")
-		title_color = GOLD
+		goal_title.add_theme_color_override("font_color", GOLD)
+		goal_hint.text = _t("selected") if in_use else _t("use_it")
+		goal_hint.add_theme_color_override("font_color", Color(1, 1, 1, 0.88) if in_use else GOLD)
+		goal_go.visible = not in_use
+		goal_equip = "" if in_use else won
+		_size_block_button(goal_chip, Vector2(GO_W, 66))
 		goal_chip.visible = true
 	else:
-		goal_chip.visible = false
 		for id in BEE_ORDER:
-			if not _bee_unlocked(id):
-				goal_chip.set_ink(Color.WHITE)
-				goal_icon.texture = load(_bee_icon_path(id))
-				# a dark silhouette, as in the bee menu
-				goal_icon.modulate = Color(0.08, 0.06, 0.14, 0.85)
-				goal_title.text = _t("next_bee") % BEE_SKINS[id]["name"]
-				goal_hint.text = _t("next_goal") % BEE_SKINS[id]["score"]
-				goal_chip.visible = true
-				break
-	goal_title.add_theme_color_override("font_color", title_color)
+			if _bee_unlocked(id):
+				continue
+			var need: int = BEE_SKINS[id]["score"]
+			goal_plate.set_ink(Color.WHITE)
+			goal_icon.texture = load(_bee_icon_path(id))
+			_set_silhouette(goal_icon, true)
+			goal_title.text = _t("next_bee") % BEE_SKINS[id]["name"]
+			goal_title.add_theme_color_override("font_color", Color.WHITE)
+			goal_hint.text = _t("next_goal") % need
+			goal_hint.add_theme_color_override("font_color", Color(1, 1, 1, 0.88))
+			goal_bar.set_meta("need", need)
+			goal_bar.value = clampf(float(SaveData.best_score) / need, 0.0, 1.0)
+			goal_bar.visible = true
+			goal_left.text = _tn("to_go", need - SaveData.best_score)
+			goal_left.visible = true
+			_size_block_button(goal_chip, Vector2(GO_W, 87))
+			goal_chip.visible = true
+			break
+	goal_chip.disabled = goal_equip == "" or _game_over_locked()
+
+
+# The chip's "Use it": the bee won in the run goes on at once, without the
+# bee menu (it took three taps).
+func _on_goal_chip_pressed() -> void:
+	if state != State.GAMEOVER or goal_equip == "" or _game_over_locked():
+		return
+	_play_sfx(SFX_UI_TAP, SFX_UI_DB)
+	_select_bee(goal_equip)
+	_refresh_goal_chip()
+	goal_chip.pivot_offset = goal_chip.size / 2.0
+	goal_chip.scale = Vector2.ONE * 1.06
+	var pop := goal_chip.create_tween()
+	pop.tween_property(goal_chip, "scale", Vector2.ONE, 0.2) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 func _set_hud_visible(on: bool) -> void:
@@ -1409,7 +1788,7 @@ func _show_new_record_badge() -> void:
 	# Bound to the badge rather than to this node so it keeps its own
 	# process mode — the UI layer runs through a pause, this script doesn't.
 	record_pulse = new_record_badge.create_tween().set_loops()
-	record_pulse.tween_property(new_record_badge, "scale", Vector2.ONE * 1.16, 0.55) \
+	record_pulse.tween_property(new_record_badge, "scale", Vector2.ONE * 1.08, 0.55) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	record_pulse.tween_property(new_record_badge, "scale", Vector2.ONE, 0.55) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
@@ -1475,13 +1854,12 @@ func _on_restart_pressed() -> void:
 	# a press from an actual game-over screen should ever reset anything.
 	if state != State.GAMEOVER:
 		return
-	if Time.get_ticks_msec() - game_over_msec < GAME_OVER_LOCK_MSEC:
-		return
-	# While an ad is opening, further presses are swallowed — but only for a
-	# few seconds. If the ad never reports back (it failed without saying
-	# so), a lock without an expiry would leave this button dead for good;
-	# a real ad covers the button for longer than the lock lasts anyway.
-	if restart_after_ad and Time.get_ticks_msec() - restart_lock_msec < AD_LOCK_MSEC:
+	# Not in the screen's first instant (GAME_OVER_LOCK_MSEC). And while an
+	# ad is opening, further presses are swallowed — but only for a few
+	# seconds. If the ad never reports back (it failed without saying so), a
+	# lock without an expiry would leave this button dead for good; a real ad
+	# covers the button for longer than the lock lasts anyway.
+	if _game_over_locked():
 		return
 	# Between runs is the one place an ad may appear, and only every few
 	# runs (ads.gd). The new run then waits for the ad to close; it starts
@@ -1520,6 +1898,7 @@ func _start_fresh_run() -> void:
 	# The bee menu can be opened from the game over while an ad is opening
 	# (or the credits from the pause menu), and the run would start under it.
 	bee_menu.visible = false
+	settings_screen.visible = false
 	credits_screen.visible = false
 	pause_button.visible = true
 	_set_hud_visible(true)
@@ -1538,10 +1917,9 @@ func _on_pause_pressed() -> void:
 	# "Paused" title and had to be put away.)
 	_keep_record()
 	pause_button.visible = false
-	privacy_button.visible = ads.privacy_options_required()
-	# the credits link sits under the privacy one when that is showing
-	credits_button.position.y = privacy_button.position.y + (38.0 if privacy_button.visible else 0.0)
+	_place_links(privacy_button, credits_button)
 	pause_screen.visible = true
+	_fade_in(pause_screen)
 	# The tutorial arrows sit right where the menu's buttons are, and showed
 	# through from behind them when a first run was paused before its first
 	# flap.
@@ -1644,8 +2022,7 @@ func _play_sfx(stream: AudioStream, volume_db: float, pitch := 1.0) -> void:
 
 func _apply_music_mute() -> void:
 	music.volume_db = MUSIC_MUTED_DB if SaveData.music_muted else MUSIC_VOLUME_DB
-	music_slash.visible = SaveData.music_muted
-	music_note.modulate = Color(1, 1, 1, 0.4) if SaveData.music_muted else Color.WHITE
+	_show_toggle("music", not SaveData.music_muted)
 
 
 func _on_sound_toggle_pressed() -> void:
@@ -1659,8 +2036,7 @@ func _on_sound_toggle_pressed() -> void:
 
 
 func _apply_sound_setting() -> void:
-	sound_slash.visible = SaveData.sfx_muted
-	sound_icon.modulate = Color(1, 1, 1, 0.4) if SaveData.sfx_muted else Color.WHITE
+	_show_toggle("sound", not SaveData.sfx_muted)
 
 
 func _on_vibration_toggle_pressed() -> void:
@@ -1671,8 +2047,56 @@ func _on_vibration_toggle_pressed() -> void:
 
 
 func _apply_vibration_setting() -> void:
-	vibrate_slash.visible = not SaveData.vibration
-	vibrate_icon.modulate = Color.WHITE if SaveData.vibration else Color(1, 1, 1, 0.4)
+	_show_toggle("vibration", SaveData.vibration)
+
+
+func _on_shake_toggle_pressed() -> void:
+	SaveData.screen_shake = not SaveData.screen_shake
+	SaveData.save_data()
+	_show_toggle("shake", SaveData.screen_shake)
+	# switched on, the switches themselves give a little jolt, as a sample
+	if SaveData.screen_shake:
+		for v in toggle_views["shake"]:
+			_nudge(v["button"], 2.0)
+
+
+func _on_toggle_pressed(id: String) -> void:
+	match id:
+		"music":
+			_on_music_toggle_pressed()
+		"sound":
+			_on_sound_toggle_pressed()
+		"vibration":
+			_on_vibration_toggle_pressed()
+		"shake":
+			_on_shake_toggle_pressed()
+
+
+# Every copy of a switch (the pause menu's, the settings panel's) shows its
+# setting the same way. On: a gold outline, as the bee in use has in the bee
+# menu. Off: a white one, the icon faded and struck through, the caption dim.
+func _show_toggle(id: String, on: bool) -> void:
+	for v in toggle_views.get(id, []):
+		v["slash"].visible = not on
+		v["icon"].modulate = Color.WHITE if on else Color(1, 1, 1, 0.4)
+		v["plate"].set_ink(GOLD if on else Color(1, 1, 1, 0.5))
+		v["caption"].add_theme_color_override("font_color", Color.WHITE if on else Color(1, 1, 1, 0.6))
+
+
+# A sideways shake, there and back in 0.2 s: "no" on a locked bee's card,
+# and the shake switch's own sample.
+func _nudge(c: Control, by := 3.0) -> void:
+	if c.has_meta("nudge"):
+		var old: Tween = c.get_meta("nudge")
+		if old.is_valid():
+			old.kill()
+		c.position.x = c.get_meta("nudge_x")
+	var x0 := c.position.x
+	c.set_meta("nudge_x", x0)
+	var t := c.create_tween()
+	c.set_meta("nudge", t)
+	for dx in [by, -by, by * 0.66, 0.0]:
+		t.tween_property(c, "position:x", x0 + dx, 0.05)
 
 
 # A short buzz for the moments that matter (death, a new record, a new
@@ -1963,7 +2387,11 @@ func _layout_notice(entry: Dictionary) -> void:
 func _on_bee_menu_pressed() -> void:
 	if state != State.START and state != State.GAMEOVER:
 		return
-	# Play Again just asked for an ad: the run starts when it closes.
+	# Not in the game over's first instant (the button is where a thumb was
+	# tapping), nor while Play Again's ad is opening: the run starts when it
+	# closes.
+	if state == State.GAMEOVER and _game_over_locked():
+		return
 	if restart_after_ad and Time.get_ticks_msec() - restart_lock_msec < AD_LOCK_MSEC:
 		return
 	_clear_notices()
@@ -1973,17 +2401,33 @@ func _on_bee_menu_pressed() -> void:
 	start_screen.visible = false
 	game_over_screen.visible = false
 	bee_menu.visible = true
+	_fade_in(bee_menu)
 
 
 func _on_bee_menu_closed() -> void:
 	bee_menu.visible = false
 	start_screen.visible = state == State.START
 	game_over_screen.visible = state == State.GAMEOVER
+	# a bee picked in the menu may be the one the chip offered
+	if state == State.GAMEOVER:
+		_refresh_goal_chip()
 
 
+# A card tapped: a bee that has been won goes on (with the button's click);
+# a locked one shakes its head, with a lower click and a short buzz, instead
+# of doing nothing at all.
 func _on_bee_card_pressed(id: String) -> void:
 	if not _bee_unlocked(id):
+		var card: Dictionary = bee_cards[id]
+		_nudge(card["button"])
+		_play_sfx(SFX_UI_TAP, SFX_UI_DB, 0.6)
+		_vibrate(20)
 		return
+	_play_sfx(SFX_UI_TAP, SFX_UI_DB)
+	_select_bee(id)
+
+
+func _select_bee(id: String) -> void:
 	if SaveData.selected_bee != id:
 		SaveData.selected_bee = id
 		SaveData.save_data()
@@ -1991,23 +2435,92 @@ func _on_bee_card_pressed(id: String) -> void:
 	_refresh_bee_menu()
 
 
+# Won and in use: the lit face and a gold outline, "Em uso" in gold. Won:
+# the card alone, the bee's name. Locked: a flat silhouette with a lock, and
+# what it takes, worded as the game-over chip words it ("175 flores" /
+# "numa partida").
 func _refresh_bee_menu() -> void:
 	var current := _current_bee_skin()
 	for id in bee_cards:
 		var card: Dictionary = bee_cards[id]
 		var locked: bool = not _bee_unlocked(id)
 		var selected: bool = id == current
+		card["plate"].set_palette("lit" if selected else "dark")
 		card["plate"].set_ink(GOLD if selected else Color(1, 1, 1, 0.45 if locked else 0.9))
-		# a locked bee shows as a dark silhouette
-		card["icon"].modulate = Color(0.08, 0.06, 0.14, 0.85) if locked else Color.WHITE
+		_set_silhouette(card["icon"], locked)
+		card["lock"].visible = locked
+		card["name"].add_theme_color_override("font_color", Color(1, 1, 1, 0.75) if locked else Color.WHITE)
 		var status: Label = card["status"]
+		var run: Label = card["run"]
+		run.visible = locked
 		if locked:
-			status.text = _t("locked") % BEE_SKINS[id]["score"]
+			status.text = _tn("goal_count", BEE_SKINS[id]["score"])
 		else:
-			status.text = _t("selected") if selected else _t("pick")
-		status.add_theme_color_override("font_color", GOLD if selected else Color(1, 1, 1, 0.85))
+			status.text = _t("selected") if selected else ""
+		status.add_theme_color_override("font_color", GOLD)
 	for icon in bee_button_icons:
 		icon.texture = load(_bee_icon_path(current))
+
+
+# A bee not won yet is drawn as its outline only, in one flat colour
+# (SILHOUETTE), by a small shader that keeps the icon's alpha.
+func _set_silhouette(icon: TextureRect, on: bool) -> void:
+	if silhouette_mat == null:
+		var shader := Shader.new()
+		shader.code = """shader_type canvas_item;
+uniform vec4 fill : source_color;
+void fragment() {
+	COLOR = vec4(fill.rgb, fill.a * texture(TEXTURE, UV).a);
+}"""
+		silhouette_mat = ShaderMaterial.new()
+		silhouette_mat.shader = shader
+		silhouette_mat.set_shader_parameter("fill", SILHOUETTE)
+	icon.material = silhouette_mat if on else null
+	icon.modulate = Color.WHITE
+
+
+# ------------------------------------------------------------------
+# The settings panel
+# ------------------------------------------------------------------
+
+# The gear on the title and the game over: the switches, the credits and the
+# ad privacy, which used to be only in the pause menu (that is, mid-run).
+func _on_settings_pressed() -> void:
+	if state != State.START and state != State.GAMEOVER:
+		return
+	if state == State.GAMEOVER and _game_over_locked():
+		return
+	_place_links(settings_privacy, settings_credits)
+	start_screen.visible = false
+	game_over_screen.visible = false
+	settings_screen.visible = true
+	_fade_in(settings_screen)
+
+
+func _on_settings_closed() -> void:
+	settings_screen.visible = false
+	credits_screen.visible = false
+	start_screen.visible = state == State.START
+	game_over_screen.visible = state == State.GAMEOVER
+
+
+# The ad-privacy link only where the law asks for a way back to the consent
+# choices (ads.gd); the credits link under it, or in its place.
+func _place_links(privacy: Button, credits: Button) -> void:
+	privacy.visible = ads.privacy_options_required()
+	credits.position.y = privacy.position.y + (LINK_H if privacy.visible else 0.0)
+
+
+# A menu coming up fades in over a moment instead of popping.
+func _fade_in(c: Control, time := 0.12) -> void:
+	if c.has_meta("fade"):
+		var old: Tween = c.get_meta("fade")
+		if old.is_valid():
+			old.kill()
+	c.modulate.a = 0.0
+	var t := c.create_tween()
+	c.set_meta("fade", t)
+	t.tween_property(c, "modulate:a", 1.0, time)
 
 
 # ------------------------------------------------------------------
@@ -2094,7 +2607,7 @@ func _on_key(event: InputEventKey) -> void:
 			if state == State.PLAYING:
 				_flap(1)
 		KEY_SPACE, KEY_ENTER, KEY_KP_ENTER:
-			if bee_menu.visible or credits_screen.visible:
+			if bee_menu.visible or credits_screen.visible or settings_screen.visible:
 				return
 			match state:
 				State.START:
@@ -2113,8 +2626,7 @@ func _on_key(event: InputEventKey) -> void:
 					else:
 						_on_resume_pressed()
 				State.START, State.GAMEOVER:
-					if bee_menu.visible:
-						_on_bee_menu_closed()
+					_close_top_menu()
 
 
 # Keys come through this node rather than through main.gd's own input,
@@ -2125,6 +2637,43 @@ class KeyRelay extends Node:
 	func _unhandled_key_input(event: InputEvent) -> void:
 		if event is InputEventKey and event.pressed and not event.echo:
 			pressed.emit(event)
+
+
+# A progress bar on the interface's grid: blocks of two cubes, a cube apart,
+# in a trough. `value` (0 to 1) fills it a cube at a time, and anything above
+# 0 shows at least one.
+class VoxelBar extends Control:
+	var blocks := 12
+	var cell := 3.0
+	var trough: Color
+	var empty: Color
+	var full: Color
+	var value := 0.0:
+		set(v):
+			value = clampf(v, 0.0, 1.0)
+			queue_redraw()
+
+	func setup(p_blocks: int, p_cell: float, p_trough: Color, p_empty: Color, p_full: Color) -> void:
+		blocks = p_blocks
+		cell = p_cell
+		trough = p_trough
+		empty = p_empty
+		full = p_full
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		size = Vector2((blocks * 3 + 1) * cell, 4.0 * cell)
+
+	func filled_cells() -> int:
+		var cells := blocks * 2
+		if value <= 0.0:
+			return 0
+		return clampi(floori(value * cells), 1, cells)
+
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, size), trough)
+		var lit := filled_cells()
+		for i in blocks * 2:
+			var x := cell + (i / 2) * 3.0 * cell + (i % 2) * cell
+			draw_rect(Rect2(x, cell, cell, 2.0 * cell), full if i < lit else empty)
 
 
 # ------------------------------------------------------------------
@@ -2186,8 +2735,7 @@ func _build_ui() -> void:
 	lost_marker = _build_lost_marker()
 	ui_layer.add_child(lost_marker)
 
-	pause_button = _make_icon_button(_build_pixel_icon(ICON_PAUSE, 3.0, Color.WHITE), 48.0)
-	pause_button.position = Vector2(SCREEN_W - pause_button.size.x - 14, PAUSE_Y)
+	pause_button = _make_corner_button(_build_pixel_icon(ICON_PAUSE, 3.0, Color.WHITE))
 	pause_button.visible = false
 	pause_button.pressed.connect(_on_pause_pressed)
 	ui_layer.add_child(pause_button)
@@ -2210,6 +2758,10 @@ func _build_ui() -> void:
 	ui_layer.add_child(bee_menu)
 	_refresh_bee_menu()
 
+	settings_screen = _build_settings_screen()
+	ui_layer.add_child(settings_screen)
+
+	# over the pause menu and the settings, which both open it
 	credits_screen = _build_credits_screen()
 	ui_layer.add_child(credits_screen)
 
@@ -2292,15 +2844,24 @@ func _build_start_screen() -> Control:
 	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
 	screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
+	# The logo's cubes are a whole number of the screen's own pixels (at
+	# 4.3 u a cube, they came out 11 or 12 px at 1080 wide, and the outlines
+	# and lit edges with them), and so is where it starts.
+	var px := get_viewport().get_final_transform()
 	var logo := VoxelLogo.new()
-	logo.setup(344.0)
+	logo.setup(344.0, px.x.x)
 	# Anchored to the bottom like the world behind it (the ground sits flush
 	# with the bottom edge, rows stack up from there), so on taller phones
 	# the logo keeps the same slot between rows instead of a row running
-	# straight through it. Floored so short screens don't push it under the
-	# record label.
-	logo.position = Vector2(
-		(SCREEN_W - logo.size.x) / 2.0, maxf(140.0, screen_h - 660.0) - logo.size.y / 2.0)
+	# straight through it. On a screen too short for that slot (it would go
+	# under the record label) it takes the gap one row lower: clamping it
+	# instead put a 16:9 screen's logo right on a row of hedges. (666: the
+	# middle of the slot, the bee over the logo taken into account; it was
+	# 660, a few units from the row under it.)
+	var centre := screen_h - 666.0
+	if centre < 140.0:
+		centre += OBSTACLE_SPACING
+	logo.position = _snap_to_pixels(Vector2((SCREEN_W - logo.size.x) / 2.0, centre - logo.size.y / 2.0), px)
 	screen.add_child(logo)
 
 	# The bee in use hovers between the two words, so the title shows the
@@ -2340,8 +2901,51 @@ func _build_start_screen() -> Control:
 	var trophy_button := _make_leaderboard_button()
 	trophy_button.position = Vector2(SCREEN_W - 26 - trophy_button.size.x, bee_button.position.y)
 	screen.add_child(trophy_button)
+	title_row = [play_button, bee_button, trophy_button]
 
+	screen.add_child(_make_gear_button())
 	return screen
+
+
+# Where a point of the interface lands on a whole pixel of the screen.
+func _snap_to_pixels(p: Vector2, px: Transform2D) -> Vector2:
+	var s := px.x.x
+	if s < 1.0:
+		return p.round()
+	return ((p * s + px.origin).round() - px.origin) / s
+
+
+# The Play button stands over the ground, and the bee waiting on the grass
+# showed half hidden under it on a tall screen (the 3D view's tilt draws the
+# bottom of the world higher up than the 2D plane has it, the more so the
+# taller the screen). The title's bottom row goes up until the bee is clear.
+func _fit_title_to_bee() -> void:
+	var bee_top: float = view3d.screen_pos_for(
+			bee.position - Vector2(0.0, bee.radius * 2.0), Vector2(0.0, camera_y)).y
+	# the button breathes 6% bigger, and casts a cube of shadow under it
+	var play_bottom := play_button.position.y + play_button.size.y * 1.03 + UI_CELL
+	var lift := ceilf(maxf(0.0, play_bottom - (bee_top - TITLE_BEE_CLEAR)))
+	for c in title_row:
+		c.position.y -= lift
+
+
+# The settings' gear, in the corner where a run has its pause button.
+func _make_gear_button() -> Button:
+	var gear := _make_corner_button(_build_pixel_icon(ICON_GEAR, 3.0, Color.WHITE))
+	gear.pressed.connect(_on_settings_pressed)
+	gear_buttons.append(gear)
+	return gear
+
+
+# The corner's 48 plate, which takes taps CORNER_HIT further towards the top
+# and right edges, in the pause button's place (see CORNER_HIT).
+func _make_corner_button(icon: Control) -> Button:
+	var btn := _make_block_button("dark", Vector2(CORNER_PLATE, CORNER_PLATE), 2, true, Vector2(CORNER_HIT, CORNER_HIT))
+	var face: Control = btn.get_meta("content")
+	icon.position = ((face.size - icon.size) / 2.0).floor()
+	face.add_child(icon)
+	btn.position = Vector2(SCREEN_W - CORNER_PLATE - 14.0, PAUSE_Y + top_inset - CORNER_HIT)
+	return btn
 
 
 # Opens the online leaderboard. Hidden while leaderboard.gd is switched off.
@@ -2398,7 +3002,7 @@ func _build_bee_menu() -> Control:
 
 	# Three to a row; a last row that isn't full is centred, which leaves the
 	# silver bee alone at the bottom like a trophy.
-	const CARD := Vector2(114, 132)
+	const CARD := Vector2(114, 138)
 	const GAP := 9.0
 	const COLS := 3
 	var row_count := ceili(BEE_ORDER.size() / float(COLS))
@@ -2420,27 +3024,39 @@ func _build_bee_menu() -> Control:
 
 
 func _make_bee_card(id: String, card_size: Vector2) -> Button:
-	var btn := _make_block_button("dark", card_size)
+	# its click is _on_bee_card_pressed's, which has a different one for "no"
+	var btn := _make_block_button("dark", card_size, 2, false)
 	btn.pressed.connect(_on_bee_card_pressed.bind(id))
 	var face: Control = btn.get_meta("content")
 
-	var icon := _make_bee_icon(id, 84.0)
-	icon.position = Vector2((face.size.x - 84.0) / 2.0, 0)
+	var icon := _make_bee_icon(id, 76.0)
+	icon.position = Vector2(floorf((face.size.x - 76.0) / 2.0), -2)
 	face.add_child(icon)
+	# a lock over a bee still to be won, at the icon's lower right
+	var lock := _build_pixel_icon(ICON_LOCK, UI_CELL, Color.WHITE)
+	lock.position = Vector2(face.size.x - lock.size.x - 9.0, 48.0)
+	face.add_child(lock)
 
 	var name_label := _make_label(BEE_SKINS[id]["name"], 20, Color.WHITE)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.position = Vector2(0, 76)
+	name_label.position = Vector2(0, 70)
 	name_label.size = Vector2(face.size.x, 22)
 	face.add_child(name_label)
 
-	var status := _make_label("", 16, Color(1, 1, 1, 0.85))
+	# "Em uso" on the bee in use; on a locked one what it takes, on two lines
+	var status := _make_label("", 17, GOLD)
 	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	status.position = Vector2(0, 98)
-	status.size = Vector2(face.size.x, 20)
+	status.position = Vector2(0, 92)
+	status.size = Vector2(face.size.x, 18)
 	face.add_child(status)
+	var run := _make_label(_t("goal_run"), 15, Color(1, 1, 1, 0.8))
+	run.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	run.position = Vector2(0, 109)
+	run.size = Vector2(face.size.x, 16)
+	face.add_child(run)
 
-	bee_cards[id] = {"plate": btn.get_meta("plate"), "icon": icon, "status": status}
+	bee_cards[id] = {"button": btn, "plate": btn.get_meta("plate"), "icon": icon, "lock": lock,
+			"name": name_label, "status": status, "run": run}
 	return btn
 
 
@@ -2514,68 +3130,116 @@ func _build_pause_screen() -> Control:
 	resume_button.pressed.connect(_on_resume_pressed)
 	screen.add_child(resume_button)
 
+	# Two button heights' worth of air under "Resume" (it was 20 u, and a
+	# slip onto "Restart" ends a run, maybe a record one).
 	var pause_restart_button := _make_text_button(_t("restart"))
-	pause_restart_button.position = Vector2((SCREEN_W - pause_restart_button.size.x) / 2.0, screen_h * 0.41 + 86)
+	pause_restart_button.position = Vector2((SCREEN_W - pause_restart_button.size.x) / 2.0,
+			resume_button.position.y + resume_button.size.y + 40.0)
 	pause_restart_button.pressed.connect(_on_pause_restart_pressed)
 	screen.add_child(pause_restart_button)
 
-	music_note = _build_pixel_icon(ICON_NOTE, 3.0, Color.WHITE)
-	var music_button := _make_icon_button(music_note, 57.0)
-	music_button.position = Vector2(
-		SCREEN_W / 2.0 - music_button.size.x / 2.0, screen_h * 0.41 + 200)
-	music_button.pressed.connect(_on_music_toggle_pressed)
-	screen.add_child(music_button)
-
-	music_slash = _build_pixel_icon(ICON_SLASH, 3.0, Color.WHITE)
-	music_slash.position = music_note.position
-	music_slash.visible = false
-	music_note.get_parent().add_child(music_slash)
-
-	# Sound effects have a switch of their own: someone listening to their
-	# own music wants the game's music off but may want its sounds, and
-	# someone playing in public wants neither.
-	sound_icon = _build_pixel_icon(ICON_SOUND, 3.0, Color.WHITE)
-	var sound_button := _make_icon_button(sound_icon, 57.0)
-	sound_button.pressed.connect(_on_sound_toggle_pressed)
-	screen.add_child(sound_button)
-	sound_slash = _build_pixel_icon(ICON_SLASH, 3.0, Color.WHITE)
-	sound_slash.position = sound_icon.position
-	sound_icon.get_parent().add_child(sound_slash)
-	_apply_sound_setting()
-
-	vibrate_icon = _build_pixel_icon(ICON_VIBRATE, 3.0, Color.WHITE)
-	var vibrate_button := _make_icon_button(vibrate_icon, 57.0)
-	vibrate_button.pressed.connect(_on_vibration_toggle_pressed)
-	screen.add_child(vibrate_button)
-	vibrate_slash = _build_pixel_icon(ICON_SLASH, 3.0, Color.WHITE)
-	vibrate_slash.position = vibrate_icon.position
-	vibrate_icon.get_parent().add_child(vibrate_slash)
-	_apply_vibration_setting()
-	# the three toggles side by side under the buttons: music, sounds, vibration
-	var step := music_button.size.x + 12.0
-	music_button.position.x = SCREEN_W / 2.0 - music_button.size.x / 2.0 - step
-	sound_button.position = Vector2(music_button.position.x + step, music_button.position.y)
-	vibrate_button.position = Vector2(music_button.position.x + step * 2.0, music_button.position.y)
-
-	# Only shown where privacy law requires a way back to the ad-consent
-	# choices (see ads.gd); elsewhere there is nothing to choose.
-	privacy_button = _make_link_button(_t("ad_privacy"))
-	privacy_button.position = Vector2((SCREEN_W - privacy_button.size.x) / 2.0, music_button.position.y + 76)
-	privacy_button.visible = false
-	privacy_button.pressed.connect(func(): ads.show_privacy_options())
-	screen.add_child(privacy_button)
-
-	credits_button = _make_link_button(_t("credits"))
-	credits_button.position = Vector2((SCREEN_W - credits_button.size.x) / 2.0, privacy_button.position.y)
-	credits_button.pressed.connect(_on_credits_pressed)
-	screen.add_child(credits_button)
-
+	var links := _build_settings_block(screen, pause_restart_button.position.y + pause_restart_button.size.y + 26.0)
+	privacy_button = links[0]
+	credits_button = links[1]
 	return screen
 
 
-# Credits and licence notices, opened from the pause menu. The text itself
-# is licenses.gd's; it is only put together the first time the screen is
-# opened, as most players never will.
+# The settings panel, from the gear on the title and the game over: the same
+# switches and links as the pause menu (_build_settings_block), and Back.
+func _build_settings_screen() -> Control:
+	var screen := Control.new()
+	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
+	screen.visible = false
+
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.55)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	screen.add_child(dim)
+
+	# where the pause menu has "Paused", so the two read as one menu
+	var title := _make_label(_t("settings"), 52, Color.WHITE)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.position = Vector2(0, screen_h * 0.26)
+	title.size = Vector2(SCREEN_W, 56)
+	screen.add_child(title)
+
+	var links := _build_settings_block(screen, title.position.y + 90.0)
+	settings_privacy = links[0]
+	settings_credits = links[1]
+
+	var back := _make_text_button(_t("back"))
+	back.position = Vector2((SCREEN_W - back.size.x) / 2.0, settings_privacy.position.y + 2.0 * LINK_H + 16.0)
+	back.pressed.connect(_on_settings_closed)
+	screen.add_child(back)
+	return screen
+
+
+# The switches in a row, each with its name under it, and under them the
+# ad-privacy and credits links: one build for the pause menu and the
+# settings panel. Returns [privacy link, credits link].
+func _build_settings_block(screen: Control, y: float) -> Array:
+	var n := TOGGLES.size()
+	var left := floorf((SCREEN_W - (TOGGLE_SIDE * n + TOGGLE_GAP * (n - 1))) / 2.0)
+	for i in n:
+		var spec: Dictionary = TOGGLES[i]
+		var id: String = spec["id"]
+		var icon := _build_pixel_icon(spec["icon"], 3.0, Color.WHITE)
+		var btn := _make_icon_button(icon, TOGGLE_SIDE)
+		btn.position = Vector2(left + i * (TOGGLE_SIDE + TOGGLE_GAP), y)
+		btn.pressed.connect(_on_toggle_pressed.bind(id))
+		screen.add_child(btn)
+		var slash := _build_pixel_icon(ICON_SLASH, 3.0, Color.WHITE)
+		var face: Control = btn.get_meta("content")
+		slash.position = ((face.size - slash.size) / 2.0).floor()
+		face.add_child(slash)
+		var caption := _make_label(_t(spec["text"]), 18, Color.WHITE)
+		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		caption.position = Vector2(btn.position.x - TOGGLE_GAP / 2.0, y + TOGGLE_SIDE + 4.0)
+		caption.size = Vector2(TOGGLE_SIDE + TOGGLE_GAP, 20)
+		screen.add_child(caption)
+		if not toggle_views.has(id):
+			toggle_views[id] = []
+			match id:
+				"music":
+					music_note = icon
+					music_slash = slash
+				"sound":
+					sound_icon = icon
+					sound_slash = slash
+				"vibration":
+					vibrate_icon = icon
+					vibrate_slash = slash
+				"shake":
+					shake_icon = icon
+					shake_slash = slash
+		toggle_views[id].append({"button": btn, "plate": btn.get_meta("plate"), "icon": icon,
+				"slash": slash, "caption": caption})
+	_show_toggle("music", not SaveData.music_muted)
+	_apply_sound_setting()
+	_apply_vibration_setting()
+	_show_toggle("shake", SaveData.screen_shake)
+
+	# Only shown where privacy law requires a way back to the ad-consent
+	# choices (see ads.gd); elsewhere there is nothing to choose, and the
+	# credits take its place (_place_links).
+	var links_y := y + TOGGLE_SIDE + 4.0 + 20.0 + 6.0
+	var privacy := _make_link_button(_t("ad_privacy"))
+	privacy.position = Vector2((SCREEN_W - privacy.size.x) / 2.0, links_y)
+	privacy.visible = false
+	privacy.pressed.connect(func(): ads.show_privacy_options())
+	screen.add_child(privacy)
+
+	var credits := _make_link_button(_t("credits"))
+	credits.position = Vector2((SCREEN_W - credits.size.x) / 2.0, links_y)
+	credits.pressed.connect(_on_credits_pressed)
+	screen.add_child(credits)
+	return [privacy, credits]
+
+
+# Credits and licence notices, opened from the pause menu and the settings.
+# The text itself is licenses.gd's; it is only put together the first time
+# the screen is opened, as most players never will.
 func _build_credits_screen() -> Control:
 	var screen := Control.new()
 	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -2587,27 +3251,34 @@ func _build_credits_screen() -> Control:
 	fill.mouse_filter = Control.MOUSE_FILTER_STOP
 	screen.add_child(fill)
 
-	var title := _make_label(_t("credits"), 44, Color.WHITE)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, 34)
-	title.size = Vector2(SCREEN_W, 50)
-	screen.add_child(title)
+	credits_title = _make_label(_t("credits"), 44, Color.WHITE)
+	credits_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	credits_title.size = Vector2(SCREEN_W, 50)
+	screen.add_child(credits_title)
 
-	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(20, 98)
-	scroll.size = Vector2(SCREEN_W - 40, screen_h - 98 - 108)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	screen.add_child(scroll)
+	credits_scroll = ScrollContainer.new()
+	credits_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	screen.add_child(credits_scroll)
 	credits_box = VBoxContainer.new()
-	credits_box.custom_minimum_size.x = scroll.size.x - 14.0
+	credits_box.custom_minimum_size.x = SCREEN_W - 40.0 - 14.0
 	credits_box.add_theme_constant_override("separation", 9)
-	scroll.add_child(credits_box)
+	credits_scroll.add_child(credits_box)
+	_place_credits()
 
 	var back := _make_text_button(_t("back"))
 	back.position = Vector2((SCREEN_W - back.size.x) / 2.0, screen_h - 90)
 	back.pressed.connect(func(): credits_screen.visible = false)
 	screen.add_child(back)
 	return screen
+
+
+# The title starts under the camera's cut-out, as the run's top row does
+# (top_inset is only known once the window has settled, so this is redone
+# whenever the screen opens).
+func _place_credits() -> void:
+	credits_title.position = Vector2(0, 34.0 + top_inset)
+	credits_scroll.position = Vector2(20, 98.0 + top_inset)
+	credits_scroll.size = Vector2(SCREEN_W - 40, screen_h - 98.0 - 108.0 - top_inset)
 
 
 func _on_credits_pressed() -> void:
@@ -2629,11 +3300,14 @@ func _on_credits_pressed() -> void:
 				label.add_theme_font_size_override("font_size", 12)
 				label.add_theme_color_override("font_color", Color(1, 1, 1, 0.86))
 			credits_box.add_child(label)
+	_place_credits()
+	credits_scroll.scroll_vertical = 0
 	credits_screen.visible = true
 
 
 # A plain line of text that can be tapped, for the minor entries of the
-# pause menu. As wide as its text, so the caller can centre it.
+# menus. As wide as its text, so the caller can centre it, and LINK_H tall,
+# a finger's height, whatever the size of its text.
 func _make_link_button(text: String) -> Button:
 	var btn := Button.new()
 	btn.text = text
@@ -2642,7 +3316,7 @@ func _make_link_button(text: String) -> Button:
 	btn.add_theme_font_override("font", ui_font)
 	btn.add_theme_font_size_override("font_size", 22)
 	btn.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
-	btn.size = Vector2(ui_font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x + 24.0, 36)
+	btn.size = Vector2(ui_font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x + 24.0, LINK_H)
 	_add_tap_sound(btn)
 	return btn
 
@@ -2687,21 +3361,25 @@ func _build_pixel_art(rows: Array, cell: float, palette: Dictionary, shadow_alph
 # A button that is one voxel_plate.gd block: tapping it sinks the block's
 # face, and whatever was added to its "content" node (meta) rides down with
 # it. The Button itself draws nothing.
-func _make_block_button(palette: String, btn_size: Vector2, side_cells := 2) -> Button:
+# `reach`: how much further the button takes taps than its block shows,
+# towards the right (x) and the top (y), as the corner's button does.
+func _make_block_button(palette: String, btn_size: Vector2, side_cells := 2, tap_sound := true,
+		reach := Vector2.ZERO) -> Button:
 	var btn := Button.new()
 	btn.focus_mode = Control.FOCUS_NONE
-	btn.custom_minimum_size = btn_size
-	btn.size = btn_size
+	btn.custom_minimum_size = btn_size + reach
+	btn.size = btn_size + reach
 	for s in ["normal", "hover", "pressed", "disabled", "focus"]:
 		btn.add_theme_stylebox_override(s, StyleBoxEmpty.new())
 
 	var plate := VoxelPlate.new()
 	plate.setup(palette, btn_size, UI_CELL, side_cells)
+	plate.position = Vector2(0.0, reach.y)
 	btn.add_child(plate)
 
 	var content := Control.new()
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.position = plate.face_rect().position
+	content.position = plate.position + plate.face_rect().position
 	content.size = plate.face_rect().size
 	btn.add_child(content)
 
@@ -2709,14 +3387,28 @@ func _make_block_button(palette: String, btn_size: Vector2, side_cells := 2) -> 
 	btn.set_meta("content", content)
 	btn.button_down.connect(func():
 		plate.pressed = true
-		content.position = plate.face_rect().position
+		content.position = plate.position + plate.face_rect().position
 	)
 	btn.button_up.connect(func():
 		plate.pressed = false
-		content.position = plate.face_rect().position
+		content.position = plate.position + plate.face_rect().position
 	)
-	_add_tap_sound(btn)
+	if tap_sound:
+		_add_tap_sound(btn)
 	return btn
+
+
+# A block button made another size (the goal chip, which is taller with its
+# progress bar): the block, its face and what is on it follow.
+func _size_block_button(btn: Button, btn_size: Vector2) -> void:
+	var plate: Control = btn.get_meta("plate")
+	var content: Control = btn.get_meta("content")
+	btn.custom_minimum_size = btn_size
+	btn.size = btn_size
+	plate.size = btn_size
+	plate.queue_redraw()
+	content.position = plate.position + plate.face_rect().position
+	content.size = plate.face_rect().size
 
 
 func _make_icon_button(icon: Control, side: float) -> Button:
@@ -2733,79 +3425,116 @@ func _build_game_over_screen() -> Control:
 	screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	screen.visible = false
 
-	var top := screen_h * 0.3
-	var title := _make_label(_t("game_over"), 56, Color.WHITE)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.position = Vector2(0, top)
-	title.size = Vector2(SCREEN_W, 60)
-	screen.add_child(title)
+	# The board and the chip move and grow in together (_enter_game_over);
+	# _layout_game_over puts them in place for each run.
+	go_stack = Control.new()
+	go_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	screen.add_child(go_stack)
+
+	# One board holds it all: the title and what ended the run used to sit on
+	# the world itself, undimmed (spec 4.7, still so), where the flowers in
+	# the middle of the screen came up right behind them.
+	go_board = VoxelPlate.new()
+	go_board.setup("dark", Vector2(GO_W, 216), UI_CELL)
+	go_stack.add_child(go_board)
+	var w := GO_W
+	var col_w := (w - 2.0 * UI_CELL) / 2.0
+
+	go_title = _make_label(_t("game_over"), 48, Color.WHITE)
+	go_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	go_title.position = Vector2(0, 9)
+	go_title.size = Vector2(w, 50)
+	go_board.add_child(go_title)
 
 	# What ended the run, in a line under the title. That every flower
 	# counts is the one rule a new player doesn't expect, and dying to it
 	# with no word of explanation reads as the game being broken.
-	death_label = _make_label("", 24, Color(1, 1, 1, 0.95))
+	death_label = _make_label("", 22, Color(1, 1, 1, 0.92))
 	death_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	death_label.position = Vector2(0, top + 62)
-	death_label.size = Vector2(SCREEN_W, 28)
-	screen.add_child(death_label)
+	death_label.position = Vector2(0, 58)
+	death_label.size = Vector2(w, 26)
+	go_board.add_child(death_label)
 
-	# The run's score and the record side by side on one board.
-	var board := VoxelPlate.new()
-	board.setup("dark", Vector2(258, 114), UI_CELL)
-	board.position = Vector2((SCREEN_W - board.size.x) / 2.0, top + 100)
-	screen.add_child(board)
+	go_rule = ColorRect.new()
+	go_rule.color = VoxelPlate.PALETTES["dark"]["light"]
+	go_rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	go_rule.position = Vector2(6.0 * UI_CELL, 90)
+	go_rule.size = Vector2(w - 12.0 * UI_CELL, UI_CELL)
+	go_board.add_child(go_rule)
 
-	goal_chip = VoxelPlate.new()
-	goal_chip.setup("dark", Vector2(258, 63), UI_CELL)
-	goal_chip.position = Vector2(board.position.x, board.position.y + board.size.y + 12)
-	screen.add_child(goal_chip)
-	goal_icon = _make_bee_icon("normal", 48.0)
-	goal_icon.position = Vector2(8, 3)
-	goal_chip.add_child(goal_icon)
-	goal_title = _make_label("", 22, Color.WHITE)
-	goal_title.position = Vector2(62, 6)
-	goal_title.size = Vector2(190, 24)
-	goal_chip.add_child(goal_title)
-	goal_hint = _make_label("", 17, Color(1, 1, 1, 0.88))
-	goal_hint.position = Vector2(62, 30)
-	goal_hint.size = Vector2(190, 20)
-	goal_chip.add_child(goal_hint)
-	var face := board.face_rect()
-	var col_w := face.size.x / 2.0
-
-	var divider := ColorRect.new()
-	divider.color = VoxelPlate.PALETTES["dark"]["light"]
-	divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	divider.position = Vector2(face.position.x + col_w - UI_CELL / 2.0, face.position.y + 15)
-	divider.size = Vector2(UI_CELL, face.size.y - 27)
-	board.add_child(divider)
-
+	# The run's score and the record side by side...
+	col_divider = ColorRect.new()
+	col_divider.color = VoxelPlate.PALETTES["dark"]["light"]
+	col_divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col_divider.position = Vector2(UI_CELL + col_w - UI_CELL / 2.0, 105)
+	col_divider.size = Vector2(UI_CELL, 69)
+	go_board.add_child(col_divider)
+	var captions := []
 	var values := []
 	for i in 2:
 		var caption := _make_label([_t("score"), _t("best")][i], 22, Color(1, 1, 1, 0.8))
 		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		caption.position = face.position + Vector2(col_w * i, 10)
+		caption.position = Vector2(UI_CELL + col_w * i, 99)
 		caption.size = Vector2(col_w, 26)
-		board.add_child(caption)
+		go_board.add_child(caption)
+		captions.append(caption)
 		var value := _make_label("0", 50, Color.WHITE if i == 0 else GOLD)
 		value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		value.position = face.position + Vector2(col_w * i, 36)
+		value.position = Vector2(UI_CELL + col_w * i, 124)
 		value.size = Vector2(col_w, 54)
-		board.add_child(value)
+		go_board.add_child(value)
 		values.append(value)
+	score_caption = captions[0]
+	best_caption = captions[1]
 	final_score_label = values[0]
 	final_best_label = values[1]
 
-	# Pinned over the board's top-right corner, on the record's side.
-	new_record_badge = _make_label(_t("new"), 28, GOLD)
-	new_record_badge.size = Vector2(
-		ui_font.get_string_size(_t("new"), HORIZONTAL_ALIGNMENT_LEFT, -1, 28).x, 32)
+	# ...or, when the run beat the record, the score alone under this, in gold
+	# (side by side they only said "26 | 26")
+	new_record_badge = _make_label(_t("record_beaten"), 26, GOLD)
+	new_record_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	new_record_badge.position = Vector2(0, 96)
+	new_record_badge.size = Vector2(w, 30)
 	new_record_badge.pivot_offset = new_record_badge.size / 2.0
-	new_record_badge.position = Vector2(
-		board.position.x + board.size.x - new_record_badge.size.x * 0.7, board.position.y - 18)
-	new_record_badge.rotation = deg_to_rad(10.0)
 	new_record_badge.visible = false
-	screen.add_child(new_record_badge)
+	go_board.add_child(new_record_badge)
+
+	# the record beaten, or how close the run came to it (_record_note)
+	record_note = _make_label("", 18, Color(1, 1, 1, 0.85))
+	record_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	record_note.position = Vector2(0, 183)
+	record_note.size = Vector2(w, 22)
+	go_board.add_child(record_note)
+
+	goal_chip = _make_block_button("dark", Vector2(w, 87), 2, false)
+	goal_chip.pressed.connect(_on_goal_chip_pressed)
+	go_stack.add_child(goal_chip)
+	goal_plate = goal_chip.get_meta("plate")
+	var chip: Control = goal_chip.get_meta("content")
+	goal_icon = _make_bee_icon("normal", 48.0)
+	goal_icon.position = Vector2(5, 3)
+	chip.add_child(goal_icon)
+	goal_title = _make_label("", 22, Color.WHITE)
+	goal_title.position = Vector2(59, 3)
+	goal_title.size = Vector2(205, 24)
+	chip.add_child(goal_title)
+	goal_hint = _make_label("", 17, Color(1, 1, 1, 0.88))
+	goal_hint.position = Vector2(59, 27)
+	goal_hint.size = Vector2(205, 20)
+	chip.add_child(goal_hint)
+	goal_bar = VoxelBar.new()
+	goal_bar.setup(GOAL_BAR_BLOCKS, UI_CELL, VoxelPlate.PALETTES["dark"]["side"],
+			VoxelPlate.PALETTES["dark"]["light"], GOLD)
+	goal_bar.position = Vector2(59, 54)
+	chip.add_child(goal_bar)
+	goal_left = _make_label("", 17, Color(1, 1, 1, 0.88))
+	goal_left.position = Vector2(goal_bar.position.x + goal_bar.size.x + 8.0, goal_bar.position.y - 5.0)
+	goal_left.size = Vector2(chip.size.x - goal_left.position.x - 4.0, 20)
+	chip.add_child(goal_left)
+	# "go": the chip can be tapped
+	goal_go = _build_pixel_icon(ICON_PLAY, 2.0, GOLD)
+	goal_go.position = Vector2(chip.size.x - goal_go.size.x - 9.0, 18)
+	chip.add_child(goal_go)
 
 	restart_button = _make_text_button(_t("play_again"), "green")
 	restart_button.position = Vector2((SCREEN_W - restart_button.size.x) / 2.0, screen_h - 146)
@@ -2815,18 +3544,23 @@ func _build_game_over_screen() -> Control:
 	var bee_button := _make_bee_button()
 	bee_button.position = Vector2(14, restart_button.position.y + 2)
 	screen.add_child(bee_button)
+	go_bottom = [restart_button, bee_button]
 
 	var trophy_button := _make_leaderboard_button()
 	trophy_button.position = Vector2(SCREEN_W - 14 - trophy_button.size.x, bee_button.position.y)
 	screen.add_child(trophy_button)
 
+	screen.add_child(_make_gear_button())
 	return screen
 
 
 func _add_tap_sound(btn: BaseButton) -> void:
 	# Wired in the factories rather than at each call site, so every button
 	# in the game clicks without anyone having to remember to ask for it.
-	btn.pressed.connect(func(): _play_sfx(SFX_UI_TAP, SFX_UI_DB))
+	# Not a button that is off (a key can still press one): it does nothing.
+	btn.pressed.connect(func():
+		if not btn.disabled:
+			_play_sfx(SFX_UI_TAP, SFX_UI_DB))
 
 
 # Green for the action that starts or continues a run, honey for the rest.

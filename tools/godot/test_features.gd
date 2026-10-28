@@ -5,8 +5,10 @@ extends SceneTree
 # (a new player's intro rows, the breathers after every 25th flower), the sky (its clock, the moon, Jupiter and the
 # UFO, the two backdrops), the bees (unlocks, the bee menu, every model), the
 # record line, near misses, a real flower pickup, the pause menu's switches,
-# the back button and leaving the app, the first run's tutorial, how often
-# ads come, and the save file.
+# the back button and leaving the app, the first run's tutorial, the
+# settings panel and its gear, the game-over screen (its count-up and lock,
+# the record line, the goal chip's bar and "Use it"), the title's layout,
+# the size of every button, how often ads come, and the save file.
 #
 #   bash tools/test.sh          (runs this in English and in Portuguese)
 #
@@ -126,6 +128,7 @@ func _run() -> void:
 	sd.music_muted = true
 	sd.sfx_muted = false
 	sd.vibration = false
+	sd.screen_shake = true
 	g = Node2D.new()
 	g.set_script(Main)
 	root.add_child(g)
@@ -143,6 +146,7 @@ func _run() -> void:
 	await _near_miss()
 	await _pickup()
 	await _pause_menu()
+	await _settings()
 	await _back_and_focus()
 	await _tutorial()
 	await _rule_plate()
@@ -150,6 +154,9 @@ func _run() -> void:
 	await _record_readout()
 	await _countdown()
 	await _close_calls()
+	await _game_over_screen()
+	await _title_screen()
+	await _touch_targets()
 	await _ads()
 	await _credits()
 	await _save_file()
@@ -429,10 +436,36 @@ func _bees() -> void:
 	await end_run()
 	g._on_bee_menu_pressed()
 	ok(g.bee_menu.visible and not g.game_over_screen.visible, "the bee menu opens from the game-over screen")
-	ok(g.bee_cards["normal"]["status"].text == g._t("selected"), "the bee in use says so")
-	ok(g.bee_cards["rosy"]["status"].text == g._t("locked") % g.BEE_SKINS["rosy"]["score"], "a locked bee shows the score it takes ('%s')" % g.bee_cards["rosy"]["status"].text)
+	var in_use: Dictionary = g.bee_cards["normal"]
+	ok(in_use["status"].text == g._t("selected") and in_use["plate"].colors == g.VoxelPlate.PALETTES["lit"] and in_use["plate"].ink == g.GOLD,
+			"the bee in use says so, on a lit card with a gold outline")
+	var rosy: Dictionary = g.bee_cards["rosy"]
+	var need: int = g.BEE_SKINS["rosy"]["score"]
+	ok(rosy["status"].text == g._tn("goal_count", need) and rosy["run"].visible and rosy["run"].text == g._t("goal_run"),
+			"a locked bee says what it takes, as the game over's chip does ('%s' / '%s')" % [rosy["status"].text, rosy["run"].text])
+	ok(rosy["icon"].material == g.silhouette_mat and rosy["lock"].visible, "  as a silhouette, with a lock")
+	var fill: Color = g.SILHOUETTE
+	var face: Color = g.VoxelPlate.PALETTES["dark"]["face"]
+	ok(_contrast(fill, face) >= 3.0, "  which reads on the card (%.1f:1, it was 1.6:1)" % _contrast(fill, face))
+	await silence()
+	var x0: float = rosy["button"].position.x
 	g._on_bee_card_pressed("rosy")
 	ok(sd.selected_bee == "normal", "and can't be picked")
+	var moved := false
+	var low_click := false
+	for v in g.sfx_pool:
+		low_click = low_click or (v.playing and v.pitch_scale < 1.0)
+	for i in 6:
+		await process_frame
+		moved = moved or rosy["button"].position.x != x0
+	await frames(12)
+	ok(moved and rosy["button"].position.x == x0 and low_click, "  but a tap on it shakes its card, with a lower click, and puts it back")
+	sd.best_score = need
+	g._refresh_bee_menu()
+	ok(rosy["status"].text == "" and not rosy["run"].visible and rosy["icon"].material == null and not rosy["lock"].visible,
+			"a bee won and not in use shows its name alone, in its colours")
+	sd.best_score = need - 1
+	g._refresh_bee_menu()
 	g._on_bee_menu_closed()
 	ok(not g.bee_menu.visible and g.game_over_screen.visible, "closing the menu brings the game-over screen back")
 
@@ -590,6 +623,22 @@ func _pause_menu() -> void:
 	ok(g.state == g.State.PAUSED and g.pause_screen.visible and paused, "the pause button pauses")
 	ok(not g.privacy_button.visible, "no ad-privacy entry where there are no ads")
 	ok(is_equal_approx(g.credits_button.position.y, g.privacy_button.position.y), "so the credits take its place")
+	var resume_rect := Rect2()
+	var restart_rect := Rect2()
+	for c in g.pause_screen.get_children():
+		if c is Button and c.has_meta("content"):
+			var words: Label = c.get_meta("content").get_child(0) if c.get_meta("content").get_child_count() > 0 and c.get_meta("content").get_child(0) is Label else null
+			if words != null and words.text == g._t("resume"):
+				resume_rect = c.get_global_rect()
+			elif words != null and words.text == g._t("restart"):
+				restart_rect = c.get_global_rect()
+	ok(restart_rect.position.y - resume_rect.end.y >= 40.0, "'restart' is %.0f u under 'resume', out of a slip's way" % (restart_rect.position.y - resume_rect.end.y))
+	var named := true
+	for spec in g.TOGGLES:
+		var v: Dictionary = g.toggle_views[spec["id"]][0]
+		named = named and v["caption"].text == g._t(spec["text"]) and v["caption"].is_visible_in_tree()
+	ok(named and g.TOGGLES.size() == 4, "the menu's four switches have their names under them")
+	ok(g.privacy_button.position.y > g.toggle_views["music"][0]["caption"].get_global_rect().end.y, "  and the links come after them")
 	var y: float = g.bee.position.y
 	var cy: float = g.camera_y
 	for i in 30:
@@ -657,12 +706,14 @@ func _back_and_focus() -> void:
 	ok(g.state == g.State.GAMEOVER, "the fall ends on the game-over screen")
 	g._notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
 	ok(g.state == g.State.GAMEOVER and not paused, "leaving the app there changes nothing")
+	g.game_over_msec -= 1000
 	g._on_bee_menu_pressed()
 	g._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
 	ok(not g.bee_menu.visible and g.game_over_screen.visible and g.state == g.State.GAMEOVER, "back closes the bee menu, back to the game over")
 	g._on_bee_menu_pressed()
 	await key(KEY_ESCAPE)
 	ok(not g.bee_menu.visible and g.game_over_screen.visible, "and so does escape, on a computer")
+	g.game_over_msec = Time.get_ticks_msec()
 	await key(KEY_ENTER)
 	ok(g.state == g.State.GAMEOVER, "a key on the game over waits out its first instant")
 
@@ -964,6 +1015,270 @@ func _close_calls() -> void:
 	await fresh()
 
 
+# ------------------------------------------------------------------ the settings panel
+# The title screen again, over a fresh ground scene.
+func title() -> void:
+	await fresh()
+	g.state = g.State.START
+	g.start_screen.visible = true
+	g.game_over_screen.visible = false
+	g.pause_button.visible = false
+	g._set_hud_visible(false)
+	g._clear_notices()
+	await frames(2)
+
+
+func gear_on(screen: Control) -> Button:
+	for gear in g.gear_buttons:
+		if screen.is_ancestor_of(gear):
+			return gear
+	return null
+
+
+func _settings() -> void:
+	await title()
+	var gear := gear_on(g.start_screen)
+	var pause_plate: Control = g.pause_button.get_meta("plate")
+	ok(gear != null and gear.is_visible_in_tree(), "the title has the settings' gear")
+	ok(gear != null and gear.get_meta("plate").get_global_rect().is_equal_approx(pause_plate.get_global_rect()),
+			"  in the corner where a run has its pause button")
+	gear.pressed.emit()
+	ok(g.settings_screen.visible and not g.start_screen.visible and g.state == g.State.START, "it opens the settings, over the title")
+	var shown := true
+	for spec in g.TOGGLES:
+		var copies: Array = g.toggle_views[spec["id"]]
+		shown = shown and copies.size() == 2 and copies[1]["button"].is_visible_in_tree() \
+				and copies[1]["caption"].text == g._t(spec["text"])
+	ok(shown, "with the pause menu's four switches, named (%s)" % ", ".join(g.TOGGLES.map(func(t): return g._t(t["text"]))))
+	ok(not g.settings_privacy.visible and g.settings_credits.is_visible_in_tree()
+			and is_equal_approx(g.settings_credits.position.y, g.settings_privacy.position.y), "  the credits, and no ad privacy where there are no ads")
+
+	# one setting, two switches: flipped here, it shows in the pause menu
+	var was: bool = sd.music_muted
+	g.toggle_views["music"][1]["button"].pressed.emit()
+	var both := true
+	for v in g.toggle_views["music"]:
+		both = both and v["slash"].visible == sd.music_muted and v["plate"].ink == (g.GOLD if not sd.music_muted else Color(1, 1, 1, 0.5))
+	ok(sd.music_muted != was and both, "a switch flipped in the settings shows in both copies (gold on, struck through off)")
+	ok(g.music.volume_db == (g.MUSIC_MUTED_DB if sd.music_muted else g.MUSIC_VOLUME_DB), "  and does what it says")
+	g.toggle_views["music"][1]["button"].pressed.emit()
+	ok(sd.music_muted == was, "  and back")
+
+	# the screen shake switch, honoured by the camera
+	g.toggle_views["shake"][1]["button"].pressed.emit()
+	ok(not sd.screen_shake and g.shake_slash.visible, "the shake switch turns the screen shake off")
+	g._start_camera_shake(g.DEATH_SHAKE_DURATION, g.DEATH_SHAKE_MAGNITUDE)
+	ok(g.camera_shake_time == 0.0, "  and then nothing shakes, not even a death")
+	sd.load_data()
+	ok(not sd.screen_shake, "  it is kept in the save")
+	g.toggle_views["shake"][1]["button"].pressed.emit()
+	g._start_camera_shake(g.DEATH_SHAKE_DURATION, g.DEATH_SHAKE_MAGNITUDE)
+	ok(sd.screen_shake and g.camera_shake_time > 0.0 and not g.shake_slash.visible, "  on again, it shakes")
+	g.camera_shake_time = 0.0
+
+	await key(KEY_SPACE)
+	ok(g.state == g.State.START, "space doesn't start a run from under the settings")
+	g.settings_credits.pressed.emit()
+	await frames(2)
+	ok(g.credits_screen.visible and g.settings_screen.visible, "the credits open from the settings")
+	await key(KEY_ESCAPE)
+	ok(not g.credits_screen.visible and g.settings_screen.visible, "escape closes the credits, back to the settings")
+	await key(KEY_ESCAPE)
+	ok(not g.settings_screen.visible and g.start_screen.visible and g.state == g.State.START, "  and again closes the settings, back to the title")
+	gear.pressed.emit()
+	g._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	ok(not g.settings_screen.visible and g.start_screen.visible, "back closes them too (instead of leaving the app)")
+
+	# on the game over, behind its lock
+	await fresh()
+	g._flap(1)
+	g._trigger_game_over("fall")
+	g.dying_timer = 99.0
+	await ticks(2)
+	await frames(1)
+	gear = gear_on(g.game_over_screen)
+	ok(gear != null and gear.is_visible_in_tree() and gear.disabled, "the game over has the gear, held in its first instant")
+	g._on_settings_pressed()
+	ok(not g.settings_screen.visible, "  where it doesn't open")
+	g.game_over_msec -= 1000
+	await frames(1)
+	gear.pressed.emit()
+	ok(not gear.disabled and g.settings_screen.visible and not g.game_over_screen.visible, "  then it does")
+	await key(KEY_ESCAPE)
+	ok(not g.settings_screen.visible and g.game_over_screen.visible and g.state == g.State.GAMEOVER, "  and closes back to the game over")
+
+	await fresh()
+	g._on_settings_pressed()
+	ok(not g.settings_screen.visible, "no settings panel in the middle of a run (the pause menu has the switches)")
+
+
+# ------------------------------------------------------------------ the game-over screen
+# A run that ends with `final` flowers, the record being `best` when it began.
+func ended_run(best: int, final: int, cause := "fall") -> void:
+	sd.best_score = best
+	await fresh()
+	g._flap(1)
+	await ticks(1)
+	for s in range(1, final + 1):
+		g.score = s
+		g._check_bee_unlocks()
+	g._trigger_game_over(cause)
+	g.dying_timer = 99.0
+	await ticks(2)
+
+
+func _game_over_screen() -> void:
+	sd.unlocked_bees = ["rosy"]
+	sd.selected_bee = "normal"
+	g.rule_due = false
+	await ended_run(20, 17)
+	ok(g.state == g.State.GAMEOVER and g.game_over_screen.visible, "a run of 17 under a record of 20 ends")
+	ok(g.final_score_label.text.to_int() < 17, "  its score counting up from 0 ('%s' so far)" % g.final_score_label.text)
+	ok(g.restart_button.disabled and g.restart_button.modulate.a < 1.0, "  'play again' held, and dimmed, while the lock holds")
+	ok(g.game_over_screen.modulate.a < 1.0 and g.go_stack.scale.x < 1.0, "  the screen coming in, the board growing into place")
+	ok(g.COUNT_UP_TIME * 1000.0 < g.GAME_OVER_LOCK_MSEC, "the count-up (%.0f ms) ends inside the lock (%d ms): it never holds 'play again' back" % [g.COUNT_UP_TIME * 1000.0, g.GAME_OVER_LOCK_MSEC])
+	await frames(40)
+	ok(g.final_score_label.text == "17" and g.count_ticks >= 3 and g.count_ticks <= 9,
+			"  it gets to 17, ticking %d times" % g.count_ticks)
+	ok(g.go_stack.scale == Vector2.ONE and g.game_over_screen.modulate.a == 1.0, "  and the screen is in")
+	# (the lock is on the clock, and a headless run takes its frames faster)
+	await silence()
+	g.game_over_msec = Time.get_ticks_msec()
+	await frames(1)
+	var quiet := 0
+	for v in g.sfx_pool:
+		quiet += 1 if v.playing else 0
+	g.restart_button.pressed.emit()
+	var after := 0
+	for v in g.sfx_pool:
+		after += 1 if v.playing else 0
+	ok(g.state == g.State.GAMEOVER and g.restart_button.disabled and after == quiet, "  a press while held does nothing, not even click")
+	g.game_over_msec -= 1000
+	await frames(2)
+	ok(not g.restart_button.disabled and g.restart_button.modulate.a == 1.0, "once the lock lets go, 'play again' lights up")
+
+	var board: Rect2 = g.go_board.get_global_rect()
+	ok(board.encloses(g.go_title.get_global_rect()) and board.encloses(g.death_label.get_global_rect()),
+			"the title and the cause are on the board, not on the world")
+	ok(g.record_note.visible and g.record_note.text == g._tn("record_short", 3) and board.encloses(g.record_note.get_global_rect()),
+			"3 short of the record, it says so: '%s'" % g.record_note.text)
+	var stack: Rect2 = g.go_stack.get_global_rect()
+	ok(stack.position.y >= 64.0 and stack.end.y <= g.restart_button.position.y - 12.0,
+			"  board and chip between the top row and the buttons (%.0f to %.0f, buttons at %.0f)" % [stack.position.y, stack.end.y, g.restart_button.position.y])
+	var need: int = g.BEE_SKINS["mint"]["score"]
+	ok(g.goal_chip.visible and g.goal_bar.visible and g.goal_bar.filled_cells() == floori(20.0 / need * g.GOAL_BAR_BLOCKS * 2)
+			and g.goal_left.text == g._tn("to_go", need - 20),
+			"the chip shows the way to the next bee: a bar %d/%d full and '%s'" % [g.goal_bar.filled_cells(), g.GOAL_BAR_BLOCKS * 2, g.goal_left.text])
+	ok(g.goal_chip.disabled and g.goal_equip == "", "  and takes no taps (there is nothing to put on)")
+	ok(g.goal_icon.material == g.silhouette_mat, "  the bee to win shown as in the bee menu, a silhouette")
+
+	# what the line says, and when it says nothing
+	g.score = 19
+	ok(g._record_note(false) == g._tn("record_short", 1), "1 short, in the singular: '%s'" % g._record_note(false))
+	g.score = 20
+	ok(g._record_note(false) == g._t("record_tied"), "the record equalled: '%s'" % g._record_note(false))
+	g.score = 9
+	ok(g._record_note(false) == "", "11 short of 20 says nothing")
+	sd.best_score = 100
+	g.score = 75
+	ok(g._record_note(false) == g._tn("record_short", 25), "25 short of 100 is still close: '%s'" % g._record_note(false))
+	g.score = 0
+	ok(g._record_note(false) == "", "and a run with no flower says nothing")
+
+	# the record beaten, a bee won in the run
+	sd.unlocked_bees = ["rosy"]
+	sd.selected_bee = "normal"
+	await ended_run(20, 26, "hedge")
+	await frames(40)
+	ok(g.new_record_badge.visible and g.new_record_badge.text == g._t("record_beaten") and g.final_score_label.text == "26"
+			and not g.final_best_label.visible and not g.score_caption.visible,
+			"a record beaten: '%s' over the score alone (it showed '26 | 26')" % g.new_record_badge.text)
+	ok(g.record_note.text == g._t("previous_record") % 20, "  and what the record was: '%s'" % g.record_note.text)
+	ok(g.goal_title.text == g._t("unlocked") % "Mint Bee" and g.goal_hint.text == g._t("use_it") and g.goal_go.visible,
+			"the chip offers the bee won: '%s' / '%s'" % [g.goal_title.text, g.goal_hint.text])
+	g.game_over_msec = Time.get_ticks_msec()
+	g.goal_chip.pressed.emit()
+	ok(sd.selected_bee == "normal", "  not in the game over's first instant")
+	g.game_over_msec -= 1000
+	await frames(1)
+	ok(not g.goal_chip.disabled, "  then it can be tapped")
+	g.goal_chip.pressed.emit()
+	var shown := true
+	for icon in g.bee_button_icons:
+		shown = shown and icon.texture.resource_path == g._bee_icon_path("mint")
+	ok(sd.selected_bee == "mint" and g.applied_bee_skin == "mint" and shown, "  one tap puts it on (it took three, through the bee menu)")
+	ok(g.goal_hint.text == g._t("selected") and g.goal_chip.disabled and not g.goal_go.visible, "  and the chip says so: '%s'" % g.goal_hint.text)
+	sd.selected_bee = "normal"
+	g._apply_bee_skin()
+	sd.unlocked_bees = []
+	sd.best_score = 10
+
+
+# ------------------------------------------------------------------ the title screen
+func _title_screen() -> void:
+	sd.best_score = 10
+	await title()
+	var logo: Control = null
+	for c in g.start_screen.get_children():
+		if c.get_script() == g.VoxelLogo:
+			logo = c
+	var px: float = g.get_viewport().get_final_transform().x.x
+	var cube_px: float = logo.cell * px
+	ok(logo != null and (absf(cube_px - roundf(cube_px)) < 0.001 if cube_px >= 2.0 else logo.cell == floorf(logo.cell)),
+			"the logo's cubes are a whole number of the screen's pixels (%.3f u, %.2f px)" % [logo.cell, cube_px])
+	var top: float = logo.position.y
+	var bottom: float = top + logo.size.y
+	var clear := true
+	for o in g.obstacles:
+		var a: float = g.view3d.screen_pos_for(Vector2(0.0, o.position.y - 8.0), Vector2(0.0, g.camera_y)).y
+		var b: float = g.view3d.screen_pos_for(Vector2(0.0, o.position.y + g.ObstacleScript.THICK + 8.0), Vector2(0.0, g.camera_y)).y
+		clear = clear and (b < top or a > bottom)
+	ok(clear, "no row of hedges runs through the logo on a %.0f-tall screen (logo at %.0f to %.0f)" % [g.screen_h, top, bottom])
+	var bee_top: float = g.view3d.screen_pos_for(g.bee.position - Vector2(0.0, g.bee.radius * 2.0), Vector2(0.0, g.camera_y)).y
+	var play_end: float = g.play_button.position.y + g.play_button.size.y * 1.03 + g.UI_CELL
+	ok(bee_top - play_end >= g.TITLE_BEE_CLEAR, "the bee waiting on the grass is clear of the Play button (%.0f px between)" % (bee_top - play_end))
+
+
+# ------------------------------------------------------------------ touch targets
+# Every button a finger has to hit is at least 54 u across: 48 dp even on a
+# 360 dp phone, where a unit is about 0.9 dp.
+func _touch_targets() -> void:
+	var small := []
+	var counted := 0
+	for screen in [g.start_screen, g.pause_screen, g.game_over_screen, g.settings_screen, g.bee_menu, g.credits_screen]:
+		for b in screen.find_children("*", "Button", true, false):
+			counted += 1
+			if b.size.x < 54.0 or b.size.y < 54.0:
+				small.append("%s %s" % [b.text if b.text != "" else b.name, b.size])
+	for b in [g.pause_button]:
+		counted += 1
+		if b.size.x < 54.0 or b.size.y < 54.0:
+			small.append("pause %s" % b.size)
+	ok(small.is_empty(), "every one of the %d buttons takes taps over 54 u at least %s" % [counted, small])
+	# the credits' title under a camera cut-out, as the run's top row
+	var Main: GDScript = g.get_script()
+	Main.forced_cutout = 40.0
+	g._apply_top_inset()
+	g._on_credits_pressed()
+	ok(g.credits_title.position.y >= 40.0 and g.credits_scroll.get_global_rect().end.y <= g.screen_h - 90.0,
+			"the credits' title starts under a 40 px cut-out (at %.0f)" % g.credits_title.position.y)
+	g.credits_screen.visible = false
+	Main.forced_cutout = -1.0
+	g._apply_top_inset()
+
+
+# WCAG contrast of two colours.
+func _contrast(a: Color, b: Color) -> float:
+	var la: float = _luma(a)
+	var lb: float = _luma(b)
+	return (maxf(la, lb) + 0.05) / (minf(la, lb) + 0.05)
+
+
+func _luma(c: Color) -> float:
+	var l := c.srgb_to_linear()
+	return 0.2126 * l.r + 0.7152 * l.g + 0.0722 * l.b
+
+
 # ------------------------------------------------------------------ ads
 func _ads() -> void:
 	var ads = g.ads
@@ -1028,6 +1343,7 @@ func _save_file() -> void:
 	sd.music_muted = true
 	sd.sfx_muted = true
 	sd.vibration = false
+	sd.screen_shake = false
 	sd.seen_tutorial = true
 	sd.save_data()
 	sd.best_score = 0
@@ -1035,8 +1351,9 @@ func _save_file() -> void:
 	sd.selected_bee = "normal"
 	sd.sfx_muted = false
 	sd.vibration = true
+	sd.screen_shake = true
 	sd.load_data()
-	ok(sd.best_score == 77 and sd.unlocked_bees == ["rosy"] and sd.selected_bee == "rosy" and sd.sfx_muted and not sd.vibration,
+	ok(sd.best_score == 77 and sd.unlocked_bees == ["rosy"] and sd.selected_bee == "rosy" and sd.sfx_muted and not sd.vibration and not sd.screen_shake,
 			"everything saved comes back")
 	var f := FileAccess.open(SAVE_FILES[0], FileAccess.WRITE)
 	f.store_string("[save]\nseen_tut")
@@ -1050,5 +1367,6 @@ func _save_file() -> void:
 	c.save(SAVE_FILES[0])
 	sd.load_data()
 	ok(sd.best_score == 5 and sd.unlocked_bees.has("shining"), "a save from before the bee menu keeps its silver bee")
+	ok(sd.screen_shake, "  and the screen shake, on, as it was before there was a switch for it")
 	sd.sfx_muted = false
 	sd.vibration = false

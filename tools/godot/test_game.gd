@@ -327,6 +327,9 @@ func _run() -> void:
 	ok(not g.notice.visible and g.notice_now.is_empty(), "the notice is gone once the game-over screen is up")
 	ok(g.goal_title.text == g._t("unlocked") % "Rosy Bee", "the chip says the bee was won: '%s'" % g.goal_title.text)
 	ok(g.new_record_badge.visible and sd.best_score == rosy_at, "a record is still a record (best %d)" % sd.best_score)
+	g._on_bee_menu_pressed()
+	ok(not g.bee_menu.visible, "the bee button waits out the game over's first instant too")
+	g.game_over_msec -= 1000
 	g._show_bee_notice("rosy")
 	g._on_bee_menu_pressed()
 	ok(not g.notice.visible and g.bee_menu.visible, "opening the bee menu puts the notice away")
@@ -374,8 +377,13 @@ func _run() -> void:
 	ok(g.top_inset == 0.0 and g.record_label.position.y == g.RECORD_Y, "with no cut-out the top row stays where it was")
 	Main.forced_cutout = 40.0
 	g._apply_top_inset()
-	ok(is_equal_approx(g.pause_button.position.y, 40.0) and g.record_label.position.y > 40.0,
-			"under a 40 px cut-out the pause button starts at %.0f and the record at %.0f" % [g.pause_button.position.y, g.record_label.position.y])
+	var pause_plate: Control = g.pause_button.get_meta("plate")
+	ok(is_equal_approx(pause_plate.get_global_rect().position.y, 40.0) and g.record_label.position.y > 40.0,
+			"under a 40 px cut-out the pause button starts at %.0f and the record at %.0f" % [pause_plate.get_global_rect().position.y, g.record_label.position.y])
+	var gears_follow := true
+	for gear in g.gear_buttons:
+		gears_follow = gears_follow and is_equal_approx(gear.position.y, g.pause_button.position.y)
+	ok(gears_follow, "and so do the settings' gears, in the same corner")
 	ok(is_equal_approx(g.score_label.position.y - g.record_label.position.y, g.SCORE_Y - g.RECORD_Y), "and the score moves down with them")
 	Main.forced_cutout = 10.0
 	g._apply_top_inset()
@@ -389,16 +397,31 @@ func _run() -> void:
 
 	# ------------------------------------------------ every string fits where it goes
 	var f: Font = g.ui_font
+	# the game over's board (inside its outline), a column of it, the chip's
+	# text beside its bee (less the "go" arrow, when there is one), what is
+	# left of the chip beside the bar, a bee card's face, a switch's caption
+	var board_w: float = g.GO_W - 2.0 * g.UI_CELL
+	var col_w: float = g.score_caption.size.x
+	var chip_text: float = g.goal_title.size.x
+	var chip_go: float = g.goal_go.position.x - g.goal_title.position.x - 4.0
+	var bar_left: float = g.goal_left.size.x
+	var card_w: float = g.bee_cards["normal"]["status"].size.x
+	var caption_w: float = g.TOGGLE_SIDE + g.TOGGLE_GAP
 	var fits := [
 		["record", 22, 400.0, [9999]], ["left", 20, 120.0, []], ["right", 20, 120.0, []],
-		["game_over", 56, 392.0, []], ["score", 22, 126.0, []], ["best", 22, 126.0, []],
+		["game_over", 48, board_w, []], ["score", 22, col_w, []], ["best", 22, col_w, []],
 		["play_again", 34, 216.0, []], ["paused", 52, 392.0, []], ["resume", 34, 216.0, []],
 		["restart", 34, 216.0, []], ["ad_privacy", 22, 380.0, []], ["credits", 22, 380.0, []], ["choose_bee", 38, 392.0, []],
-		["back", 34, 216.0, []], ["selected", 16, 106.0, []], ["pick", 16, 106.0, []],
-		["locked", 16, 106.0, [300]],
-		["unlocked", 22, 190.0, ["Silver Bee"]], ["unlocked_hint", 17, 190.0, []],
-		["died_hedge", 24, 392.0, []], ["died_flower", 24, 392.0, []], ["died_fall", 24, 392.0, []],
-		["next_bee", 22, 190.0, ["Queen Bee"]], ["next_goal", 17, 190.0, [300]],
+		["back", 34, 216.0, []], ["selected", 17, card_w, []], ["selected", 17, chip_text, []],
+		["goal_count", 17, card_w, [300]], ["goal_count_1", 17, card_w, []], ["goal_run", 15, card_w, []],
+		["unlocked", 22, chip_go, ["Silver Bee"]], ["use_it", 17, chip_go, []],
+		["died_hedge", 22, board_w, []], ["died_flower", 22, board_w, []], ["died_fall", 22, board_w, []],
+		["next_bee", 22, chip_text, ["Queen Bee"]], ["next_goal", 17, chip_text, [300]],
+		["to_go", 17, bar_left, [300]], ["to_go_1", 17, bar_left, []],
+		["record_beaten", 26, board_w, []], ["previous_record", 18, board_w, [300]],
+		["record_short", 18, board_w, [300]], ["record_short_1", 18, board_w, []], ["record_tied", 18, board_w, []],
+		["settings", 52, 392.0, []], ["music", 18, caption_w, []], ["sounds", 18, caption_w, []],
+		["vibration", 18, caption_w, []], ["shake", 18, caption_w, []],
 		# the run's notice slot: its plate at its widest, less the padding and
 		# what goes beside the title (a bee; one flower; a flower each side)
 		["unlocked", g.NOTICE_FONT, g.NOTICE_MAX_W - 2.0 * g.NOTICE_PAD - g.NOTICE_ICON - g.NOTICE_GAP, ["Silver Bee"]],
@@ -424,6 +447,16 @@ func _run() -> void:
 				"the notice '%s' fits its slot (%d of %d px)" % [entry["title"], plate_w, g.NOTICE_MAX_W])
 	for ch in g._t("record_word"):
 		ok(g.view3d.GLYPHS.has(ch), "the record line can spell '%s'" % ch)
+
+	# ------------------------------------------------ a number, in the singular when it is one
+	var plurals := {
+		"en": [["to_go", 1, "1 to go"], ["to_go", 5, "5 to go"], ["record_short", 1, "1 short of your record!"],
+				["record_short", 3, "3 short of your record!"], ["goal_count", 1, "1 flower"], ["goal_count", 10, "10 flowers"]],
+		"pt": [["to_go", 1, "Falta 1"], ["to_go", 5, "Faltam 5"], ["record_short", 1, "Faltou 1 para o recorde!"],
+				["record_short", 3, "Faltaram 3 para o recorde!"], ["goal_count", 1, "1 flor"], ["goal_count", 10, "10 flores"]],
+	}
+	for row in plurals[g.lang]:
+		ok(g._tn(row[0], row[1]) == row[2], "%d with '%s' reads '%s' ('%s')" % [row[1], row[0], row[2], g._tn(row[0], row[1])])
 
 	restore_save()
 	print("TESTS done, failures: ", fails)

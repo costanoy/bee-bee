@@ -23,6 +23,11 @@ const PALETTES := {
 		"face": Color(0.29, 0.17, 0.40), "light": Color(0.43, 0.29, 0.57),
 		"side": Color(0.16, 0.08, 0.23), "ink": Color(1.0, 1.0, 1.0),
 	},
+	# the dark block lit up: the card of the bee in use
+	"lit": {
+		"face": Color(0.42, 0.27, 0.56), "light": Color(0.60, 0.45, 0.74),
+		"side": Color(0.22, 0.12, 0.31), "ink": Color(1.0, 1.0, 1.0),
+	},
 }
 
 var cell := 3.0
@@ -46,6 +51,12 @@ func setup(palette: String, plate_size: Vector2, cell_size := 3.0, side := 2) ->
 
 func set_ink(color: Color) -> void:
 	ink = color
+	queue_redraw()
+
+
+# Another palette, keeping the ink as it was set.
+func set_palette(palette: String) -> void:
+	colors = PALETTES[palette]
 	queue_redraw()
 
 
