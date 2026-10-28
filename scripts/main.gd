@@ -503,6 +503,10 @@ func _ready() -> void:
 	# of that or the track would cut off the moment the menu opens.
 	music.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(music)
+	# The audio server mixes on its own thread, so a player who turned the
+	# music off would hear a buffer of it at full volume if the mute came
+	# after play() (on Android, ads.start() below sits in between).
+	_apply_music_mute()
 	music.play()
 
 	ads = AdsScript.new()
@@ -511,7 +515,6 @@ func _ready() -> void:
 	ads.ad_opened.connect(func(): music.stream_paused = true)
 	ads.ad_closed.connect(_on_ad_closed)
 	ads.start()
-	_apply_music_mute()
 
 	_reset_to_ground_scene()
 
@@ -1107,8 +1110,9 @@ func _on_play_pressed() -> void:
 
 func _begin_first_time_transition() -> void:
 	state = State.STARTING
-	SaveData.seen_tutorial = true
-	SaveData.save_data()
+	# seen_tutorial is saved by the first flap (_flap), not here: a first
+	# run restarted from the pause menu, or an app closed, before flying
+	# would otherwise lose the arrows for good.
 
 	direction_hint.modulate.a = 0.0
 	direction_hint.visible = hint_alpha > 0.0
@@ -1183,6 +1187,10 @@ func _start_fresh_run() -> void:
 	# A bee won just before a restart from the pause menu would otherwise
 	# have its banner hang over the new run for the rest of its 4 seconds.
 	_hide_bee_notice()
+	# The bee menu can be opened from the game over while an ad is opening
+	# (or the credits from the pause menu), and the run would start under it.
+	bee_menu.visible = false
+	credits_screen.visible = false
 	pause_button.visible = true
 	_set_hud_visible(true)
 
@@ -1191,6 +1199,9 @@ func _on_pause_pressed() -> void:
 	if state != State.PLAYING:
 		return
 	state = State.PAUSED
+	# A bee's banner sat across the "Paused" title (as it did over the game
+	# over and the bee menu); the game-over chip still names the bee won.
+	_hide_bee_notice()
 	_keep_record()
 	pause_button.visible = false
 	privacy_button.visible = ads.privacy_options_required()
@@ -1350,7 +1361,7 @@ func _show_bee_notice(id: String) -> void:
 	_hide_bee_notice()
 	bee_notice.visible = true
 	bee_notice.modulate.a = 0.0
-	# Bound to the notice itself so it keeps running if the run gets paused.
+	# Bound to the notice itself, so _hide_bee_notice can find and stop it.
 	var tw := bee_notice.create_tween()
 	bee_notice.set_meta("tween", tw)
 	tw.tween_property(bee_notice, "modulate:a", 1.0, 0.25)
@@ -1369,6 +1380,9 @@ func _hide_bee_notice() -> void:
 
 func _on_bee_menu_pressed() -> void:
 	if state != State.START and state != State.GAMEOVER:
+		return
+	# Play Again just asked for an ad: the run starts when it closes.
+	if restart_after_ad and Time.get_ticks_msec() - restart_lock_msec < AD_LOCK_MSEC:
 		return
 	_hide_bee_notice()
 	_refresh_bee_menu()
@@ -1477,6 +1491,9 @@ func _flap(direction: int) -> void:
 		world_moving = true
 		bee.physics_enabled = true
 	bee.flap(direction)
+	if not SaveData.seen_tutorial:
+		SaveData.seen_tutorial = true
+		SaveData.save_data()
 	# Taps come fast and in bursts; an identical sample every time reads as
 	# a stuck machine gun, so each one is detuned slightly.
 	_play_sfx(SFX_FLAP, SFX_FLAP_DB, randf_range(0.92, 1.08))

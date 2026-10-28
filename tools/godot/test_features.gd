@@ -36,9 +36,10 @@ func ok(cond: bool, what: String) -> void:
 		print("  FAIL ", what)
 
 
+# Physics frames. The tree is left as the game set it (fresh() unpauses):
+# forcing it unpaused here made every "not paused" check after it moot.
 func ticks(n: int) -> void:
 	for i in n:
-		paused = false
 		await physics_frame
 
 
@@ -115,6 +116,7 @@ func _run() -> void:
 	root.add_child(g)
 	await frames(8)
 	print("TESTS features lang=", g.lang)
+	ok(g.music.playing and g.music.volume_db == g.MUSIC_MUTED_DB, "a player who turned the music off gets it muted from the start")
 
 	await _assets()
 	await _difficulty()
@@ -357,10 +359,21 @@ func _record_line() -> void:
 	for i in 3:
 		g.on_flower_collected(g.flowers[0])
 	ok(g.score == 3 and g.record_line != null, "still there at 3")
-	g.on_flower_collected(g.flowers[0])
+	# The 4th one flown into, so it is picked up inside the physics step as in
+	# a real run: the 2D line is freed before view3d looks at it again.
+	g._flap(1)
+	await ticks(1)
+	g.bee.physics_enabled = false
+	g.bee.velocity = Vector2.ZERO
+	var line3d = g.view3d.record3d
+	var f = g.flowers[0]
+	g.camera_y = f.position.y - g.screen_h * 0.5
+	g.bee.position = f.position
+	await ticks(4)
 	ok(g.score == 4 and g.record_line == null, "and gone at 4")
 	await frames(2)
 	ok(g.view3d.record3d == null, "in 3D too")
+	ok(is_instance_valid(line3d) and line3d.scale.y != 1.0, "where it flashes on its way out")
 	sd.best_score = 0
 	await fresh()
 	ok(g.record_line == null, "no record line before there is a record")
@@ -451,6 +464,7 @@ func _pause_menu() -> void:
 
 	g.score = 7
 	g._on_pause_restart_pressed()
+	ok(not paused, "'restart' unpauses the game")
 	await ticks(1)
 	ok(g.state == g.State.PLAYING and g.score == 0 and not paused and not g.pause_screen.visible, "'restart' in the pause menu starts over")
 	ok(not g.world_moving and g.bee.position.y < 0.0, "with the bee back on the grass")
@@ -459,7 +473,9 @@ func _pause_menu() -> void:
 	await ticks(1)
 	g.score = 25
 	g._check_bee_unlocks()
+	ok(g.bee_notice.visible, "a bee won shows its banner")
 	g._on_pause_pressed()
+	ok(not g.bee_notice.visible, "which leaves when the game pauses, off the 'Paused' title")
 	g._on_pause_restart_pressed()
 	await ticks(1)
 	ok(not g.bee_notice.visible, "a bee's banner doesn't carry over into a restart from the pause menu")
@@ -507,13 +523,18 @@ func _tutorial() -> void:
 	ok(g.hint_alpha == 1.0 and not g.has_tapped_once, "a first run has its tutorial ready")
 	g.play_button.pressed.emit()
 	g.play_button.pressed.emit()           # an impatient double tap
-	ok(g.state == g.State.STARTING and sd.seen_tutorial, "play starts it, once, and remembers it was seen")
+	ok(g.state == g.State.STARTING and not sd.seen_tutorial, "play starts it, once")
 	for i in 90:
 		await process_frame
 	ok(g.state == g.State.PLAYING and not g.start_screen.visible, "the title fades out into the run")
 	ok(g.direction_hint.visible and g.direction_hint.modulate.a > 0.9, "the arrows show which side goes which way")
 	ok(not g.world_moving, "and the bee waits on the grass for the first tap")
+	g._on_pause_pressed()
+	g._on_pause_restart_pressed()
+	await ticks(2)
+	ok(g.direction_hint.visible and g.hint_alpha == 1.0 and not sd.seen_tutorial, "a restart from the pause menu before flying keeps the arrows")
 	g._flap(-1)
+	ok(sd.seen_tutorial, "the first flap is what marks the tutorial as seen")
 	await ticks(30)
 	ok(not g.direction_hint.visible and g.state == g.State.PLAYING, "the arrows go once it has flown")
 
@@ -543,10 +564,14 @@ func _ads() -> void:
 	ads._last_ad_msec = long_ago
 	g.restart_button.pressed.emit()
 	ok(g.state == g.State.GAMEOVER and g.restart_after_ad, "'play again' with an ad due waits for the ad")
+	g._on_bee_menu_pressed()
+	ok(not g.bee_menu.visible, "the bee menu doesn't open while the ad opens")
+	g.bee_menu.visible = true              # as if it had, in some other way
 	ads.ad_opened.emit()
 	ok(g.music.stream_paused, "the music stops under the ad")
 	ads._finish()
 	ok(g.state == g.State.PLAYING and not g.restart_after_ad and not g.music.stream_paused, "the run starts when it closes, music back on")
+	ok(not g.bee_menu.visible, "with no menu left over it")
 	ok(ads._ad == null and ads._runs_since_ad == 0, "and the count starts again")
 	ads._ad = null
 	ads._loading = false
@@ -565,7 +590,7 @@ func _credits() -> void:
 	var own: Dictionary = L.OWN_LINES[g.lang]
 	ok(lines[0] == "Bee Bee" and lines[1] == own["created"] % L.CREATOR, "the credits open with who made the game: '%s'" % lines[1])
 	ok(lines[2] == own["owner"] % [L.YEAR, L.OWNER] and lines[2].contains("Cyberhat"), "and who owns it: '%s'" % lines[2])
-	ok(lines.has(own["audio"]) and lines.has(own["third_party"]), "in the game's language (%s), the licences after them" % g.lang)
+	ok(lines.has(own["audio"]) and lines.has(own["android"]) and lines.has(own["third_party"]), "in the game's language (%s), the licences after them" % g.lang)
 	g.credits_screen.visible = false
 	g._on_resume_pressed()
 

@@ -114,6 +114,9 @@ var bee_mats: Array = []
 var bee_glows := false
 # the city backdrop's wall material, while the city is the backdrop in use
 var city_mat: StandardMaterial3D
+# The darkness the sky's colours were last written for (_sync_sky); -1 makes
+# the next frame write them again, for materials that just came in.
+var sky_d_done := -1.0
 
 var sun_disc: Node3D
 # the sun's turning ball, when its model has one (the flat disc doesn't)
@@ -147,6 +150,13 @@ func setup(p_main: Node2D) -> void:
 	sky_mat.sun_angle_max = 0.0
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
+	# The sky lights the scene (ambient source sky), and every change to its
+	# colours re-renders this cubemap. At the default 256 that was about half
+	# the GPU's time per frame; the scene's materials are rough and vertex
+	# coloured, so they only ever take its blurriest level, which looks the
+	# same from 32. (Sky.PROCESS_MODE_REALTIME, which render_promo.gd uses,
+	# needs 256 and sets it back.)
+	sky.radiance_size = Sky.RADIANCE_SIZE_32
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.ambient_light_energy = 0.9
@@ -301,6 +311,26 @@ func _sync_camera() -> void:
 
 func _sync_sky() -> void:
 	var d: float = main.sky.darkness(main.elapsed)
+	# These follow the camera, not the hour, so they move every frame.
+	if sun_disc:
+		# It hangs far behind the backdrop, where its depth alone would make
+		# it scroll at a fraction of the moon's rate; sinking it by hand as
+		# the camera rises makes up the difference.
+		var climb: float = (main.GROUND_DEPTH - main.screen_h - main.camera_y) / PX
+		var dist := _cam_dist()
+		var depth_ratio := (dist + BACKDROP_DEPTH + 40.0) / dist
+		var rate := dist / (dist - CELESTIAL_DEPTH)
+		sun_disc.position.y = sun_y0 - d * 70.0 + climb * (1.0 - rate * depth_ratio)
+		if sun_ball and is_instance_valid(sun_ball):
+			sun_ball.rotation.y = idle_time * 0.3
+	# Everything below depends on the hour alone. Writing the sky's colours
+	# re-renders its light (see setup), and the hour stands still for the
+	# first minute of every run and all through the night, so the writes
+	# wait until the darkness has moved a step too small to see (or reached
+	# full day or full night exactly).
+	if d == sky_d_done or (absf(d - sky_d_done) < 0.002 and d > 0.0 and d < 1.0):
+		return
+	sky_d_done = d
 	var top: Color
 	var horizon: Color
 	if d < 0.5:
@@ -336,21 +366,13 @@ func _sync_sky() -> void:
 	sun_light.light_energy = lerpf(1.25, 0.6, d)
 	sun_light.light_color = Color(1.0, 0.96, 0.88).lerp(Color(0.66, 0.74, 1.0), d)
 	env.ambient_light_energy = lerpf(0.9, 0.8, d)
-	# the sun sets: sinks and fades out as the sky turns
+	# the sun sets: sinks (above) and fades out as the sky turns
 	if sun_disc:
-		# It hangs far behind the backdrop, where its depth alone would make
-		# it scroll at a fraction of the moon's rate; sinking it by hand as
-		# the camera rises makes up the difference.
-		var climb: float = (main.GROUND_DEPTH - main.screen_h - main.camera_y) / PX
-		var dist := _cam_dist()
-		var depth_ratio := (dist + BACKDROP_DEPTH + 40.0) / dist
-		var rate := dist / (dist - CELESTIAL_DEPTH)
-		sun_disc.position.y = sun_y0 - d * 70.0 + climb * (1.0 - rate * depth_ratio)
 		sun_mat.albedo_color.a = clampf(1.0 - d * 2.2, 0.0, 1.0)
 		sun_disc.visible = sun_mat.albedo_color.a > 0.01
-		if sun_ball and is_instance_valid(sun_ball):
-			sun_ball.rotation.y = idle_time * 0.3
 	star_mat.albedo_color.a = clampf((d - 0.45) * 2.0, 0.0, 1.0)
+	# 456 transparent cubes, sorted and drawn even when they can't be seen
+	stars.visible = star_mat.albedo_color.a > 0.0
 
 
 # The ground, trees and far backdrop are rebuilt whenever main.gd builds a
@@ -359,6 +381,7 @@ func _sync_scenery() -> void:
 	if main.scenery_id == scenery_for:
 		return
 	scenery_for = main.scenery_id
+	sky_d_done = -1.0                # the new backdrop's city takes the sky's tint
 	if scenery:
 		scenery.queue_free()
 	scenery = Node3D.new()
@@ -696,7 +719,11 @@ func _build_celestial(b) -> Node3D:
 
 func _sync_record_line() -> void:
 	var rl = main.record_line
-	if rl != record_for:
+	# By identity: main.gd frees the 2D line when the record is beaten, from
+	# a pickup inside the physics step, so by now it is a freed object, and a
+	# freed object compares equal to null. `rl != record_for` then read
+	# "unchanged" and the 3D line never flashed or went away.
+	if not is_same(rl, record_for):
 		if record3d:
 			var old := record3d
 			var tw := create_tween()
@@ -778,6 +805,7 @@ func set_bee_skin(model: String, size: float, glow: bool) -> void:
 	bee_glows = glow
 	if glow:
 		_glowing(bee3d)
+	sky_d_done = -1.0                # the new bee's materials take the night's gain
 
 
 func _build_bee(model := "bee") -> void:

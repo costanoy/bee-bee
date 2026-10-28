@@ -35,6 +35,10 @@ window/handheld/orientation=1
 
 enabled=PackedStringArray("res://addons/admob/plugin.cfg")
 
+[input_devices]
+
+buffering/agile_event_flushing=true
+
 [rendering]
 
 textures/canvas_textures/default_texture_filter=2

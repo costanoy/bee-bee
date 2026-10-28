@@ -23,6 +23,7 @@ const OWN_LINES := {
 		"godot": "This game uses Godot Engine, available under the following license:",
 		"font": "Jersey 10 (font)",
 		"third_party": "Third-party software in Godot Engine",
+		"android": "Android libraries",
 	},
 	"pt": {
 		"created": "Criado por %s.",
@@ -31,6 +32,7 @@ const OWN_LINES := {
 		"godot": "Este jogo usa a Godot Engine, disponível sob a licença abaixo:",
 		"font": "Jersey 10 (fonte)",
 		"third_party": "Software de terceiros na Godot Engine",
+		"android": "Bibliotecas do Android",
 	},
 }
 
@@ -79,6 +81,30 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."""
 
 
+# The Android build bundles the AdMob plugin's Java and Kotlin dependencies,
+# which carry their own notices. The list comes from the APK itself
+# (META-INF/*.version, the *.properties files and the packages in its dex
+# files); check it again when the plugin or the Godot version changes. The
+# Apache, BSD and MPL texts are not repeated here: the engine's licence
+# list, at the end of the credits, already has all three in full.
+const ANDROID_NOTICES := [
+	"The Android version of this game includes the following open-source libraries. Their licence texts are given in full at the end of these credits, under Apache-2.0, BSD-3-clause and MPL-2.0; the MIT terms are given under Plugins above.",
+	"Licensed under the Apache License, Version 2.0:",
+	"AndroidX (Android Jetpack): Activity, Annotation, AppCompat, Arch Core, Browser, Collection, Concurrent Futures, ConstraintLayout, Core, CursorAdapter, CustomView, DataStore, DocumentFile, DrawerLayout, Fragment, Interpolator, Lifecycle, Loader, ProfileInstaller, Room, SavedState, SQLite, Startup, Tracing, VectorDrawable, VersionedParcelable, ViewPager, WebKit and WorkManager. Copyright (c) The Android Open Source Project.",
+	"Kotlin Standard Library, kotlinx.coroutines and kotlinx-atomicfu. Copyright (c) JetBrains s.r.o. and Kotlin Programming Language contributors.",
+	"Guava: Google Core Libraries for Java. Copyright (c) The Guava Authors.",
+	"Tink. Copyright (c) Google LLC.",
+	"Gson. Copyright (c) Google Inc.",
+	"OkHttp and Okio. Copyright (c) Square, Inc.",
+	"Error Prone annotations, J2ObjC annotations. Copyright (c) Google Inc. JetBrains Java Annotations. Copyright (c) JetBrains s.r.o. JSpecify annotations. Copyright (c) The JSpecify Authors.",
+	"LLVM libc++ (Apache License 2.0 with LLVM Exceptions). Copyright (c) LLVM Project contributors.",
+	"Licensed under the BSD 3-Clause License: Protocol Buffers (Java Lite). Copyright (c) Google Inc. Cronet API. Copyright (c) The Chromium Authors.",
+	"Licensed under the MIT License: Checker Framework qualifiers. Copyright (c) the Checker Framework developers.",
+	"Licensed under the Mozilla Public License 2.0: the Public Suffix List (publicsuffix.org), as included in OkHttp.",
+	"The Google Mobile Ads SDK, the Google User Messaging Platform SDK and Google Play services are provided by Google LLC under Google's own terms.",
+]
+
+
 # The text as a list of [is_heading, text] blocks: the screen makes one
 # label of each, so only the ones in view are drawn. `lang` is a key of
 # OWN_LINES (main.gd's language).
@@ -103,6 +129,10 @@ static func blocks(lang := "en") -> Array:
 	out.append([false, "Godot AdMob Plugin. Copyright (c) 2020-present Poing Studios. MIT License."])
 	out.append([false, "Godot Play Game Services. Copyright (c) 2023 Jacob Ibáñez Sánchez. MIT License."])
 	for part in MIT_TERMS.split("\n\n"):
+		out.append([false, part])
+
+	out.append([true, own["android"]])
+	for part in ANDROID_NOTICES:
 		out.append([false, part])
 
 	out.append([true, own["third_party"]])

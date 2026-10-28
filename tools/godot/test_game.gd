@@ -35,9 +35,10 @@ func ok(cond: bool, what: String) -> void:
 		print("  FAIL ", what)
 
 
+# Physics frames. The tree is left as the game set it (fresh() unpauses):
+# forcing it unpaused here made every "not paused" check after it moot.
 func ticks(n: int) -> void:
 	for i in n:
-		paused = false
 		await physics_frame
 
 
@@ -117,6 +118,8 @@ func _run() -> void:
 	sd.selected_bee = "normal"
 	sd.seen_tutorial = true
 	sd.music_muted = true
+	# the wingbeat checks count voices: a player who muted the effects would fail them
+	sd.sfx_muted = false
 	sd.vibration = false
 	g = Node2D.new()
 	g.set_script(Main)
@@ -186,7 +189,7 @@ func _run() -> void:
 	var shown := ""
 	for c in g.credits_box.get_children():
 		shown += c.text + " "
-	for needed in ["Godot Engine", "Permission is hereby granted", "SIL OPEN FONT LICENSE", "Poing Studios", "FreeType"]:
+	for needed in ["Godot Engine", "Permission is hereby granted", "SIL OPEN FONT LICENSE", "Poing Studios", "FreeType", "AndroidX", "Kotlin", "Google Mobile Ads SDK", "Apache License"]:
 		ok(shown.contains(needed), "the credits mention '%s'" % needed)
 	await key(KEY_ESCAPE)
 	ok(not g.credits_screen.visible and g.state == g.State.PAUSED, "escape closes the credits and stays paused")
