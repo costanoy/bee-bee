@@ -383,17 +383,30 @@ const NOTICE_KINDS := {
 	"milestone": {"priority": 2, "hold": 0.5, "stale": 1.0},
 }
 # The rule a new player doesn't expect, on a plate in the same slot: on the
-# first run, again on a run after one lost to a missed flower, and on every
+# first run, again on a run after one lost to a missed flower (while the
+# record is under RULE_AFTER_LOSS_UNTIL_BEST), and on every
 # run while the record is under RULE_UNTIL_BEST (a player who never got
 # that far may have missed it). It stays until the run's RULE_UNTIL_FLOWER-th
 # flower; a run that ends before then shows it again next time.
 const RULE_UNTIL_FLOWER := 3
 const RULE_UNTIL_BEST := 3
+# ...and a run lost to a flower brings it back only while the record is
+# under this: a player with a record of 200 knows the rule, and lost the
+# "Record: 200" readout (where a veteran looks) to it for three flowers.
+const RULE_AFTER_LOSS_UNTIL_BEST := MILESTONE_EVERY
 # "Resume" counts 3-2-1 before the world moves again, this long a step.
+# TEST — new: resume counts 3-2-1, 1.35 s of frozen world whose taps are
+# swallowed (was: the run resumed at once). To undo: call _finish_resume()
+# at the top of _on_resume_pressed.
 const COUNTDOWN_STEP := 0.45
+# Its digit (a 96 one in the middle of the screen sat right on the next
+# rows' flowers, which the countdown is there to give time to read).
+const COUNTDOWN_FONT := 64
 # The digits of the score are big, and a flower (or the bee) going behind
 # them was hidden: they fade to this while one is there.
 const SCORE_BEHIND_ALPHA := 0.4
+# The tutorial's dashes stay this far clear of a flower's reach and the bee's.
+const HINT_CLEAR := 9.0
 # A near miss says so beside the bee ("Ufa!"), rising this far as it fades.
 const PHEW_RISE := 26.0
 const PHEW_TIME := 0.5
@@ -448,6 +461,17 @@ const ICON_PLAY := [
 	"XXXXXX...",
 	"XXXX.....",
 	"XX.......",
+]
+# The game-over chip's small "go", on the same grid as everything else (it
+# was ICON_PLAY at 2 u, smaller cubes than the chip's outline beside it).
+const ICON_GO := [
+	"X...",
+	"XX..",
+	"XXX.",
+	"XXXX",
+	"XXX.",
+	"XX..",
+	"X...",
 ]
 # points right; the left one is the same rows mirrored
 const ICON_ARROW := [
@@ -761,6 +785,8 @@ var phew_tween: Tween
 var lost_marker: Control
 var lost_blink := 0.0
 var hint_line: Control
+# the score's digits' width at size 64 (_update_score_label)
+var score_digits_w := 0.0
 var title_row: Array[Control] = []    # the title's Play button and the buttons beside it
 var bee_cards := {}                    # skin id -> its card's nodes in the bee menu
 var bee_button_icons: Array[TextureRect] = []
@@ -1202,6 +1228,8 @@ func _physics_process(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_fade_score_over_things(delta)
+	if direction_hint.visible:
+		_clear_hint_line()
 	if state == State.GAMEOVER and game_over_screen.visible:
 		_show_game_over_lock()
 	if lost_marker.visible:
@@ -1218,7 +1246,7 @@ func _fade_score_over_things(delta: float) -> void:
 	if not score_label.visible or (state != State.PLAYING and state != State.DYING):
 		score_label.modulate.a = 1.0
 		return
-	var w: float = ui_font.get_string_size(score_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 64).x
+	var w := score_digits_w
 	var digits := Rect2(SCREEN_W / 2.0 - w / 2.0 - 4.0, score_label.position.y + 6.0, w + 8.0, 54.0)
 	var behind := _circle_in_rect(_screen_pos(bee.position), bee.radius, digits)
 	for f in flowers:
@@ -1227,6 +1255,25 @@ func _fade_score_over_things(delta: float) -> void:
 		behind = _circle_in_rect(_screen_pos(f.position, 0.1), FlowerScript.FLOWER_R, digits)
 	var want := SCORE_BEHIND_ALPHA if behind else 1.0
 	score_label.modulate.a = move_toward(score_label.modulate.a, want, delta * 6.0)
+
+
+# The tutorial's dashed line runs down the middle of the screen, which is
+# exactly where the intro rows put their flowers and where the bee waits on
+# the grass: it crossed out the very flowers a new player has to notice
+# first. The dashes give way around the flowers and the bee (HINT_CLEAR
+# beyond the reach, which covers the petals and the leaves).
+func _clear_hint_line() -> void:
+	var things := [[_screen_pos(bee.position), bee.radius + HINT_CLEAR]]
+	for f in flowers:
+		things.append([_screen_pos(f.position, 0.1), FlowerScript.FLOWER_R + HINT_CLEAR])
+	for dash: Control in hint_line.get_children():
+		var r := Rect2(dash.position + hint_line.position, dash.size)
+		var keep := true
+		for t in things:
+			if _circle_in_rect(t[0], t[1], r):
+				keep = false
+				break
+		dash.visible = keep
 
 
 func _circle_in_rect(c: Vector2, r: float, rect: Rect2) -> bool:
@@ -1395,7 +1442,13 @@ func _show_phew() -> void:
 func _screen_pos(p: Vector2, z := 0.0) -> Vector2:
 	if view3d == null:
 		return p - camera.position
-	return view3d.cam.unproject_position(view3d.to3(p, z))
+	var at: Vector3 = view3d.to3(p, z)
+	# before the 3D view has placed its camera (a tool, or anything that
+	# starts a run on the first frame) a point can sit on its plane, and
+	# unproject_position logs an error for it every frame
+	if view3d.cam.is_position_behind(at):
+		return p - camera.position
+	return view3d.cam.unproject_position(at)
 
 
 func _update_dying(delta: float) -> void:
@@ -1427,7 +1480,9 @@ func on_flower_collected(flower: Area2D) -> void:
 	_update_score_label()
 	_pop_score()
 	_check_bee_unlocks()
-	if score == record_at_run_start + 1:
+	# (not from a record of 0: the first run's first flower is no record to
+	# celebrate, and it made the real ones mean less later)
+	if score == record_at_run_start + 1 and record_at_run_start > 0:
 		_show_record_beaten()
 	if record_line and score == SaveData.best_score + 1:
 		_flash_record_line()
@@ -1474,8 +1529,9 @@ func _trigger_game_over(cause: String, lost: Area2D = null) -> void:
 	# made the moment feel worse. Only the face/pose changes; the fall itself
 	# is untouched.
 	if cause == "flower":
-		# the rule comes back for the next run
-		rule_due = true
+		# the rule comes back for the next run, for whoever is still learning
+		if SaveData.best_score < RULE_AFTER_LOSS_UNTIL_BEST:
+			rule_due = true
 		if lost != null:
 			_show_lost_marker(lost)
 
@@ -1503,7 +1559,11 @@ func _end_game() -> void:
 	has_finished_a_run = true
 	bee.physics_enabled = false
 
-	var beat_record := score > record_at_run_start
+	# A first score over a record of 0 is saved as the record all the same,
+	# but gets the plain board: a jingle, a buzz and a gold "New record! 1"
+	# for one flower on the first try was hollow, and made the headline
+	# mean less once it was earned.
+	var beat_record := score > record_at_run_start and record_at_run_start > 0
 	_keep_record()
 	if beat_record:
 		_play_sfx(SFX_RECORD, SFX_RECORD_DB)
@@ -1552,7 +1612,8 @@ func _record_note(beat_record: bool) -> String:
 	if beat_record:
 		return _t("previous_record") % record_at_run_start if record_at_run_start > 0 else ""
 	var best: int = SaveData.best_score
-	if score <= 0 or best <= 0:
+	# (a first score is its own record, not one "equalled")
+	if score <= 0 or best <= 0 or record_at_run_start <= 0:
 		return ""
 	var short := best - score
 	if short == 0:
@@ -1948,6 +2009,7 @@ func _on_resume_pressed() -> void:
 	state = State.RESUMING
 	pause_button.visible = true
 	countdown_ticks = 0
+	_place_countdown()
 	countdown_label.visible = true
 	_countdown_step(3)
 	# bound to the label, which keeps running while the tree is frozen
@@ -1957,6 +2019,39 @@ func _on_resume_pressed() -> void:
 		countdown_tween.tween_callback(_countdown_step.bind(n))
 	countdown_tween.tween_interval(COUNTDOWN_STEP)
 	countdown_tween.tween_callback(_finish_resume)
+
+
+# Where the 3-2-1 goes: beside the bee, on the side away from it (where the
+# eyes already are, without covering it), or a little higher on that side;
+# failing both, under the score, where the rows are furthest off. The first
+# of those with no flower and no bee under it. The world is frozen through
+# the countdown, so once is enough.
+func _place_countdown() -> void:
+	var sz := countdown_label.size
+	var bee_at := _screen_pos(bee.position)
+	var side_x := SCREEN_W * (0.25 if bee_at.x > SCREEN_W / 2.0 else 0.75)
+	var lo := SCORE_Y + top_inset + 80.0 + sz.y / 2.0
+	var hi := screen_h - 40.0 - sz.y / 2.0
+	var spots := [
+		Vector2(side_x, clampf(bee_at.y, lo, hi)),
+		Vector2(side_x, clampf(bee_at.y - 110.0, lo, hi)),
+		Vector2(SCREEN_W / 2.0, lo),
+	]
+	var things := [[bee_at, bee.radius + 6.0]]
+	for f in flowers:
+		things.append([_screen_pos(f.position, 0.1), FlowerScript.FLOWER_R + 6.0])
+	var at: Vector2 = spots[spots.size() - 1]
+	for spot: Vector2 in spots:
+		var r := Rect2(spot - sz / 2.0, sz)
+		var clear := true
+		for t in things:
+			if _circle_in_rect(t[0], t[1], r):
+				clear = false
+				break
+		if clear:
+			at = spot
+			break
+	countdown_label.position = (at - sz / 2.0).round()
 
 
 func _countdown_step(n: int) -> void:
@@ -2108,6 +2203,8 @@ func _vibrate(ms: int) -> void:
 
 func _update_score_label() -> void:
 	score_label.text = "%d" % score
+	# measured here, once a score, for _fade_score_over_things' every frame
+	score_digits_w = ui_font.get_string_size(score_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 64).x
 
 
 # The score jumps a little with every flower.
@@ -2180,9 +2277,15 @@ func _on_milestone(count: int) -> void:
 	if bee_won_at == count:
 		return
 	if jingle_at != count:
+		# only while this run is still being played: a hedge right after
+		# the flower, or a restart from the pause menu, would otherwise have
+		# them ring over the death hit or into the next run
+		var run := scenery_id
 		for note in MILESTONE_NOTES:
-			get_tree().create_timer(note[0], false).timeout.connect(
-					_play_sfx.bind(SFX_COLLECT, SFX_MILESTONE_DB, note[1]))
+			var pitch: float = note[1]
+			get_tree().create_timer(note[0], false).timeout.connect(func():
+				if state == State.PLAYING and scenery_id == run:
+					_play_sfx(SFX_COLLECT, SFX_MILESTONE_DB, pitch))
 		_vibrate(MILESTONE_BUZZ_MS)
 	_notify({"kind": "milestone", "title": _t("milestone") % count, "flowers": 2,
 			"ink": GOLD, "color": GOLD})
@@ -2390,9 +2493,8 @@ func _on_bee_menu_pressed() -> void:
 	# Not in the game over's first instant (the button is where a thumb was
 	# tapping), nor while Play Again's ad is opening: the run starts when it
 	# closes.
+	# (_game_over_locked covers the ad: it can only be opening on the game over)
 	if state == State.GAMEOVER and _game_over_locked():
-		return
-	if restart_after_ad and Time.get_ticks_msec() - restart_lock_msec < AD_LOCK_MSEC:
 		return
 	_clear_notices()
 	_refresh_bee_menu()
@@ -2766,11 +2868,12 @@ func _build_ui() -> void:
 	ui_layer.add_child(credits_screen)
 
 	# The resume's 3-2-1, over everything (the pause menu has gone by then).
-	countdown_label = _make_label("3", 96, Color.WHITE)
+	# Placed when it starts (_place_countdown), clear of the bee and the
+	# flowers it is there to give time to plan for.
+	countdown_label = _make_label("3", COUNTDOWN_FONT, Color.WHITE)
 	countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	countdown_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	countdown_label.size = Vector2(160, 110)
-	countdown_label.position = Vector2((SCREEN_W - countdown_label.size.x) / 2.0, screen_h * 0.4 - countdown_label.size.y / 2.0)
+	countdown_label.size = Vector2(90, 76)
 	countdown_label.pivot_offset = countdown_label.size / 2.0
 	countdown_label.visible = false
 	ui_layer.add_child(countdown_label)
@@ -3532,8 +3635,8 @@ func _build_game_over_screen() -> Control:
 	goal_left.size = Vector2(chip.size.x - goal_left.position.x - 4.0, 20)
 	chip.add_child(goal_left)
 	# "go": the chip can be tapped
-	goal_go = _build_pixel_icon(ICON_PLAY, 2.0, GOLD)
-	goal_go.position = Vector2(chip.size.x - goal_go.size.x - 9.0, 18)
+	goal_go = _build_pixel_icon(ICON_GO, UI_CELL, GOLD)
+	goal_go.position = Vector2(chip.size.x - goal_go.size.x - 9.0, 17)
 	chip.add_child(goal_go)
 
 	restart_button = _make_text_button(_t("play_again"), "green")

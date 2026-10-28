@@ -407,6 +407,12 @@ func _run() -> void:
 	var bar_left: float = g.goal_left.size.x
 	var card_w: float = g.bee_cards["normal"]["status"].size.x
 	var caption_w: float = g.TOGGLE_SIDE + g.TOGGLE_GAP
+	# the longest bee name, which is what a chip saying it is measured against
+	var longest_bee := ""
+	for id in g.BEE_ORDER:
+		var bee_name: String = g.BEE_SKINS[id]["name"]
+		if f.get_string_size(bee_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x > f.get_string_size(longest_bee, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x:
+			longest_bee = bee_name
 	var fits := [
 		["record", 22, 400.0, [9999]], ["left", 20, 120.0, []], ["right", 20, 120.0, []],
 		["game_over", 48, board_w, []], ["score", 22, col_w, []], ["best", 22, col_w, []],
@@ -414,9 +420,9 @@ func _run() -> void:
 		["restart", 34, 216.0, []], ["ad_privacy", 22, 380.0, []], ["credits", 22, 380.0, []], ["choose_bee", 38, 392.0, []],
 		["back", 34, 216.0, []], ["selected", 17, card_w, []], ["selected", 17, chip_text, []],
 		["goal_count", 17, card_w, [300]], ["goal_count_1", 17, card_w, []], ["goal_run", 15, card_w, []],
-		["unlocked", 22, chip_go, ["Silver Bee"]], ["use_it", 17, chip_go, []],
+		["unlocked", 22, chip_go, [longest_bee]], ["use_it", 17, chip_go, []],
 		["died_hedge", 22, board_w, []], ["died_flower", 22, board_w, []], ["died_fall", 22, board_w, []],
-		["next_bee", 22, chip_text, ["Queen Bee"]], ["next_goal", 17, chip_text, [300]],
+		["next_bee", 22, chip_text, [longest_bee]], ["next_goal", 17, chip_text, [300]],
 		["to_go", 17, bar_left, [300]], ["to_go_1", 17, bar_left, []],
 		["record_beaten", 26, board_w, []], ["previous_record", 18, board_w, [300]],
 		["record_short", 18, board_w, [300]], ["record_short_1", 18, board_w, []], ["record_tied", 18, board_w, []],
@@ -424,7 +430,7 @@ func _run() -> void:
 		["vibration", 18, caption_w, []], ["shake", 18, caption_w, []],
 		# the run's notice slot: its plate at its widest, less the padding and
 		# what goes beside the title (a bee; one flower; a flower each side)
-		["unlocked", g.NOTICE_FONT, g.NOTICE_MAX_W - 2.0 * g.NOTICE_PAD - g.NOTICE_ICON - g.NOTICE_GAP, ["Silver Bee"]],
+		["unlocked", g.NOTICE_FONT, g.NOTICE_MAX_W - 2.0 * g.NOTICE_PAD - g.NOTICE_ICON - g.NOTICE_GAP, [longest_bee]],
 		["rule", g.NOTICE_FONT, g.NOTICE_MAX_W - 2.0 * g.NOTICE_PAD - g.ICON_FLOWER[0].length() * g.UI_CELL - g.NOTICE_GAP, []],
 		["milestone", g.NOTICE_FONT, g.NOTICE_MAX_W - 2.0 * g.NOTICE_PAD - 2.0 * (g.ICON_FLOWER[0].length() * g.UI_CELL + g.NOTICE_GAP), [300]],
 		["record_beaten", 22, 260.0, []], ["phew", 26, 80.0, []],
@@ -440,11 +446,22 @@ func _run() -> void:
 				ok(false, "the font has no glyph for '%s' in '%s'" % [ch, text])
 	# and the slot sizes each plate to what it says: never past its widest,
 	# which keeps it clear of the pause button
-	for entry in [g._rule_entry(), {"title": g._t("unlocked") % "Silver Bee", "icon": g.notice_icon.texture},
+	# (measured as _layout_notice sizes it, in whole cubes, before it caps
+	# the plate at NOTICE_MAX_W; then where the laid-out content ends on the
+	# plate, which that cap would hide)
+	ok((g.SCREEN_W + g.NOTICE_MAX_W) / 2.0 <= g.pause_button.position.x - 3.0,
+			"the notice slot at its widest is clear of the pause button")
+	for entry in [g._rule_entry(), {"title": g._t("unlocked") % longest_bee, "icon": g.notice_icon.texture},
 			{"title": g._t("milestone") % 300, "flowers": 2}]:
-		var plate_w: float = g._notice_inner_width(entry) + 2.0 * g.NOTICE_PAD
-		ok(plate_w <= g.NOTICE_MAX_W and (g.SCREEN_W + g.NOTICE_MAX_W) / 2.0 <= g.pause_button.position.x - 3.0,
-				"the notice '%s' fits its slot (%d of %d px)" % [entry["title"], plate_w, g.NOTICE_MAX_W])
+		var plate_w: float = ceilf((g._notice_inner_width(entry) + 2.0 * g.NOTICE_PAD) / g.UI_CELL) * g.UI_CELL
+		g._layout_notice(entry)
+		var face_end: float = g.notice.face_rect().end.x
+		var last_end: float = g.notice_title.position.x + f.get_string_size(entry["title"], HORIZONTAL_ALIGNMENT_LEFT, -1, g.NOTICE_FONT).x
+		if entry.get("flowers", 0) == 2:
+			last_end = g.notice_flowers[1].position.x + g.notice_flowers[1].size.x
+		ok(plate_w <= g.NOTICE_MAX_W and last_end <= face_end,
+				"the notice '%s' fits its slot (%d of %d px; ends at %d of the face's %d)" % [entry["title"], plate_w, g.NOTICE_MAX_W, last_end, face_end])
+	g._clear_notices()
 	for ch in g._t("record_word"):
 		ok(g.view3d.GLYPHS.has(ch), "the record line can spell '%s'" % ch)
 

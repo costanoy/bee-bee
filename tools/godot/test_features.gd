@@ -735,6 +735,19 @@ func _tutorial() -> void:
 		await process_frame
 	ok(g.state == g.State.PLAYING and not g.start_screen.visible, "the title fades out into the run")
 	ok(g.direction_hint.visible and g.direction_hint.modulate.a > 0.9, "the arrows show which side goes which way")
+	var things := [[g._screen_pos(g.bee.position), g.bee.radius]]
+	for fl in g.flowers:
+		things.append([g._screen_pos(fl.position, 0.1), g.FlowerScript.FLOWER_R])
+	var crossed := 0
+	var hidden := 0
+	for d in g.hint_line.get_children():
+		if not d.visible:
+			hidden += 1
+			continue
+		for t in things:
+			if g._circle_in_rect(t[0], t[1], d.get_global_rect()):
+				crossed += 1
+	ok(crossed == 0 and hidden > 0, "  the dashed line gives way around the flowers and the bee (%d dashes hidden, %d crossing)" % [hidden, crossed])
 	ok(not g.world_moving, "and the bee waits on the grass for the first tap")
 	g._on_pause_pressed()
 	g._on_pause_restart_pressed()
@@ -789,6 +802,18 @@ func _rule_plate() -> void:
 	await fresh()
 	ok(g.rule_on, "  and so does the one after, if that one ended before flower %d" % g.RULE_UNTIL_FLOWER)
 	g.rule_due = false
+	sd.best_score = 200
+	await fresh()
+	g._flap(1)
+	await ticks(1)
+	lost = g.flowers[0]
+	g.camera_y = lost.position.y - g.FlowerScript.FLOWER_R - g.screen_h - 2.0
+	await ticks(2)
+	ok(g.death_cause == "flower" and not g.rule_due, "a veteran (record 200) losing a flower does not get the beginner's rule back")
+	await fresh()
+	ok(not g.rule_on and g.record_label.text == g._t("record") % 200, "  and starts the next run with '%s'" % g.record_label.text)
+	sd.best_score = 10
+	g.rule_due = false
 	await fresh()
 
 
@@ -830,6 +855,23 @@ func _notice_slot() -> void:
 	ok(heard.has(2.0) and heard.has(3.0), "  with the pickup's note an octave up, then a fifth above (%s)" % [heard.keys()])
 	ok(shown > 20 and shown < 60, "  on screen for %.2f s, under one" % (shown / 60.0))
 	ok(g.notice_now.is_empty() and g.record_label.modulate.a > 0.95, "  then the record readout is back")
+	await fresh()
+	await silence()
+	g._flap(1)
+	await ticks(1)
+	g.score = 2 * g.MILESTONE_EVERY - 1
+	g.on_flower_collected(g.flowers[0])
+	g._trigger_game_over("hedge")       # a hedge right after the milestone
+	var late := 0
+	for i in 30:
+		await process_frame
+		for v in g.sfx_pool:
+			if v.playing and v.stream == g.SFX_COLLECT and is_equal_approx(v.volume_db, g.SFX_MILESTONE_DB):
+				late += 1
+	ok(late == 0, "  a run that ends right after a milestone does not play its notes over the death")
+	g.dying_timer = 99.0
+	await ticks(2)
+	await fresh()
 	var slot: Rect2 = Rect2(g.notice.position, g.notice.size)
 	ok(slot.end.y <= g.score_label.position.y + 6.0 and slot.end.x <= g.pause_button.position.x - 3.0,
 			"  in the top row, above the score and clear of the pause button (%s)" % slot)
@@ -878,6 +920,22 @@ func _record_readout() -> void:
 	await fresh()
 	ok(g.record_label.text == g._t("record") % 3 and g.record_label.get_theme_color("font_color").is_equal_approx(Color(1, 1, 1, 0.9)),
 			"  and a new run starts from the record again")
+	# a first score is no record to celebrate
+	sd.best_score = 0
+	await fresh()
+	g._flap(1)
+	await ticks(1)
+	g.on_flower_collected(g.flowers[0])
+	ok(g.score == 1 and g.record_label.text == g._t("record") % 0 and not g.record_pop_due, "from a record of 0, the first flower is not 'New record!' ('%s')" % g.record_label.text)
+	await silence()
+	await end_run("fall")
+	var jingle := false
+	for v in g.sfx_pool:
+		jingle = jingle or (v.playing and v.stream == g.SFX_RECORD)
+	ok(sd.best_score == 1 and not g.new_record_badge.visible and not jingle and g.record_note.text == ""
+			and g.final_best_label.visible, "  and its game over is the plain board, no jingle (best saved: %d)" % sd.best_score)
+	sd.best_score = 3
+	await fresh()
 	# passed under a notice, the jump waits for the readout to come back
 	g._show_bee_notice("rosy")
 	g.score = 3
@@ -913,6 +971,15 @@ func _countdown() -> void:
 	for v in g.sfx_pool:
 		tick = tick or (v.playing and v.stream == g.SFX_UI_TAP and is_equal_approx(v.volume_db, g.SFX_COUNTDOWN_DB))
 	ok(tick and g.countdown_ticks == 1, "  a tick on each number")
+	var cd := Rect2(g.countdown_label.position, g.countdown_label.size)
+	var cd_clear: bool = not g._circle_in_rect(g._screen_pos(g.bee.position), g.bee.radius, cd)
+	var fallback: bool = is_equal_approx(cd.get_center().x, g.SCREEN_W / 2.0)
+	for fl in g.flowers:
+		if not fallback and g._circle_in_rect(g._screen_pos(fl.position, 0.1), g.FlowerScript.FLOWER_R, cd):
+			cd_clear = false
+	var score_box := Rect2(0.0, g.score_label.position.y, g.SCREEN_W, g.score_label.size.y)
+	ok(cd_clear and not cd.intersects(score_box) and not cd.intersects(g.pause_button.get_global_rect()),
+			"  its digit is clear of the bee, the flowers, the score and the pause button (%s)" % cd)
 	await frames(int(g.COUNTDOWN_STEP * 60.0) + 2)
 	ok(g.countdown_label.text == "2" and g.bee.position.y == y and g.camera_y == cy, "  '2', and nothing has moved")
 	await key(KEY_ESCAPE)
@@ -1226,6 +1293,15 @@ func _title_screen() -> void:
 	var cube_px: float = logo.cell * px
 	ok(logo != null and (absf(cube_px - roundf(cube_px)) < 0.001 if cube_px >= 2.0 else logo.cell == floorf(logo.cell)),
 			"the logo's cubes are a whole number of the screen's pixels (%.3f u, %.2f px)" % [logo.cell, cube_px])
+	# the real whole-pixel branch, which a headless window never takes: a
+	# 1080-wide phone (2.7), a 1440 one (3.6), 720 (1.8), a tablet (1.5)
+	for scale in [2.7, 3.6, 1.8, 1.5]:
+		var scratch: Control = g.VoxelLogo.new()
+		scratch.setup(344.0, scale)
+		var cpx: float = scratch.cell * scale
+		ok(absf(cpx - roundf(cpx)) < 0.001 and cpx >= 2.0 and scratch.size.x <= 344.0 * 1.05,
+				"  at %.1f px a unit too: %.3f u a cube = %.2f px, %.0f u wide" % [scale, scratch.cell, cpx, scratch.size.x])
+		scratch.free()
 	var top: float = logo.position.y
 	var bottom: float = top + logo.size.y
 	var clear := true
