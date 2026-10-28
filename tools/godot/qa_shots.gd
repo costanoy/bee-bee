@@ -4,7 +4,11 @@ extends SceneTree
 # for checking the layout by eye: the title (city and hills), the first
 # run's arrows, a run by day, a bee won, the moon at dusk, the night sky, the
 # record line, the pause menu, the credits, both kinds of game over and the
-# bee menu.
+# bee menu; then what a run says as it goes: the rule plate (first run, and a
+# run after one lost to a flower), the resume's countdown, a milestone, a bee
+# and a milestone on one flower, the record readout once passed, a near
+# miss's "Ufa!", a flower lost (the fall, then the game over), a flower behind
+# the score, and a notice under the pause menu.
 #
 #   godot --path . --audio-driver Dummy --script tools/godot/qa_shots.gd -- --lang=pt --w=1080 --h=2400 --out=C:/somewhere
 #   godot --path . --audio-driver Dummy --resolution 600x800 --script tools/godot/qa_shots.gd -- --tablet=1 --out=...
@@ -146,6 +150,109 @@ func _init() -> void:
 	await _shot("13_bee_menu", 20, false)
 	g._on_bee_menu_closed()
 
+	# ---- the rule plate: a first launch, arrows and all
+	sd.best_score = 0
+	sd.unlocked_bees = []
+	sd.selected_bee = "normal"
+	sd.seen_tutorial = false
+	seed(5)
+	paused = false
+	g.state = g.State.GAMEOVER
+	g._start_fresh_run()
+	_scenery("hills")
+	g._apply_bee_skin()
+	await _shot("14_rule_first_run", 24)
+	sd.seen_tutorial = true
+	# ...and in flight, on a run after one lost to a missed flower
+	sd.best_score = 20
+	g.rule_due = true
+	await _stage(1, 3.0, "city", "normal", 420.0, 21)
+	await _shot("15_rule_in_flight", 24)
+	g.rule_due = false
+
+	# ---- the resume's countdown: the menu gone, the world still frozen
+	await _stage(12, 14.0, "hills", "rosy", 900.0, 11)
+	g.world_moving = true
+	g.has_tapped_once = true
+	g.bee.physics_enabled = false
+	g._on_pause_pressed()
+	for k in 4:
+		await process_frame
+	g._on_resume_pressed()
+	await _shot("16_countdown", 12, false)
+	g._stop_countdown()
+	g._finish_resume()
+
+	# ---- a milestone on its own, "50!"
+	sd.best_score = 60
+	sd.unlocked_bees = ["rosy", "mint", "ice"]
+	await _stage(49, 40.0, "hills", "mint", 2400.0, 12)
+	await _settle()
+	g.on_flower_collected(g.flowers[0])
+	await _shot("17_milestone", 12)
+
+	# ---- Mint, the 25th flower and the record all at once: the bee has the slot
+	sd.best_score = 20
+	sd.unlocked_bees = ["rosy"]
+	await _stage(20, 30.0, "city", "normal", 2400.0, 8)
+	await _settle()
+	g.on_flower_collected(g.flowers[0])
+	await process_frame
+	g.score = 24
+	g.on_flower_collected(g.flowers[0])
+	await _shot("18_bee_and_milestone", 14)
+	# ...and once it has gone, the record readout says the record is passed
+	await _shot("19_record_passed", 170)
+
+	# ---- a near miss
+	sd.unlocked_bees = ["rosy", "mint"]
+	await _stage(31, 32.0, "hills", "mint", 2800.0, 15)
+	g._trigger_near_miss()
+	await _shot("20_phew", 6)
+
+	# ---- a flower lost: the arrow over it while the bee falls, then the game over
+	sd.best_score = 20
+	await _stage(9, 12.0, "hills", "rosy", 900.0, 3)
+	var lost = g.flowers[0]
+	g.camera_y = lost.position.y - g.FlowerScript.FLOWER_R - g.screen_h - 2.0
+	g.bee.position = Vector2(clampf(lost.position.x + 70.0, 40.0, 360.0), g.camera_y + g.screen_h * 0.62)
+	g.bee.physics_enabled = false
+	g.world_moving = true
+	paused = false
+	await physics_frame
+	await physics_frame
+	await _shot("21_flower_lost", 1, false)
+	g.dying_timer = 99.0
+	await _shot("22_flower_lost_game_over", 40, false)
+
+	# ---- a flower behind the score's digits
+	await _stage(14, 16.0, "city", "rosy", 1100.0, 31)
+	var hid = g.flowers[-1]
+	for fl in g.flowers:
+		var y: float = fl.position.y - g.camera_y
+		if y > 60.0 and y < 300.0:
+			hid = fl
+	hid._base_x = g.SCREEN_W / 2.0 + 14.0
+	var want_y: float = g.score_label.position.y + 34.0
+	for k in 4:
+		g.camera_y += g.view3d.screen_pos_for(hid.position, Vector2(0.0, g.camera_y), 0.1).y - want_y
+		await process_frame
+	while g.highest_spawn_y > g.camera_y - g.screen_h:
+		g._spawn_row()
+	g.bee.position.y = g.camera_y + g.screen_h * 0.62
+	await _shot("23_flower_behind_score", 20)
+
+	# ---- a bee's notice, then the pause menu over it
+	sd.best_score = 20
+	sd.unlocked_bees = ["rosy"]
+	await _stage(25, 30.0, "hills", "normal", 2400.0, 12)
+	g._check_bee_unlocks()
+	for k in 16:
+		await process_frame
+	g._on_pause_pressed()
+	await _shot("24_pause_over_notice", 6, false)
+	g._on_resume_pressed()
+
 	for path in SAVE_FILES:
 		var data = kept.get(path)
 		if data == null:
@@ -203,6 +310,13 @@ func _stage(score: int, elapsed: float, backdrop: String, skin: String, climb: f
 		g.record_line = null
 	for k in 3:
 		await process_frame
+
+
+# A pickup needs the bee's contacts to be trusted again after a reset
+# (main.gd _bee_contacts_trustworthy): two physics ticks.
+func _settle() -> void:
+	for k in 3:
+		await physics_frame
 
 
 # `frames` to wait first; the sky's light takes ~100 frames to catch up after

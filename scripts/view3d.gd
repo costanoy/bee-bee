@@ -290,16 +290,8 @@ func _process(delta: float) -> void:
 
 
 func _sync_camera() -> void:
-	var dist := _cam_dist()
 	# top-left of the 2D view, shake included
-	var c := _between_ticks(cam_prev, cam_now, main.camera.position)
-	var centre := Vector3(c.x / PX, -(c.y + main.screen_h / 2.0) / PX, 0)
-	# Tilted slightly down so the tops of the hedges show. Everything that
-	# collides lives on the same plane, so the tilt can't make a hit look
-	# like a miss; the plane just reads as a slightly receding stage.
-	var pitch := deg_to_rad(CAM_PITCH)
-	cam.rotation.x = -pitch
-	cam.position = centre + Vector3(0, sin(pitch) * dist, cos(pitch) * dist)
+	_place_camera(_between_ticks(cam_prev, cam_now, main.camera.position))
 	# The stars hang still in the sky, far behind everything, so the climb
 	# slides them slowly down the screen, at about a tenth of the hedges'
 	# rate (asked for: stars that ride with the camera sit still on the
@@ -307,6 +299,30 @@ func _sync_camera() -> void:
 	# camera by moving it whole spans at a time, which its repeats hide.
 	var sky_y := cam.position.y - fposmod(cam.position.y, STAR_SPAN)
 	stars.position = Vector3(cam.position.x, sky_y, cam.position.z - 180.0)
+
+
+# The camera for a 2D view whose top-left is `c`.
+func _place_camera(c: Vector2) -> void:
+	var dist := _cam_dist()
+	var centre := Vector3(c.x / PX, -(c.y + main.screen_h / 2.0) / PX, 0)
+	# Tilted slightly down so the tops of the hedges show. Everything that
+	# collides lives on the same plane, so the tilt can't make a hit look
+	# like a miss; the plane just reads as a slightly receding stage.
+	var pitch := deg_to_rad(CAM_PITCH)
+	cam.rotation.x = -pitch
+	cam.position = centre + Vector3(0, sin(pitch) * dist, cos(pitch) * dist)
+
+
+# Where a point of the 2D plane shows on the screen (in the interface's own
+# coordinates) with the 2D view's top-left at `view`, shake and the
+# between-ticks slide left out: for the interface to point at something in
+# the world from where the run's camera really is this tick.
+func screen_pos_for(p: Vector2, view: Vector2, z := 0.0) -> Vector2:
+	var keep := cam.transform
+	_place_camera(view)
+	var at := cam.unproject_position(to3(p, z))
+	cam.transform = keep
+	return at
 
 
 func _sync_sky() -> void:

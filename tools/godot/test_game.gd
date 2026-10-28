@@ -47,6 +47,15 @@ func frames(n: int) -> void:
 		await process_frame
 
 
+# A resume counts 3-2-1 before the run goes on (main.gd _on_resume_pressed):
+# waits it out, a little longer at most.
+func resumed() -> void:
+	var guard := 0
+	while g.state == g.State.RESUMING and guard < 200:
+		await process_frame
+		guard += 1
+
+
 func voices() -> int:
 	var n := 0
 	for v in g.sfx_pool:
@@ -169,7 +178,9 @@ func _run() -> void:
 	await key(KEY_ESCAPE)
 	ok(g.state == g.State.PAUSED and paused, "escape pauses")
 	await key(KEY_ESCAPE)
-	ok(g.state == g.State.PLAYING and not paused, "escape resumes a paused game")
+	ok(g.state == g.State.RESUMING and paused, "escape resumes a paused game: first a 3-2-1, still frozen")
+	await resumed()
+	ok(g.state == g.State.PLAYING and not paused, "  then the run goes on")
 
 	# ------------------------------------------------ the sound switch
 	await key(KEY_P)
@@ -198,6 +209,7 @@ func _run() -> void:
 	g._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
 	ok(not g.credits_screen.visible and g.state == g.State.PAUSED, "so does the back button")
 	g._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	await resumed()
 	ok(g.state == g.State.PLAYING, "and back again resumes")
 
 	# ------------------------------------------------ ceiling
@@ -308,16 +320,16 @@ func _run() -> void:
 	var rosy_at: int = g.BEE_SKINS["rosy"]["score"]
 	g.score = rosy_at
 	g._check_bee_unlocks()
-	ok(g.bee_notice.visible, "reaching %d shows the unlock notice" % rosy_at)
+	ok(g.notice.visible and g.notice_now.get("kind") == "bee", "reaching %d shows the unlock notice" % rosy_at)
 	g._trigger_game_over("hedge")
 	g.dying_timer = 99.0
 	await ticks(3)
-	ok(not g.bee_notice.visible, "the notice is gone once the game-over screen is up")
+	ok(not g.notice.visible and g.notice_now.is_empty(), "the notice is gone once the game-over screen is up")
 	ok(g.goal_title.text == g._t("unlocked") % "Rosy Bee", "the chip says the bee was won: '%s'" % g.goal_title.text)
 	ok(g.new_record_badge.visible and sd.best_score == rosy_at, "a record is still a record (best %d)" % sd.best_score)
 	g._show_bee_notice("rosy")
 	g._on_bee_menu_pressed()
-	ok(not g.bee_notice.visible and g.bee_menu.visible, "opening the bee menu puts the notice away")
+	ok(not g.notice.visible and g.bee_menu.visible, "opening the bee menu puts the notice away")
 	g._on_bee_menu_closed()
 
 	# ------------------------------------------------ ad lock expires
@@ -337,6 +349,7 @@ func _run() -> void:
 	g._on_pause_pressed()
 	ok(sd.best_score == 40, "pausing above the record saves it (best %d)" % sd.best_score)
 	g._on_resume_pressed()
+	await resumed()
 	g.score = 41
 	g._trigger_game_over("fall")
 	g.dying_timer = 99.0
@@ -382,10 +395,16 @@ func _run() -> void:
 		["play_again", 34, 216.0, []], ["paused", 52, 392.0, []], ["resume", 34, 216.0, []],
 		["restart", 34, 216.0, []], ["ad_privacy", 22, 380.0, []], ["credits", 22, 380.0, []], ["choose_bee", 38, 392.0, []],
 		["back", 34, 216.0, []], ["selected", 16, 106.0, []], ["pick", 16, 106.0, []],
-		["locked", 16, 106.0, [300]], ["unlocked", 26, 220.0, ["Silver Bee"]], ["unlocked_hint", 18, 220.0, []],
+		["locked", 16, 106.0, [300]],
 		["unlocked", 22, 190.0, ["Silver Bee"]], ["unlocked_hint", 17, 190.0, []],
 		["died_hedge", 24, 392.0, []], ["died_flower", 24, 392.0, []], ["died_fall", 24, 392.0, []],
 		["next_bee", 22, 190.0, ["Queen Bee"]], ["next_goal", 17, 190.0, [300]],
+		# the run's notice slot: its plate at its widest, less the padding and
+		# what goes beside the title (a bee; one flower; a flower each side)
+		["unlocked", g.NOTICE_FONT, g.NOTICE_MAX_W - 2.0 * g.NOTICE_PAD - g.NOTICE_ICON - g.NOTICE_GAP, ["Silver Bee"]],
+		["rule", g.NOTICE_FONT, g.NOTICE_MAX_W - 2.0 * g.NOTICE_PAD - g.ICON_FLOWER[0].length() * g.UI_CELL - g.NOTICE_GAP, []],
+		["milestone", g.NOTICE_FONT, g.NOTICE_MAX_W - 2.0 * g.NOTICE_PAD - 2.0 * (g.ICON_FLOWER[0].length() * g.UI_CELL + g.NOTICE_GAP), [300]],
+		["record_beaten", 22, 260.0, []], ["phew", 26, 80.0, []],
 	]
 	for row in fits:
 		var text: String = g._t(row[0])
@@ -396,6 +415,13 @@ func _run() -> void:
 		for ch in text:
 			if not f.has_char(ch.unicode_at(0)):
 				ok(false, "the font has no glyph for '%s' in '%s'" % [ch, text])
+	# and the slot sizes each plate to what it says: never past its widest,
+	# which keeps it clear of the pause button
+	for entry in [g._rule_entry(), {"title": g._t("unlocked") % "Silver Bee", "icon": g.notice_icon.texture},
+			{"title": g._t("milestone") % 300, "flowers": 2}]:
+		var plate_w: float = g._notice_inner_width(entry) + 2.0 * g.NOTICE_PAD
+		ok(plate_w <= g.NOTICE_MAX_W and (g.SCREEN_W + g.NOTICE_MAX_W) / 2.0 <= g.pause_button.position.x - 3.0,
+				"the notice '%s' fits its slot (%d of %d px)" % [entry["title"], plate_w, g.NOTICE_MAX_W])
 	for ch in g._t("record_word"):
 		ok(g.view3d.GLYPHS.has(ch), "the record line can spell '%s'" % ch)
 

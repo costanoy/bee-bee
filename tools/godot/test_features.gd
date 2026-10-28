@@ -87,6 +87,20 @@ func fresh() -> void:
 	await ticks(3)
 
 
+# Waits until no sound is playing, so a sound about to be played finds a voice
+# free (they last real time, and a headless run goes through its frames much
+# faster than that; see test_game.gd).
+func silence() -> void:
+	var deadline := Time.get_ticks_msec() + 8000
+	while Time.get_ticks_msec() < deadline:
+		var busy := false
+		for v in g.sfx_pool:
+			busy = busy or v.playing
+		if not busy:
+			return
+		await process_frame
+
+
 # A run ended the quick way, straight onto the game-over screen.
 func end_run(cause := "fall") -> void:
 	g._trigger_game_over(cause)
@@ -131,6 +145,11 @@ func _run() -> void:
 	await _pause_menu()
 	await _back_and_focus()
 	await _tutorial()
+	await _rule_plate()
+	await _notice_slot()
+	await _record_readout()
+	await _countdown()
+	await _close_calls()
 	await _ads()
 	await _credits()
 	await _save_file()
@@ -428,7 +447,7 @@ func _bees() -> void:
 		if hardest == "" or g.BEE_SKINS[id]["score"] > g.BEE_SKINS[hardest]["score"]:
 			hardest = id
 	ok(hardest == "shining" and g.BEE_SKINS["shining"]["score"] == 300, "the silver bee stays the hardest, at 300")
-	ok(g.bee_notice.visible and g.bee_notice_title.text == g._t("unlocked") % "Silver Bee", "the notice names the last one won")
+	ok(g.notice_now.get("kind") == "bee" and g.notice_title.text == g._t("unlocked") % "Silver Bee", "the notice names the last one won")
 	sd.load_data()
 	ok(sd.unlocked_bees.size() == 6, "and they are in the save file at once, before the run ends")
 	await end_run("hedge")
@@ -601,12 +620,21 @@ func _pause_menu() -> void:
 	await ticks(1)
 	g.score = 25
 	g._check_bee_unlocks()
-	ok(g.bee_notice.visible, "a bee won shows its banner")
+	ok(g.notice.visible and g.notice_now.get("kind") == "bee", "a bee won shows its notice")
+	await frames(20)                       # in its place, in the top row
 	g._on_pause_pressed()
-	ok(not g.bee_notice.visible, "which leaves when the game pauses, off the 'Paused' title")
+	var title_rect := Rect2()
+	for c in g.pause_screen.get_children():
+		if c is Label:
+			title_rect = c.get_global_rect()
+	ok(g.notice.get_index() < g.pause_screen.get_index() and not g.notice.get_global_rect().intersects(title_rect),
+			"when the game pauses it stays under the menu's dim, nowhere near the 'Paused' title")
+	var held: float = g.notice_tween.get_total_elapsed_time()
+	await frames(30)
+	ok(g.notice_tween.get_total_elapsed_time() == held, "  and waits there, frozen with the run")
 	g._on_pause_restart_pressed()
 	await ticks(1)
-	ok(not g.bee_notice.visible, "a bee's banner doesn't carry over into a restart from the pause menu")
+	ok(g.notice_now.get("kind") != "bee", "a bee's notice doesn't carry over into a restart from the pause menu")
 	sd.unlocked_bees = []
 
 
@@ -665,6 +693,275 @@ func _tutorial() -> void:
 	ok(sd.seen_tutorial, "the first flap is what marks the tutorial as seen")
 	await ticks(30)
 	ok(not g.direction_hint.visible and g.state == g.State.PLAYING, "the arrows go once it has flown")
+
+
+# ------------------------------------------------------------------ the rule plate
+func _rule_plate() -> void:
+	sd.seen_tutorial = false
+	sd.best_score = 10
+	await fresh()
+	ok(g.first_run and g.rule_on and g.notice_now.get("kind") == "rule" and g.notice_title.text == g._t("rule"),
+			"the first run puts the rule up: '%s'" % g.notice_title.text)
+	await frames(20)
+	var plate: Rect2 = g.notice.get_global_rect()
+	var score_top: float = g.score_label.position.y + 6.0
+	var clear: bool = plate.end.y <= score_top and plate.end.x <= g.pause_button.position.x - 3.0 and plate.position.x >= 0.0
+	for c in g.direction_hint.get_children():
+		if c != g.hint_line and c.get_global_rect().intersects(plate):
+			clear = false
+	for d in g.hint_line.get_children():
+		if d.get_global_rect().intersects(plate):
+			clear = false
+	ok(g.notice.visible and clear, "  in the top row: clear of the arrows, the score and the pause button (%s)" % plate)
+	ok(g.record_label.modulate.a < 0.05, "  the record readout steps aside under it")
+	for i in g.RULE_UNTIL_FLOWER - 1:
+		g.on_flower_collected(g.flowers[0])
+	ok(g.rule_on and g.notice_now.get("kind") == "rule", "  still up after %d flowers" % (g.RULE_UNTIL_FLOWER - 1))
+	g.on_flower_collected(g.flowers[0])
+	ok(not g.rule_on and not g.rule_due, "  and done with at flower %d" % g.RULE_UNTIL_FLOWER)
+	await frames(30)
+	ok(not g.notice.visible and g.record_label.modulate.a > 0.95, "  the record readout is back")
+
+	sd.seen_tutorial = true                # as the run's first flap would have
+	await fresh()
+	ok(not g.rule_on and not g.notice.visible, "the next run starts without it")
+	g._flap(1)
+	await ticks(1)
+	var lost = g.flowers[0]
+	g.camera_y = lost.position.y - g.FlowerScript.FLOWER_R - g.screen_h - 2.0
+	await ticks(2)
+	ok(g.death_cause == "flower" and g.rule_due, "a run lost to a missed flower")
+	await fresh()
+	ok(g.rule_on and g.notice_now.get("kind") == "rule", "  puts the rule up again on the next one")
+	g._flap(1)
+	await end_run("hedge")
+	await fresh()
+	ok(g.rule_on, "  and so does the one after, if that one ended before flower %d" % g.RULE_UNTIL_FLOWER)
+	g.rule_due = false
+	await fresh()
+
+
+# ------------------------------------------------------------------ the notice slot
+func _notice_slot() -> void:
+	sd.best_score = 10
+	sd.unlocked_bees = []
+	g.rule_due = false
+	await fresh()                          # not flown: the world holds still for the checks
+	# the 25th flower also wins Mint: one notice, the bee's, and its jingle alone
+	g.score = g.BEE_SKINS["mint"]["score"] - 1
+	g.on_flower_collected(g.flowers[0])
+	ok(g.score % g.MILESTONE_EVERY == 0 and g.notice_now.get("kind") == "bee" and g.notice_queue.is_empty(),
+			"a milestone on a bee's flower leaves the slot to the bee (%s, %d waiting)" % [g.notice_title.text, g.notice_queue.size()])
+	await frames(6)
+	var notes := 0
+	for v in g.sfx_pool:
+		if v.playing and v.stream == g.SFX_COLLECT and v.pitch_scale >= 2.0:
+			notes += 1
+	ok(notes == 0, "  and plays none of its notes")
+
+	# a milestone of its own: "25!", two notes, under a second
+	sd.unlocked_bees = ["rosy", "mint"]
+	await fresh()
+	await silence()
+	g.score = g.MILESTONE_EVERY - 1
+	g.on_flower_collected(g.flowers[0])
+	ok(g.notice_now.get("kind") == "milestone" and g.notice_title.text == g._t("milestone") % g.MILESTONE_EVERY
+			and g.notice_flowers[0].visible and g.notice_flowers[1].visible, "the %dth flower says '%s' between two flowers" % [g.MILESTONE_EVERY, g.notice_title.text])
+	var heard := {}
+	var shown := 0
+	for i in 90:
+		await process_frame
+		if g.notice.visible:
+			shown += 1
+		for v in g.sfx_pool:
+			if v.playing and v.stream == g.SFX_COLLECT and is_equal_approx(v.volume_db, g.SFX_MILESTONE_DB):
+				heard[snappedf(v.pitch_scale, 0.01)] = true
+	ok(heard.has(2.0) and heard.has(3.0), "  with the pickup's note an octave up, then a fifth above (%s)" % [heard.keys()])
+	ok(shown > 20 and shown < 60, "  on screen for %.2f s, under one" % (shown / 60.0))
+	ok(g.notice_now.is_empty() and g.record_label.modulate.a > 0.95, "  then the record readout is back")
+	var slot: Rect2 = Rect2(g.notice.position, g.notice.size)
+	ok(slot.end.y <= g.score_label.position.y + 6.0 and slot.end.x <= g.pause_button.position.x - 3.0,
+			"  in the top row, above the score and clear of the pause button (%s)" % slot)
+
+	# a more important one cuts in; a less important one waits its turn, if it is still fresh
+	g._notify({"kind": "milestone", "title": "50!", "flowers": 2})
+	g._show_bee_notice("ice")
+	ok(g.notice_now.get("kind") == "bee" and g.notice_queue.is_empty(), "a bee cuts a milestone short")
+	g._notify({"kind": "milestone", "title": "75!", "flowers": 2})
+	ok(g.notice_now.get("kind") == "bee" and g.notice_queue.size() == 1, "  a milestone during a bee's notice waits")
+	g._notice_leave()
+	await frames(int(g.NOTICE_OUT * 60.0) + 3)
+	ok(g.notice_now.get("kind") == "milestone" and g.notice_title.text == "75!", "  and comes once the bee's is done")
+	g._show_bee_notice("grape")
+	g._notify({"kind": "milestone", "title": "100!", "flowers": 2})
+	await ticks(int(g.NOTICE_KINDS["milestone"]["stale"] * 60.0) + 5)
+	g._notice_leave()
+	await frames(int(g.NOTICE_OUT * 60.0) + 3)
+	ok(g.notice_now.is_empty() and not g.notice.visible, "  unless it has gone stale by then")
+	# the old banner hung over the hedges coming in; the slot is the top row
+	g._show_bee_notice("shining")
+	await frames(20)
+	ok(Rect2(g.notice.position, g.notice.size).end.y <= g.score_label.position.y + 6.0, "the widest bee's notice stays in the top row too")
+	await end_run()
+	ok(g.notice_now.is_empty() and not g.notice.visible, "the game over clears the slot")
+	sd.unlocked_bees = []
+	sd.best_score = 10
+
+
+# ------------------------------------------------------------------ the record readout
+func _record_readout() -> void:
+	sd.best_score = 3
+	sd.unlocked_bees = ["rosy", "mint", "ice", "grape", "queen", "shining"]
+	g.rule_due = false
+	await fresh()
+	ok(g.record_label.text == g._t("record") % 3, "a run starts with the record to beat: '%s'" % g.record_label.text)
+	for i in 3:
+		g.on_flower_collected(g.flowers[0])
+	ok(g.record_label.text == g._t("record") % 3, "  level with it, still")
+	g.on_flower_collected(g.flowers[0])
+	var gold: Color = g.record_label.get_theme_color("font_color")
+	ok(g.record_label.text == g._t("record_beaten") and gold.is_equal_approx(g.GOLD), "past it, the readout says '%s', in gold" % g.record_label.text)
+	ok(g.record_pop != null and g.record_pop.is_valid(), "  with a little jump")
+	g.on_flower_collected(g.flowers[0])
+	ok(g.record_label.text == g._t("record_beaten"), "  for the rest of the run")
+	await fresh()
+	ok(g.record_label.text == g._t("record") % 3 and g.record_label.get_theme_color("font_color").is_equal_approx(Color(1, 1, 1, 0.9)),
+			"  and a new run starts from the record again")
+	# passed under a notice, the jump waits for the readout to come back
+	g._show_bee_notice("rosy")
+	g.score = 3
+	g.on_flower_collected(g.flowers[0])
+	ok(g.record_pop_due, "passed while a notice covers it, the jump waits")
+	g._notice_leave()
+	await frames(int(g.NOTICE_OUT * 60.0) + 3)
+	ok(not g.record_pop_due and g.record_pop.is_valid(), "  for the notice to go")
+	sd.unlocked_bees = []
+	sd.best_score = 10
+	await fresh()
+
+
+# ------------------------------------------------------------------ the resume's countdown
+func _countdown() -> void:
+	g.rule_due = false
+	await fresh()
+	g._on_pause_pressed()
+	g._on_resume_pressed()
+	ok(g.state == g.State.PLAYING and not paused, "a run that hasn't flown yet resumes at once")
+	g._flap(1)
+	await ticks(2)
+	g._on_pause_pressed()
+	await frames(2)
+	var y: float = g.bee.position.y
+	var cy: float = g.camera_y
+	await silence()
+	g._on_resume_pressed()
+	ok(g.state == g.State.RESUMING and paused and not g.pause_screen.visible and g.countdown_label.visible and g.countdown_label.text == "3",
+			"resuming a run in flight counts down first: '%s'" % g.countdown_label.text)
+	ok(g.pause_button.visible, "  with the pause button there to stop it")
+	var tick := false
+	for v in g.sfx_pool:
+		tick = tick or (v.playing and v.stream == g.SFX_UI_TAP and is_equal_approx(v.volume_db, g.SFX_COUNTDOWN_DB))
+	ok(tick and g.countdown_ticks == 1, "  a tick on each number")
+	await frames(int(g.COUNTDOWN_STEP * 60.0) + 2)
+	ok(g.countdown_label.text == "2" and g.bee.position.y == y and g.camera_y == cy, "  '2', and nothing has moved")
+	await key(KEY_ESCAPE)
+	ok(g.state == g.State.PAUSED and g.pause_screen.visible and not g.countdown_label.visible and paused, "escape during it goes back to the pause menu")
+	g._on_resume_pressed()
+	g._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	ok(g.state == g.State.PAUSED and g.pause_screen.visible, "  so does back")
+	g._on_resume_pressed()
+	g._notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	ok(g.state == g.State.PAUSED, "  and leaving the app")
+	g._on_resume_pressed()
+	var waited := 0
+	while g.state == g.State.RESUMING and waited < 300:
+		await process_frame
+		waited += 1
+	ok(g.state == g.State.PLAYING and not paused and not g.countdown_label.visible and g.countdown_ticks == 3,
+			"3, 2, 1 and the run goes on, after %.2f s" % (waited / 60.0))
+	ok(absf(waited / 60.0 - 3.0 * g.COUNTDOWN_STEP) < 0.1, "  which is %.2f s" % (3.0 * g.COUNTDOWN_STEP))
+	await ticks(3)
+	ok(g.bee.position.y != y, "  and the bee flies again")
+
+
+# ------------------------------------------------------------------ near miss, a lost flower, the score's digits
+func _close_calls() -> void:
+	g.rule_due = false
+	await fresh()
+	g._flap(1)
+	await ticks(1)
+	g.bee.physics_enabled = false
+	g.bee.velocity = Vector2.ZERO
+	var o = g.obstacles[0]
+	g.camera_y = o.position.y - g.screen_h * 0.5
+	g.bee.position = Vector2(o.gap_x - o.gap_width / 2.0 + g.bee.radius + 3.0, o.position.y + 11.0)
+	await ticks(2)
+	g.bee.position.y = o.position.y - 60.0
+	await ticks(1)
+	await frames(1)
+	var at: Vector2 = g._screen_pos(g.bee.position)
+	var word: Vector2 = g.phew_label.position + g.phew_label.size / 2.0
+	ok(g.phew_label.visible and g.phew_label.text == g._t("phew") and word.distance_to(at) < 90.0,
+			"a near miss says '%s' beside the bee (%.0f px from it)" % [g.phew_label.text, word.distance_to(at)])
+	var y0: float = g.phew_label.position.y
+	await frames(15)
+	ok(g.phew_label.position.y < y0, "  rising")
+	await frames(30)
+	ok(not g.phew_label.visible, "  and gone in about half a second")
+
+	# a flower lost: the marker at its x on the bottom edge, blinking through the fall
+	await fresh()
+	g._flap(1)
+	await ticks(1)
+	g.bee.physics_enabled = false
+	var lost = g.flowers[0]
+	g.camera_y = lost.position.y - g.FlowerScript.FLOWER_R - g.screen_h - 2.0
+	g.bee.position = Vector2(200.0, g.camera_y + g.screen_h * 0.4)
+	await ticks(2)
+	await frames(2)
+	var lx: float = g.view3d.screen_pos_for(lost.position, Vector2(0.0, g.camera_y), 0.1).x
+	var mark: Rect2 = g.lost_marker.get_global_rect()
+	ok(g.state == g.State.DYING and g.lost_marker.visible, "a run lost to a flower points at it")
+	ok(absf(mark.get_center().x - clampf(lx, 22.0, g.SCREEN_W - 22.0)) <= 1.0 and mark.end.y <= g.screen_h and mark.end.y > g.screen_h * 0.75,
+			"  at its x (%.0f), on the bottom edge (%.0f to %.0f)" % [lx, mark.position.y, mark.end.y])
+	var alphas := {}
+	for i in 20:
+		await process_frame
+		alphas[g.lost_marker.modulate.a] = true
+	ok(alphas.size() == 2, "  blinking while the bee falls")
+	g.dying_timer = 99.0
+	await ticks(2)
+	await frames(2)
+	var clear: bool = not mark.intersects(g.restart_button.get_global_rect())
+	for c in g.game_over_screen.get_children():
+		if c is Button and c.visible and c.get_global_rect().intersects(mark):
+			clear = false
+	ok(g.state == g.State.GAMEOVER and g.lost_marker.visible and g.lost_marker.modulate.a == 1.0 and clear,
+			"  then still, on the game over, under its buttons")
+	g.game_over_msec -= 1000
+	g._on_restart_pressed()
+	ok(not g.lost_marker.visible, "  and gone with the next run")
+
+	# a flower behind the score's digits: they fade while it is there
+	g.rule_due = false
+	await fresh()
+	var f = g.flowers[0]
+	f._base_x = g.SCREEN_W / 2.0
+	g.bee.position = Vector2(60.0, g.bee.position.y)
+	var want_y: float = g.score_label.position.y + 32.0
+	g.camera_y = f.position.y - want_y
+	for k in 3:
+		await ticks(1)
+		await frames(1)
+		g.camera_y += g._screen_pos(f.position, 0.1).y - want_y
+	await ticks(1)
+	await frames(15)
+	ok(g.score_label.modulate.a <= 0.5 and is_equal_approx(g.score_label.modulate.a, g.SCORE_BEHIND_ALPHA), "a flower behind the score's digits fades them (to %.2f, flower at %s)" % [g.score_label.modulate.a, g._screen_pos(f.position, 0.1)])
+	g.camera_y -= g.OBSTACLE_SPACING / 2.0     # half a row: between two flowers
+	await ticks(1)
+	await frames(15)
+	ok(g.score_label.modulate.a == 1.0, "  and they come back once it has gone by")
+	await fresh()
 
 
 # ------------------------------------------------------------------ ads

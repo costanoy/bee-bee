@@ -4,7 +4,9 @@ extends Node2D
 # obstacles, flowers, clouds) is built here by code rather than laid out by
 # hand in the editor — see HANDOFF_Claude_Code.md section 2 for why.
 
-enum State { START, STARTING, PLAYING, PAUSED, DYING, GAMEOVER }
+# RESUMING is the 3-2-1 after "Resume": the tree is still frozen, and the
+# pause button (or escape, or back) takes it back to the pause menu.
+enum State { START, STARTING, PLAYING, PAUSED, DYING, GAMEOVER, RESUMING }
 
 # Moments of a run, for whatever shows or plays something on them. Both come
 # from on_flower_collected after the unlock check and the record line, so a
@@ -160,6 +162,21 @@ const SFX_HIT_DB := -3.0
 const SFX_RECORD_DB := -5.0
 const SFX_UI_DB := -13.0
 const SFX_NEAR_MISS_DB := -7.0
+# The cues added with the run's notices reuse those same files (no new
+# audio, so no new licence to check). Set by measurement (ffmpeg ebur128,
+# loudest 400 ms) against the music, which plays at about -17 LUFS: a pickup
+# lands at -23 to -24, the near miss at -25, the record jingle at -20 mid-run
+# and -16 at the game over, a button's click at -34.
+# The countdown's tick is the button click, raised to about -27: clearly
+# there over the music, still well under the game's own events.
+const SFX_COUNTDOWN_DB := -6.0
+# Every MILESTONE_EVERY-th flower: the pickup's own note an octave up, then
+# the fifth above it, a short rising call (A5, E6) right after the pickup.
+# About -22 and -23, a touch over a pickup and under the record jingle, which
+# keeps its own meaning.
+const SFX_MILESTONE_DB := -3.0
+# [delay after the pickup in s, pitch of sfx_collect]
+const MILESTONE_NOTES := [[0.09, 2.0], [0.2, 2.9966]]
 
 # TEST — a "near miss" cue (screen shake + whoosh) when the bee grazes past
 # a gap edge within this many px without hitting it, requested to see if
@@ -222,6 +239,10 @@ const TEXT := {
 		"next_bee": "Next: %s",
 		"next_goal": "%d flowers in one run",
 		"record_word": "RECORD",
+		"rule": "Take EVERY flower!",
+		"record_beaten": "New record!",
+		"milestone": "%d!",
+		"phew": "Phew!",
 	},
 	"pt": {
 		"record": "Recorde: %d",
@@ -250,6 +271,10 @@ const TEXT := {
 		"next_bee": "Próxima: %s",
 		"next_goal": "%d flores numa partida",
 		"record_word": "RECORDE",
+		"rule": "Pegue TODAS as flores!",
+		"record_beaten": "Novo recorde!",
+		"milestone": "%d!",
+		"phew": "Ufa!",
 	},
 }
 # For the tools that render screenshots in a given language; empty means
@@ -275,6 +300,49 @@ const SCORE_Y := 92.0
 # The most a camera cut-out may push that row down. A phone reporting more
 # than this is reporting something else, and the row stays near the top.
 const TOP_INSET_MAX := 48.0
+
+# The run's one slot for messages (_notify): a plate in the top row, where
+# the record readout is, which it covers while it is up. Everything a run
+# announces goes through it, one at a time, so nothing ever covers the top
+# of the play area, where the next hedges come in (the old bee banner, a
+# 300x72 plate at y 172, hid about 650 px of rows at top speed). Kept
+# clear of the pause button in the corner.
+const NOTICE_Y := 13.0
+const NOTICE_H := 42.0
+const NOTICE_MAX_W := 264.0
+const NOTICE_PAD := 9.0
+const NOTICE_GAP := 6.0
+const NOTICE_ICON := 34.0
+const NOTICE_FONT := 26
+const NOTICE_IN := 0.18
+const NOTICE_OUT := 0.2
+# What the slot can say, most important first. A notice at least as
+# important as the one up takes its place at once; a less important one
+# waits its turn, and is dropped if it has waited longer than `stale` (a
+# "25!" shown two seconds late is about a moment gone). `hold` is how long
+# it stays up. The bee's was a 4 s banner (0.25 in, 3.2 up, 0.6 out).
+const NOTICE_KINDS := {
+	"bee": {"priority": 3, "hold": 2.2, "stale": 6.0},
+	"milestone": {"priority": 2, "hold": 0.5, "stale": 1.0},
+}
+# The rule a new player doesn't expect, on a plate in the same slot: on the
+# first run, again on a run after one lost to a missed flower, and on every
+# run while the record is under RULE_UNTIL_BEST (a player who never got
+# that far may have missed it). It stays until the run's RULE_UNTIL_FLOWER-th
+# flower; a run that ends before then shows it again next time.
+const RULE_UNTIL_FLOWER := 3
+const RULE_UNTIL_BEST := 3
+# "Resume" counts 3-2-1 before the world moves again, this long a step.
+const COUNTDOWN_STEP := 0.45
+# The digits of the score are big, and a flower (or the bee) going behind
+# them was hidden: they fade to this while one is there.
+const SCORE_BEHIND_ALPHA := 0.4
+# A near miss says so beside the bee ("Ufa!"), rising this far as it fades.
+const PHEW_RISE := 26.0
+const PHEW_TIME := 0.5
+# Buzz lengths, in ms, for the moments that had none.
+const MILESTONE_BUZZ_MS := 50
+const NEAR_MISS_BUZZ_MS := 10
 
 # Icons are drawn as pixel grids rather than imported art, so they match
 # the game's own resolution instead of being scaled-down smooth shapes.
@@ -375,6 +443,26 @@ const ICON_SLASH := [
 	"........XX.",
 	".........XX",
 ]
+# The flower, as the game's own five-petal one seen from the front: P petal,
+# L the lit rim of the upper petals, C the cream centre, c its golden dot.
+const ICON_FLOWER := [
+	"...LLL...",
+	"..LPPPL..",
+	"LL.PPP.LL",
+	"LPPPPPPPL",
+	"PPPCCCPPP",
+	".PPCcCPP.",
+	"..PCCCP..",
+	".PPP.PPP.",
+	".PP...PP.",
+]
+# [petal, lit rim] per flower kind, from tools/blender/make_voxel_flower.py
+const FLOWER_ICON_COLORS := {
+	"red": [Color(1.0, 0.20, 0.26), Color(1.0, 0.52, 0.52)],
+	"yellow": [Color(1.0, 0.88, 0.10), Color(1.0, 0.97, 0.55)],
+	"blue": [Color(0.30, 0.52, 1.0), Color(0.62, 0.80, 1.0)],
+}
+const FLOWER_ICON_CENTRE := [Color(1.0, 0.70, 0.14), Color(0.86, 0.42, 0.06)]
 
 const ObstacleScript := preload("res://scripts/obstacle.gd")
 const FlowerScript := preload("res://scripts/flower.gd")
@@ -495,10 +583,39 @@ var credits_box: VBoxContainer
 var view3d: Node3D
 var applied_bee_skin := ""
 var bee_menu: Control
-var bee_notice: Control
-var bee_notice_icon: TextureRect
-var bee_notice_title: Label
-var bee_cards := {}                      # skin id -> its card's nodes in the bee menu
+# The run's notice slot (_notify): one plate, its content rebuilt for each
+# notice. `notice_now` is the entry it shows ({} when the record readout is
+# uncovered), `notice_queue` the ones waiting their turn.
+var notice: Control
+var notice_icon: TextureRect
+var notice_flowers: Array[Control] = []
+var notice_title: Label
+var notice_now := {}
+var notice_queue: Array = []
+var notice_tween: Tween
+# The rule plate (RULE_UNTIL_FLOWER): due for the next run, and up in this one.
+var rule_due := false
+var rule_on := false
+# The record readout turns into "New record!" once the run passes it; when
+# that happens under a notice, its little jump waits for the notice to go.
+var record_pop_due := false
+var record_pop: Tween
+var record_fade: Tween
+# The score at which this run last won a bee, and last played the record
+# jingle, so a milestone on the same flower doesn't pile its own on top.
+var bee_won_at := -1
+var jingle_at := -1
+var countdown_label: Label
+var countdown_tween: Tween
+var countdown_ticks := 0
+var phew_label: Label
+var phew_tween: Tween
+# Points at the flower a run was lost to, at the bottom edge, from the fall
+# until the next run.
+var lost_marker: Control
+var lost_blink := 0.0
+var hint_line: Control
+var bee_cards := {}                    # skin id -> its card's nodes in the bee menu
 var bee_button_icons: Array[TextureRect] = []
 
 
@@ -573,6 +690,9 @@ func _ready() -> void:
 	ads.ad_closed.connect(_on_ad_closed)
 	ads.start()
 
+	flower_collected.connect(_on_flower_count)
+	milestone_reached.connect(_on_milestone)
+	rule_due = SaveData.best_score < RULE_UNTIL_BEST
 	_reset_to_ground_scene()
 
 	# Everything the player sees of the world is drawn in 3D by view3d.gd,
@@ -622,6 +742,10 @@ func _apply_top_inset() -> void:
 	record_label.position.y = RECORD_Y + top_inset
 	score_label.position.y = SCORE_Y + top_inset
 	pause_button.position.y = PAUSE_Y + top_inset
+	# the tutorial's centre line starts under the score, wherever that went
+	hint_line.position.y = top_inset
+	if notice.visible and not (notice_tween != null and notice_tween.is_running()):
+		notice.position.y = NOTICE_Y + top_inset
 
 
 func _notification(what: int) -> void:
@@ -629,15 +753,17 @@ func _notification(what: int) -> void:
 		# A call, the home button or the notification shade pulled down
 		# mid-run would otherwise leave the bee falling with nobody at the
 		# controls, or dropped into a fall the moment the app comes back.
+		# (and in the middle of a resume's countdown, which would otherwise
+		# finish and drop the bee into a run with nobody watching)
 		NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_APPLICATION_PAUSED:
-			if state == State.PLAYING:
+			if state == State.PLAYING or state == State.RESUMING:
 				_on_pause_pressed()
 		# quit_on_go_back is off in project.godot, so back no longer kills
 		# the app mid-run: it pauses a run, resumes a paused one, and only
 		# leaves from the screens where there's nothing to lose.
 		NOTIFICATION_WM_GO_BACK_REQUEST:
 			match state:
-				State.PLAYING:
+				State.PLAYING, State.RESUMING:
 					_on_pause_pressed()
 				State.PAUSED:
 					if credits_screen.visible:
@@ -728,6 +854,20 @@ func _reset_to_ground_scene() -> void:
 
 	_update_score_label()
 	record_label.text = _t("record") % SaveData.best_score
+	record_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.9))
+	record_pop_due = false
+	score_label.modulate.a = 1.0
+	bee_won_at = -1
+	jingle_at = -1
+	_clear_notices()
+	if phew_tween != null and phew_tween.is_valid():
+		phew_tween.kill()
+	phew_label.visible = false
+	lost_marker.visible = false
+	# the run the tutorial is for always gets the rule; it is put up when the
+	# run starts (_show_rule_if_due), not behind the title screen
+	if first_run:
+		rule_due = true
 
 	for i in range(6):
 		_spawn_row()
@@ -888,6 +1028,38 @@ func _physics_process(delta: float) -> void:
 	sky.check_triggers(score)
 
 
+func _process(delta: float) -> void:
+	_fade_score_over_things(delta)
+	if lost_marker.visible:
+		# the lost flower's marker blinks through the fall, as a flower about
+		# to be lost does (view3d.gd), and holds still on the game over
+		lost_blink += delta
+		lost_marker.modulate.a = 1.0 if state != State.DYING or fmod(lost_blink * 6.0, 1.0) < 0.6 else 0.0
+
+
+# The score's digits are big, and a flower passing behind them was hidden
+# (or the bee, up by the top edge): while one is there they fade, enough to
+# see it through them and still read the number.
+func _fade_score_over_things(delta: float) -> void:
+	if not score_label.visible or (state != State.PLAYING and state != State.DYING):
+		score_label.modulate.a = 1.0
+		return
+	var w: float = ui_font.get_string_size(score_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 64).x
+	var digits := Rect2(SCREEN_W / 2.0 - w / 2.0 - 4.0, score_label.position.y + 6.0, w + 8.0, 54.0)
+	var behind := _circle_in_rect(_screen_pos(bee.position), bee.radius, digits)
+	for f in flowers:
+		if behind:
+			break
+		behind = _circle_in_rect(_screen_pos(f.position, 0.1), FlowerScript.FLOWER_R, digits)
+	var want := SCORE_BEHIND_ALPHA if behind else 1.0
+	score_label.modulate.a = move_toward(score_label.modulate.a, want, delta * 6.0)
+
+
+func _circle_in_rect(c: Vector2, r: float, rect: Rect2) -> bool:
+	var closest := Vector2(clampf(c.x, rect.position.x, rect.end.x), clampf(c.y, rect.position.y, rect.end.y))
+	return c.distance_squared_to(closest) < r * r
+
+
 func _start_camera_shake(duration: float, magnitude: float) -> void:
 	camera_shake_time = duration
 	camera_shake_total = duration
@@ -964,7 +1136,7 @@ func _update_playing(delta: float) -> void:
 	# reads as the game cheating.
 	for f in flowers:
 		if f.position.y - FlowerScript.FLOWER_R > screen_bottom:
-			_trigger_game_over("flower")
+			_trigger_game_over("flower", f)
 			return
 
 	for o in obstacles:
@@ -1011,6 +1183,42 @@ func _circle_rect_clearance(circle_center: Vector2, radius: float, rect_min: Vec
 func _trigger_near_miss() -> void:
 	_start_camera_shake(CAMERA_SHAKE_DURATION, CAMERA_SHAKE_MAGNITUDE)
 	_play_sfx(SFX_NEAR_MISS, SFX_NEAR_MISS_DB)
+	# The shake alone read like being hit; the word says it was the good kind.
+	_vibrate(NEAR_MISS_BUZZ_MS)
+	_show_phew()
+
+
+# "Ufa!" in gold beside the bee: pops up, rises a little and fades, about
+# half a second. Above the bee, or under it when the bee is up by the score.
+func _show_phew() -> void:
+	var at := _screen_pos(bee.position)
+	var side := 1.0 if at.x < SCREEN_W / 2.0 else -1.0
+	var above := at.y > SCORE_Y + top_inset + 110.0
+	var x := clampf(at.x + side * 30.0 - phew_label.size.x / 2.0, 4.0, SCREEN_W - 4.0 - phew_label.size.x)
+	var y := at.y - 50.0 if above else at.y + 18.0
+	if phew_tween != null and phew_tween.is_valid():
+		phew_tween.kill()
+	phew_label.position = Vector2(x, y)
+	phew_label.scale = Vector2.ONE * 0.6
+	phew_label.modulate.a = 1.0
+	phew_label.visible = true
+	# bound to the label, which freezes with the run (a pause mid-pop holds it)
+	phew_tween = phew_label.create_tween()
+	phew_tween.tween_property(phew_label, "scale", Vector2.ONE, 0.12) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	phew_tween.parallel().tween_property(phew_label, "position:y", y - PHEW_RISE, PHEW_TIME) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	phew_tween.parallel().tween_property(phew_label, "modulate:a", 0.0, PHEW_TIME * 0.6).set_delay(PHEW_TIME * 0.4)
+	phew_tween.tween_callback(func(): phew_label.visible = false)
+
+
+# Where a point of the 2D simulation shows on the screen, in the interface's
+# coordinates. The 3D view is tilted, so the two drift apart towards the
+# edges (by some 25 px at the bottom of a phone screen).
+func _screen_pos(p: Vector2, z := 0.0) -> Vector2:
+	if view3d == null:
+		return p - camera.position
+	return view3d.cam.unproject_position(view3d.to3(p, z))
 
 
 func _update_dying(delta: float) -> void:
@@ -1042,11 +1250,16 @@ func on_flower_collected(flower: Area2D) -> void:
 	_update_score_label()
 	_pop_score()
 	_check_bee_unlocks()
+	if score == record_at_run_start + 1:
+		_show_record_beaten()
 	if record_line and score == SaveData.best_score + 1:
 		_flash_record_line()
 		# passing the record is worth hearing at once, not only at game over
-		_play_sfx(SFX_RECORD, SFX_RECORD_DB - 4.0)
-		_vibrate(60)
+		# (unless the same flower just won a bee, whose jingle is already on)
+		if bee_won_at != score:
+			_play_sfx(SFX_RECORD, SFX_RECORD_DB - 4.0)
+			_vibrate(60)
+			jingle_at = score
 	flower_collected.emit(score)
 	if score % MILESTONE_EVERY == 0:
 		milestone_reached.emit(score)
@@ -1066,7 +1279,9 @@ func _bee_contacts_trustworthy() -> bool:
 	return physics_ticks_since_reset >= 2
 
 
-func _trigger_game_over(cause: String) -> void:
+# `lost` is the flower the run was lost to, for a "flower" death (the tools
+# that end a run by hand leave it out, and get no marker).
+func _trigger_game_over(cause: String, lost: Area2D = null) -> void:
 	if state != State.PLAYING:
 		return
 	death_cause = cause
@@ -1081,6 +1296,29 @@ func _trigger_game_over(cause: String) -> void:
 	# reposition. Tested and decided explicitly (spec 4.7): any collision FX
 	# made the moment feel worse. Only the face/pose changes; the fall itself
 	# is untouched.
+	if cause == "flower":
+		# the rule comes back for the next run
+		rule_due = true
+		if lost != null:
+			_show_lost_marker(lost)
+
+
+# An arrow over the flower the run was lost to, pointing down at it, at its
+# x on the bottom edge (where the top of the flower still shows). Not an
+# effect on the death itself (spec 4.7 above): it only says which flower it
+# was, which the game over then puts in words. It blinks through the fall
+# and stays, still, on the game-over screen, below its buttons.
+func _show_lost_marker(f: Area2D) -> void:
+	# from where the camera is this tick (view3d's own trails it by a frame)
+	var at: Vector2 = f.position - Vector2(0.0, camera_y)
+	if view3d != null:
+		at = view3d.screen_pos_for(f.position, Vector2(0.0, camera_y), 0.1)
+	lost_marker.position = Vector2(
+		roundf(clampf(at.x, 22.0, SCREEN_W - 22.0) - lost_marker.size.x / 2.0),
+		roundf(clampf(at.y - 20.0, screen_h * 0.75, screen_h - 4.0) - lost_marker.size.y))
+	lost_marker.modulate.a = 1.0
+	lost_marker.visible = true
+	lost_blink = 0.0
 
 
 func _end_game() -> void:
@@ -1100,7 +1338,7 @@ func _end_game() -> void:
 	# HUD above it would just print both a second time.
 	_set_hud_visible(false)
 	# ...and its own word about a bee won in this run (the goal chip)
-	_hide_bee_notice()
+	_clear_notices()
 	game_over_screen.visible = true
 	game_over_msec = Time.get_ticks_msec()
 	ads.run_finished()
@@ -1224,6 +1462,7 @@ func _begin_playing() -> void:
 	game_over_screen.visible = false
 	pause_button.visible = true
 	_set_hud_visible(true)
+	_show_rule_if_due()
 	# world_moving/bee.physics_enabled stay false here on the cold-start
 	# path — spec 4.3: gravity only turns on at the real first flap
 	# ("decolar" = "primeiro flap" = "início da partida", spec 4.3).
@@ -1276,24 +1515,27 @@ func _start_fresh_run() -> void:
 	# The badge rides along with the hidden screen, but its loop would keep
 	# ticking for the whole next run if it isn't stopped here.
 	_hide_new_record_badge()
-	# A bee won just before a restart from the pause menu would otherwise
-	# have its banner hang over the new run for the rest of its 4 seconds.
-	_hide_bee_notice()
+	# (a bee's notice won just before a restart from the pause menu went with
+	# the old run, in _reset_to_ground_scene)
 	# The bee menu can be opened from the game over while an ad is opening
 	# (or the credits from the pause menu), and the run would start under it.
 	bee_menu.visible = false
 	credits_screen.visible = false
 	pause_button.visible = true
 	_set_hud_visible(true)
+	_show_rule_if_due()
 
 
 func _on_pause_pressed() -> void:
-	if state != State.PLAYING:
+	# a resume's countdown can be paused again too: back, escape, the button
+	if state != State.PLAYING and state != State.RESUMING:
 		return
+	_stop_countdown()
 	state = State.PAUSED
-	# A bee's banner sat across the "Paused" title (as it did over the game
-	# over and the bee menu); the game-over chip still names the bee won.
-	_hide_bee_notice()
+	# The run's notice slot (and an "Ufa!") are drawn under the menu's dim
+	# with the rest of the run's HUD, and freeze with the run: what they say
+	# is still there after the resume. (The old banner sat right across the
+	# "Paused" title and had to be put away.)
 	_keep_record()
 	pause_button.visible = false
 	privacy_button.visible = ads.privacy_options_required()
@@ -1311,15 +1553,64 @@ func _on_pause_pressed() -> void:
 	get_tree().paused = true
 
 
+# Resuming went straight back to the run, with the bee in mid-air and the
+# thumb still on the button in the middle of the screen: about a second of
+# falling was gone before the first tap. The menu goes, and a 3-2-1 with a
+# tick on every number gives the thumbs time to get back to the sides; the
+# world stays frozen until it ends. A run that has not flown yet has nothing
+# to lose and resumes at once.
 func _on_resume_pressed() -> void:
 	if state != State.PAUSED:
 		return
+	pause_screen.visible = false
+	credits_screen.visible = false
+	if not world_moving:
+		_finish_resume()
+		return
+	state = State.RESUMING
+	pause_button.visible = true
+	countdown_ticks = 0
+	countdown_label.visible = true
+	_countdown_step(3)
+	# bound to the label, which keeps running while the tree is frozen
+	countdown_tween = countdown_label.create_tween()
+	for n in [2, 1]:
+		countdown_tween.tween_interval(COUNTDOWN_STEP)
+		countdown_tween.tween_callback(_countdown_step.bind(n))
+	countdown_tween.tween_interval(COUNTDOWN_STEP)
+	countdown_tween.tween_callback(_finish_resume)
+
+
+func _countdown_step(n: int) -> void:
+	countdown_label.text = "%d" % n
+	countdown_label.scale = Vector2.ONE * 1.5
+	countdown_label.modulate.a = 1.0
+	var pop := countdown_label.create_tween()
+	pop.tween_property(countdown_label, "scale", Vector2.ONE, 0.22) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	pop.tween_property(countdown_label, "modulate:a", 0.55, COUNTDOWN_STEP - 0.22)
+	# the last one a fifth higher, so the rhythm says when it goes
+	_play_sfx(SFX_UI_TAP, SFX_COUNTDOWN_DB, 1.5 if n == 1 else 1.0)
+	countdown_ticks += 1
+
+
+func _finish_resume() -> void:
+	if state != State.PAUSED and state != State.RESUMING:
+		return
+	_stop_countdown()
 	get_tree().paused = false
 	pause_screen.visible = false
 	credits_screen.visible = false
 	direction_hint.visible = hint_alpha > 0.0
 	state = State.PLAYING
 	pause_button.visible = true
+
+
+func _stop_countdown() -> void:
+	if countdown_tween != null and countdown_tween.is_valid():
+		countdown_tween.kill()
+	countdown_tween = null
+	countdown_label.visible = false
 
 
 func _on_pause_restart_pressed() -> void:
@@ -1421,6 +1712,7 @@ func _check_bee_unlocks() -> void:
 			SaveData.unlocked_bees.append(id)
 			SaveData.save_data()
 			bees_won_this_run.append(id)
+			bee_won_at = score
 			_refresh_bee_menu()
 			_show_bee_notice(id)
 
@@ -1445,29 +1737,227 @@ func _apply_bee_skin() -> void:
 		bee.position.y = -bee.radius
 
 
+# A bee won mid-run: its jingle, a buzz, and its name in the notice slot.
+# Only the name: where to pick it ("in the bee menu") is the game-over
+# chip's to say.
 func _show_bee_notice(id: String) -> void:
 	_play_sfx(SFX_RECORD, SFX_RECORD_DB)
 	_vibrate(120)
-	bee_notice_icon.texture = load(_bee_icon_path(id))
-	bee_notice_title.text = _t("unlocked") % BEE_SKINS[id]["name"]
-	_hide_bee_notice()
-	bee_notice.visible = true
-	bee_notice.modulate.a = 0.0
-	# Bound to the notice itself, so _hide_bee_notice can find and stop it.
-	var tw := bee_notice.create_tween()
-	bee_notice.set_meta("tween", tw)
-	tw.tween_property(bee_notice, "modulate:a", 1.0, 0.25)
-	tw.tween_interval(3.2)
-	tw.tween_property(bee_notice, "modulate:a", 0.0, 0.6)
-	tw.tween_callback(func(): bee_notice.visible = false)
+	_notify({"kind": "bee", "title": _t("unlocked") % BEE_SKINS[id]["name"],
+			"icon": load(_bee_icon_path(id)), "ink": GOLD, "color": GOLD})
 
 
-# The notice belongs to the run. Left up, it sat across the "Game Over" title
-# on short screens and showed through between the cards of the bee menu.
-func _hide_bee_notice() -> void:
-	if bee_notice.has_meta("tween") and bee_notice.get_meta("tween").is_valid():
-		bee_notice.get_meta("tween").kill()
-	bee_notice.visible = false
+# Every MILESTONE_EVERY-th flower (main's own milestone_reached): "25!"
+# between two flowers in the slot, two quick notes, one short buzz. Under a
+# second, all of it. A bee won on the same flower has the moment to itself
+# (25, 50, 100, 175 and 300 are bees too), and on a flower that also beat
+# the record the jingle is heard rather than both.
+func _on_milestone(count: int) -> void:
+	if bee_won_at == count:
+		return
+	if jingle_at != count:
+		for note in MILESTONE_NOTES:
+			get_tree().create_timer(note[0], false).timeout.connect(
+					_play_sfx.bind(SFX_COLLECT, SFX_MILESTONE_DB, note[1]))
+		_vibrate(MILESTONE_BUZZ_MS)
+	_notify({"kind": "milestone", "title": _t("milestone") % count, "flowers": 2,
+			"ink": GOLD, "color": GOLD})
+
+
+# main's own flower_collected: the rule plate has done its job by the run's
+# RULE_UNTIL_FLOWER-th flower.
+func _on_flower_count(count: int) -> void:
+	if rule_on and count >= RULE_UNTIL_FLOWER:
+		rule_on = false
+		rule_due = false
+		if notice_now.get("kind") == "rule":
+			_notice_leave()
+
+
+func _show_rule_if_due() -> void:
+	if not rule_due or rule_on:
+		return
+	rule_on = true
+	if notice_now.is_empty():
+		_notice_display(_rule_entry())
+
+
+func _rule_entry() -> Dictionary:
+	return {"kind": "rule", "priority": 1, "hold": -1.0, "stale": INF, "title": _t("rule"),
+			"flowers": 1, "ink": Color.WHITE, "color": Color.WHITE}
+
+
+# Once the run passes the record, the readout over the score says so, in
+# gold, for the rest of the run (it used to keep the old record's number).
+func _show_record_beaten() -> void:
+	record_label.text = _t("record_beaten")
+	record_label.add_theme_color_override("font_color", GOLD)
+	if notice_now.is_empty():
+		_pop_record()
+	else:
+		record_pop_due = true
+
+
+func _pop_record() -> void:
+	record_pop_due = false
+	if record_pop != null and record_pop.is_valid():
+		record_pop.kill()
+	record_label.pivot_offset = record_label.size / 2.0
+	record_label.scale = Vector2.ONE * 1.3
+	record_pop = record_label.create_tween()
+	record_pop.tween_property(record_label, "scale", Vector2.ONE, 0.28) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+# ------------------------------------------------------------------
+# The notice slot
+# ------------------------------------------------------------------
+
+# Puts something in the run's notice slot. `entry`: "kind" (a NOTICE_KINDS
+# key), "title", and optionally "icon" (a texture, for a bee), "flowers" (1:
+# a flower before the title, 2: one each side), "ink" (the plate's outline)
+# and "color" (the title's).
+func _notify(entry: Dictionary) -> void:
+	entry.merge(NOTICE_KINDS[entry["kind"]])
+	entry["at"] = physics_ticks_since_reset
+	if notice_now.is_empty() or notice_now["priority"] <= entry["priority"]:
+		_notice_display(entry)
+		return
+	notice_queue.append(entry)
+	notice_queue.sort_custom(func(a, b):
+		return a["priority"] > b["priority"] or (a["priority"] == b["priority"] and a["at"] < b["at"]))
+
+
+func _notice_display(entry: Dictionary) -> void:
+	# a notice cut off on its way out had already taken the next one off the
+	# queue; that one waits again
+	if notice_now.has("next"):
+		notice_queue.push_front(notice_now["next"])
+	_kill_notice_tween()
+	notice_now = entry
+	_layout_notice(entry)
+	notice.visible = true
+	notice.position.y = -NOTICE_H - 8.0
+	notice_tween = notice.create_tween()
+	notice_tween.tween_property(notice, "position:y", NOTICE_Y + top_inset, NOTICE_IN) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_fade_record_label(0.0, NOTICE_IN * 0.6)
+	if entry["hold"] >= 0.0:
+		notice_tween.tween_interval(entry["hold"])
+		notice_tween.tween_callback(_notice_leave)
+
+
+# The notice up goes, and the next one comes: the most important that is
+# still fresh, else the rule if it is up, else the record readout again.
+func _notice_leave() -> void:
+	var next := {}
+	var tick_s := 1.0 / Engine.physics_ticks_per_second
+	while not notice_queue.is_empty():
+		var waiting: Dictionary = notice_queue.pop_front()
+		if (physics_ticks_since_reset - waiting["at"]) * tick_s <= waiting["stale"]:
+			next = waiting
+			break
+	if next.is_empty() and rule_on and notice_now.get("kind") != "rule":
+		next = _rule_entry()
+	_kill_notice_tween()
+	# leaving: anything that comes in now takes the slot straight away
+	notice_now = {"kind": "leaving", "priority": -1}
+	if not next.is_empty() and next["kind"] != "rule":
+		notice_now["next"] = next
+	notice_tween = notice.create_tween()
+	notice_tween.tween_property(notice, "position:y", -NOTICE_H - 8.0, NOTICE_OUT) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	if next.is_empty():
+		notice_tween.tween_callback(_notice_idle)
+	else:
+		notice_tween.tween_callback(func():
+			notice_now.erase("next")
+			_notice_display(next))
+
+
+func _notice_idle() -> void:
+	notice_now = {}
+	notice.visible = false
+	_fade_record_label(1.0, 0.15)
+	if record_pop_due:
+		_pop_record()
+
+
+# The record readout steps aside while the slot covers it (by its alpha: the
+# tools that hide it for a screenshot set `visible`, which this leaves alone).
+func _fade_record_label(to: float, time: float) -> void:
+	if record_fade != null and record_fade.is_valid():
+		record_fade.kill()
+	record_fade = record_label.create_tween()
+	record_fade.tween_property(record_label, "modulate:a", to, time)
+
+
+# The slot belongs to the run: the game over, the bee menu and a new run
+# start with it empty (left up, the old banner sat across the "Game Over"
+# title on short screens and between the cards of the bee menu).
+func _clear_notices() -> void:
+	_kill_notice_tween()
+	notice_queue.clear()
+	notice_now = {}
+	rule_on = false
+	notice.visible = false
+	if record_fade != null and record_fade.is_valid():
+		record_fade.kill()
+	record_label.modulate.a = 1.0
+
+
+func _kill_notice_tween() -> void:
+	if notice_tween != null and notice_tween.is_valid():
+		notice_tween.kill()
+	notice_tween = null
+
+
+# How wide the content of a notice is, padding left out: what comes before
+# the title (a bee or a flower), the title, and a flower after it.
+func _notice_inner_width(entry: Dictionary) -> float:
+	var flower_w: float = ICON_FLOWER[0].length() * UI_CELL
+	var flowers: int = entry.get("flowers", 0)
+	var w: float = ui_font.get_string_size(entry["title"], HORIZONTAL_ALIGNMENT_LEFT, -1, NOTICE_FONT).x
+	if entry.get("icon") != null:
+		w += NOTICE_ICON + NOTICE_GAP
+	elif flowers > 0:
+		w += flower_w + NOTICE_GAP
+	if flowers == 2:
+		w += flower_w + NOTICE_GAP
+	return w
+
+
+# Sizes the plate to its content (in whole cubes of the grid) and lays the
+# content out across it, centred on the screen.
+func _layout_notice(entry: Dictionary) -> void:
+	var inner := _notice_inner_width(entry)
+	var w := minf(NOTICE_MAX_W, ceilf((inner + NOTICE_PAD * 2.0) / UI_CELL) * UI_CELL)
+	notice.setup("dark", Vector2(w, NOTICE_H), UI_CELL)
+	notice.set_ink(entry.get("ink", Color.WHITE))
+	notice.position.x = floorf((SCREEN_W - w) / 2.0)
+	var mid: float = notice.face_rect().get_center().y
+	var x := floorf((w - inner) / 2.0)
+	var tex: Texture2D = entry.get("icon")
+	var flowers: int = entry.get("flowers", 0)
+	notice_icon.visible = tex != null
+	notice_flowers[0].visible = tex == null and flowers > 0
+	notice_flowers[1].visible = flowers == 2
+	if tex != null:
+		notice_icon.texture = tex
+		notice_icon.position = Vector2(x, floorf(mid - NOTICE_ICON / 2.0))
+		x += NOTICE_ICON + NOTICE_GAP
+	elif flowers > 0:
+		notice_flowers[0].position = Vector2(x, floorf(mid - notice_flowers[0].size.y / 2.0))
+		x += notice_flowers[0].size.x + NOTICE_GAP
+	var text_w: float = ui_font.get_string_size(entry["title"], HORIZONTAL_ALIGNMENT_LEFT, -1, NOTICE_FONT).x
+	notice_title.text = entry["title"]
+	notice_title.add_theme_color_override("font_color", entry.get("color", Color.WHITE))
+	notice_title.position = Vector2(x, floorf(mid - notice_title.size.y / 2.0))
+	notice_title.size.x = text_w + 2.0
+	x += text_w + NOTICE_GAP
+	if flowers == 2:
+		notice_flowers[1].position = Vector2(x, floorf(mid - notice_flowers[1].size.y / 2.0))
+	notice.queue_redraw()
 
 
 func _on_bee_menu_pressed() -> void:
@@ -1476,7 +1966,7 @@ func _on_bee_menu_pressed() -> void:
 	# Play Again just asked for an ad: the run starts when it closes.
 	if restart_after_ad and Time.get_ticks_msec() - restart_lock_msec < AD_LOCK_MSEC:
 		return
-	_hide_bee_notice()
+	_clear_notices()
 	_refresh_bee_menu()
 	# The screen it opened from steps aside: its logo or score would
 	# otherwise sit right behind the menu's title and cards.
@@ -1615,7 +2105,7 @@ func _on_key(event: InputEventKey) -> void:
 					_on_resume_pressed()
 		KEY_ESCAPE, KEY_P:
 			match state:
-				State.PLAYING:
+				State.PLAYING, State.RESUMING:
 					_on_pause_pressed()
 				State.PAUSED:
 					if credits_screen.visible:
@@ -1680,6 +2170,22 @@ func _build_ui() -> void:
 	direction_hint = _build_direction_hint()
 	ui_layer.add_child(direction_hint)
 
+	# The run's notices, the near miss's word and the lost flower's marker sit
+	# with the HUD, under the pause menu (drawn before it, so its dim covers
+	# them). They freeze with the run: what they are in the middle of waits
+	# for the resume, instead of running out behind the menu.
+	notice = _build_notice()
+	ui_layer.add_child(notice)
+	phew_label = _make_label(_t("phew"), 26, GOLD)
+	phew_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	phew_label.size = Vector2(80, 30)
+	phew_label.pivot_offset = phew_label.size / 2.0
+	phew_label.process_mode = Node.PROCESS_MODE_PAUSABLE
+	phew_label.visible = false
+	ui_layer.add_child(phew_label)
+	lost_marker = _build_lost_marker()
+	ui_layer.add_child(lost_marker)
+
 	pause_button = _make_icon_button(_build_pixel_icon(ICON_PAUSE, 3.0, Color.WHITE), 48.0)
 	pause_button.position = Vector2(SCREEN_W - pause_button.size.x - 14, PAUSE_Y)
 	pause_button.visible = false
@@ -1699,9 +2205,6 @@ func _build_ui() -> void:
 	game_over_screen = _build_game_over_screen()
 	ui_layer.add_child(game_over_screen)
 
-	bee_notice = _build_bee_notice()
-	ui_layer.add_child(bee_notice)
-
 	# last, so it opens over the start and game-over screens
 	bee_menu = _build_bee_menu()
 	ui_layer.add_child(bee_menu)
@@ -1709,6 +2212,16 @@ func _build_ui() -> void:
 
 	credits_screen = _build_credits_screen()
 	ui_layer.add_child(credits_screen)
+
+	# The resume's 3-2-1, over everything (the pause menu has gone by then).
+	countdown_label = _make_label("3", 96, Color.WHITE)
+	countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	countdown_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	countdown_label.size = Vector2(160, 110)
+	countdown_label.position = Vector2((SCREEN_W - countdown_label.size.x) / 2.0, screen_h * 0.4 - countdown_label.size.y / 2.0)
+	countdown_label.pivot_offset = countdown_label.size / 2.0
+	countdown_label.visible = false
+	ui_layer.add_child(countdown_label)
 
 
 func _make_label(text: String, font_size: int, color: Color) -> Label:
@@ -1733,17 +2246,22 @@ func _build_direction_hint() -> Control:
 	hint.set_anchors_preset(Control.PRESET_FULL_RECT)
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	# dashed centerline
+	# Dashed centerline, from under the score down: it used to start at the
+	# top edge and ran through the score and the top row (now where the rule
+	# plate is). _apply_top_inset moves it down with that row.
+	hint_line = Control.new()
+	hint_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hint.add_child(hint_line)
 	var dash_h := 14.0
 	var gap_h := 10.0
-	var y := 0.0
+	var y := SCORE_Y + 72.0
 	while y < screen_h:
 		var dash := ColorRect.new()
 		dash.color = Color(1, 1, 1, 0.55)
 		dash.position = Vector2(SCREEN_W / 2.0 - 2, y)
 		dash.size = Vector2(4, dash_h)
 		dash.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		hint.add_child(dash)
+		hint_line.add_child(dash)
 		y += dash_h + gap_h
 
 	_add_hint_side(hint, SCREEN_W * 0.25, -1, _t("left"))
@@ -1926,29 +2444,48 @@ func _make_bee_card(id: String, card_size: Vector2) -> Button:
 	return btn
 
 
-# A banner for the moment a run wins a new bee (_check_bee_unlocks).
-func _build_bee_notice() -> Control:
-	var panel := VoxelPlate.new()
-	panel.setup("dark", Vector2(300, 72), UI_CELL)
-	panel.set_ink(GOLD)
-	panel.position = Vector2((SCREEN_W - panel.size.x) / 2.0, 172)
-	panel.visible = false
+# The run's notice slot (_notify): a dark plate in the top row, sized to
+# whatever it says, with a bee's icon or a flower or two beside the title.
+func _build_notice() -> Control:
+	var plate := VoxelPlate.new()
+	plate.setup("dark", Vector2(NOTICE_MAX_W, NOTICE_H), UI_CELL)
+	plate.position = Vector2((SCREEN_W - plate.size.x) / 2.0, NOTICE_Y)
+	plate.process_mode = Node.PROCESS_MODE_PAUSABLE
+	plate.visible = false
 
-	bee_notice_icon = _make_bee_icon("normal", 60.0)
-	bee_notice_icon.position = Vector2(8, 3)
-	panel.add_child(bee_notice_icon)
+	notice_icon = _make_bee_icon("normal", NOTICE_ICON)
+	plate.add_child(notice_icon)
+	for i in 2:
+		var flower := _build_flower_icon("red", UI_CELL)
+		plate.add_child(flower)
+		notice_flowers.append(flower)
+	notice_title = _make_label("", NOTICE_FONT, GOLD)
+	notice_title.size = Vector2(NOTICE_MAX_W, 30)
+	plate.add_child(notice_title)
+	return plate
 
-	bee_notice_title = _make_label("", 26, GOLD)
-	bee_notice_title.position = Vector2(74, 6)
-	bee_notice_title.size = Vector2(220, 28)
-	panel.add_child(bee_notice_title)
 
-	var hint := _make_label(_t("unlocked_hint"), 18, Color(1, 1, 1, 0.9))
-	hint.position = Vector2(74, 35)
-	hint.size = Vector2(220, 22)
-	panel.add_child(hint)
+# A flower of the given kind (red, yellow, blue) on the interface's grid.
+func _build_flower_icon(kind: String, cell: float) -> Control:
+	var petal: Array = FLOWER_ICON_COLORS[kind]
+	return _build_pixel_art(ICON_FLOWER, cell, {"P": petal[0], "L": petal[1],
+			"C": FLOWER_ICON_CENTRE[0], "c": FLOWER_ICON_CENTRE[1]})
 
-	return panel
+
+# The lost flower's marker (_show_lost_marker): a white arrow pointing down,
+# the tutorial's arrow turned. Only that: on a 16:9 screen the room between
+# "Play Again" and the bottom edge, over the lost flower, takes no more.
+func _build_lost_marker() -> Control:
+	var down := []
+	for x in (ICON_ARROW[0] as String).length():
+		var col := ""
+		for row in ICON_ARROW:
+			col += (row as String)[x]
+		down.append(col)
+	var marker := _build_pixel_icon(down, UI_CELL, Color.WHITE)
+	marker.size.y += UI_CELL               # its shadow, one cube under it
+	marker.visible = false
+	return marker
 
 
 func _build_pause_screen() -> Control:
@@ -2111,6 +2648,12 @@ func _make_link_button(text: String) -> Button:
 
 
 func _build_pixel_icon(rows: Array, cell: float, color: Color) -> Control:
+	return _build_pixel_art(rows, cell, {"X": color}, color.a)
+
+
+# The same for a picture of several colours: `palette` maps each letter of
+# the rows to its colour, and a dot is left empty.
+func _build_pixel_art(rows: Array, cell: float, palette: Dictionary, shadow_alpha := 1.0) -> Control:
 	# Horizontal runs of set pixels collapse into one rect each, so a glyph
 	# costs a handful of nodes instead of one per pixel.
 	# Drawn twice: an ink copy one cube lower first, as the glyph's shadow.
@@ -2118,20 +2661,22 @@ func _build_pixel_icon(rows: Array, cell: float, color: Color) -> Control:
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var cols: int = (rows[0] as String).length()
 	icon.size = Vector2(cols * cell, rows.size() * cell)
-	for layer in [[Color(UI_INK, color.a), cell], [color, 0.0]]:
+	for shadow in [true, false]:
 		for y in rows.size():
 			var row: String = rows[y]
 			var x := 0
 			while x < cols:
-				if row[x] != "X":
+				if not palette.has(row[x]):
 					x += 1
 					continue
+				# the shadow is one run across every colour; the picture a
+				# run per colour
 				var run := 1
-				while x + run < cols and row[x + run] == "X":
+				while x + run < cols and palette.has(row[x + run]) and (shadow or row[x + run] == row[x]):
 					run += 1
 				var block := ColorRect.new()
-				block.color = layer[0]
-				block.position = Vector2(x * cell, y * cell + layer[1])
+				block.color = Color(UI_INK, shadow_alpha) if shadow else palette[row[x]]
+				block.position = Vector2(x * cell, y * cell + (cell if shadow else 0.0))
 				block.size = Vector2(run * cell, cell)
 				block.mouse_filter = Control.MOUSE_FILTER_IGNORE
 				icon.add_child(block)
