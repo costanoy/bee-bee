@@ -1,2 +1,7 @@
+# Every text file is kept with LF, the way Godot writes them. Without this,
+# Git for Windows (core.autocrlf=true) checks out CRLF copies, Godot saves
+# them back with LF, and git status lists files that have no real change.
+* text=auto eol=lf
+
 # Shell scripts must keep LF line endings, or bash on Windows trips over the CR.
 *.sh text eol=lf

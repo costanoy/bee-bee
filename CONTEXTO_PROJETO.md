@@ -14,10 +14,16 @@ roseiras e precisa pegar **todas** as flores (perder uma = game over).
 - **O ícone do app não é para mexer** (pedido antigo, reafirmado na prática em 02/10: uma troca foi feita e desfeita).
 
 ## Caminhos e ferramentas
-- Projeto: `C:\Users\Vinicius Costa\Desktop\Jogos\Bee Bee`
-- Godot: `C:\Users\Vinicius Costa\Desktop\Apps\Godot_v4.7.1-stable_win64.exe`
-- Blender 5.2: `C:\Program Files\Blender Foundation\Blender 5.2\blender.exe` (rodar `--background --factory-startup --python <script> -- <args>`; às vezes dá `EXCEPTION_ACCESS_VIOLATION` **ao fechar**, depois de salvar — é inofensivo). EEVEE funciona em background.
-- Python do Windows (tem Pillow e numpy). No Git Bash, passar caminhos estilo `C:/...` para o python.
+Desde 28/10 o projeto é tocado no **PC de casa**; entre parênteses, os caminhos do PC do trabalho.
+- Projeto: `C:\Users\vinic\OneDrive\Área de Trabalho\Jogos\Bee Bee` (trabalho: `C:\Users\Vinicius Costa\Desktop\Jogos\Bee Bee`). Em casa a Área de Trabalho fica dentro da pasta do OneDrive, mas o OneDrive não está ligado e nada sincroniza (se for ligado, o `android/build`, de 1,1 GB, vai junto).
+- Godot: `C:\Users\vinic\dev\godot\Godot_v4.7.1-stable_win64.exe` (trabalho: `C:\Users\Vinicius Costa\Desktop\Apps\Godot_v4.7.1-stable_win64.exe`). Os `tools/*.sh` usam a variável `GODOT` e, sem ela, o caminho do trabalho; em casa ela já está criada como variável de usuário. Nos comandos abaixo, `<godot>` é esse executável (`"$GODOT"` no Git Bash). Em casa, os templates de exportação estão em `%APPDATA%\Godot\export_templates\4.7.1.stable`, e o editor aponta para o Android SDK (`%LOCALAPPDATA%\Android\Sdk`) e o JDK 17 (`C:\Program Files\Java\jdk-17`).
+- Blender 5.2 (trabalho: `C:\Program Files\Blender Foundation\Blender 5.2\blender.exe`): rodar `--background --factory-startup --python <script> -- <args>`; às vezes dá `EXCEPTION_ACCESS_VIOLATION` **ao fechar**, depois de salvar — é inofensivo. EEVEE funciona em background.
+- Python do Windows com Pillow e numpy, e ffmpeg (em casa, Python 3.12 e ffmpeg 9, os dois no PATH do usuário). No Git Bash, passar caminhos estilo `C:/...` para o python.
+- **Ainda não instalados no PC de casa:** o Blender (só faz falta para refazer modelos com `tools/blender/`) e o Chromium do Playwright (só para conferir o site como em "Site no navegador").
+- **Exportar com o `Godot_v4.7.1-stable_win64.exe`, nunca com o `_console.exe`:** no APK, o daemon do Gradle herda a saída do console e o comando não termina. A primeira exportação num PC novo baixa o Gradle e componentes do Android SDK, então precisa de internet.
+- **Chave de debug:** cada PC tem a sua, criada pelo Godot na primeira exportação (`%APPDATA%\Godot\keystores\debug.keystore`). Por isso o APK de teste de um PC não instala por cima do APK de teste do outro: desinstalar antes (perde o recorde e as abelhas salvos no celular) ou usar a mesma chave nos dois PCs.
+- **Fim de linha:** o `.gitattributes` guarda e entrega LF em todo arquivo de texto (`* text=auto eol=lf`, o padrão do Godot). Sem isso, o Git do Windows (`core.autocrlf=true`) tirava cópias com CRLF, o Godot as regravava com LF e o `git status` mostrava uns 100 arquivos modificados sem diferença nenhuma.
+- A pasta `..\Bee Bee - chaves\` (chave de release, ver "Build e teste no celular") fica fora do git: num PC novo, ela vem do Pendrive. Em 28/10 ainda não tinha chegado ao PC de casa, e sem ela o `build_release.sh` e o `build_site.sh` param.
 
 ## Build e teste no celular
 - Boot check: `"<godot>" --headless --path . --quit-after 5`
@@ -34,6 +40,7 @@ roseiras e precisa pegar **todas** as flores (perder uma = game over).
 - **Ferramenta que trava:** um script `extends SceneTree` que dá erro antes do `quit()` fica parado para sempre (sem janela, em `--headless`). Rodar com `timeout`, e conferir a sintaxe com `--check-only --script <arquivo>` depois de editar (o `main.gd` acusa "SaveData não encontrado" nesse modo, é esperado). **Nada do jogo pode ser carregado antes do primeiro quadro** num script desses: o autoload `SaveData` ainda não existe.
 - Servir: `npx serve -l tcp://0.0.0.0:8090` dentro de `build/` (rodar em background). **Usar a porta 8090** — a 8080 é de outro projeto do usuário ("Duelel"), não mexer.
 - O IP Wi-Fi muda (ver `ipconfig`). Link: `http://<ip>:8090/android/beebee-debug.apk` — conferir com `curl` (200) antes de mandar.
+- **No PC de casa**, o link que funciona também com o celular fora de casa é o do Tailscale (ver o CLAUDE.md global daquele PC): com o `npx serve` acima rodando, `tailscale serve --bg 8090` e mandar `https://vinicius.tail90985d.ts.net/android/beebee-debug.apk` (só aparelhos da conta do usuário abrem). Ao terminar, `tailscale serve reset`.
 - Screenshots reais: script `extends SceneTree` que cria um `SubViewport` 1080x2160 com `size_2d_override = (400, 800)` + `size_2d_override_stretch = true`, instancia `res://scripts/main.gd` num `Node2D`, espera frames e salva `sv.get_texture().get_image()`. Rodar **sem** `--headless` e com `--audio-driver Dummy`. O jogo pode **pausar sozinho** quando a janela perde o foco: no loop de espera, forçar `paused = false`, `g.state = g.State.PLAYING`, `g.pause_screen.visible = false`.
 
 ## Arquitetura
