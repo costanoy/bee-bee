@@ -17,20 +17,30 @@ extends SceneTree
 #                  stand-in for a player's slips (default 0)
 #   --cold=1       whole runs from the ground instead: the real ramp, played
 #                  until the run ends (or --secs passes). Reports the scores
-#                  reached and how many runs got to each bee's score.
+#                  reached, how long the runs lasted and how many runs got to
+#                  each bee's score.
+#   --h=N          the screen's height in the game's pixels (the width is
+#                  always 400). Without it the headless window is square and
+#                  the game keeps its 16:9 column, 711 px; a 19.5:9 phone is
+#                  867 and a 20:9 one 889. A taller screen builds rows earlier,
+#                  so it gives a little more foresight.
+#   --best=N       the player's record during the runs (default 100000, an
+#                  old hand). Under main.gd's INTRO_UNTIL_BEST every run opens
+#                  with the intro rows a new player gets.
 #
 # What it is for: a row the best autopilot cannot get through is a row no
 # player can, so its survival rate separates "hard" from "impossible" when
 # tuning SCROLL_*, the gap width and MAX_LEG_HARD in main.gd. It says nothing
 # about how the game feels; that still takes a person.
 #
-# The save file is not written: a run only saves on a record or a new skin,
-# and the bench keeps the record out of reach.
+# The save file is not written: a record is only saved at a game over or a
+# pause, which the bench never gets to (it moves on as soon as the bee is
+# hit), and every skin is already won.
 
 var g: Node2D
 var sd: Node
 var bot: RefCounted
-var opt := {"runs": 12, "secs": 45, "elapsed": 100, "dec": 6, "depth": 8, "noise": 0, "cold": 0}
+var opt := {"runs": 12, "secs": 45, "elapsed": 100, "dec": 6, "depth": 8, "noise": 0, "cold": 0, "h": 0, "best": 100000}
 
 
 func _initialize() -> void:
@@ -49,8 +59,12 @@ func _initialize() -> void:
 
 func _run() -> void:
 	await process_frame          # the save file is read on the first frame
+	if opt["h"] > 0:
+		# main.gd reads the screen's shape from the window when it starts
+		root.size = Vector2i(400, opt["h"])
+		await process_frame
 	sd = root.get_node("SaveData")
-	sd.best_score = 100000
+	sd.best_score = opt["best"]
 	sd.unlocked_bees = ["rosy", "mint", "ice", "grape", "queen", "shining"]
 	sd.selected_bee = "normal"
 	sd.seen_tutorial = true
@@ -100,14 +114,17 @@ func _run() -> void:
 	if opt["cold"] == 1:
 		var sorted := rows.duplicate()
 		sorted.sort()
+		var lengths := times.duplicate()
+		lengths.sort()
+		var short := times.filter(func(v): return v < 10.0).size()
 		var reached := []
 		for id in g.BEE_ORDER:
 			var need: int = g.BEE_SKINS[id]["score"]
 			if need > 0:
 				reached.append("%d: %d%%" % [need, roundi(100.0 * rows.filter(func(v): return v >= need).size() / rows.size())])
-		print("BENCH cold | autopilot dec %d depth %d noise %d%% | %d runs | score median %d, quarter %d, three quarters %d, best %d | runs reaching %s" % [
-			opt["dec"], opt["depth"], opt["noise"], rows.size(), sorted[sorted.size() / 2], sorted[sorted.size() / 4],
-			sorted[sorted.size() * 3 / 4], sorted[-1], ", ".join(reached)], " | ended by ", causes)
+		print("BENCH cold | screen %.0f px, record %d | autopilot dec %d depth %d noise %d%% | %d runs | score median %d, quarter %d, three quarters %d, best %d | runs reaching %s | median run %.1f s, %d%% under 10 s" % [
+			g.screen_h, opt["best"], opt["dec"], opt["depth"], opt["noise"], rows.size(), sorted[sorted.size() / 2], sorted[sorted.size() / 4],
+			sorted[sorted.size() * 3 / 4], sorted[-1], ", ".join(reached), lengths[lengths.size() / 2], roundi(100.0 * short / times.size())], " | ended by ", causes)
 		quit()
 		return
 	var survived := times.filter(func(v): return v >= opt["secs"] - 0.01).size()
@@ -115,8 +132,8 @@ func _run() -> void:
 	for v in times:
 		mean += v / times.size()
 	times.sort()
-	print("BENCH scroll %.0f gap %.1f | autopilot dec %d depth %d | survived %d/%d runs of %d s | mean %.1f s, median %.1f s, worst %.1f s | flowers %s" % [
-		g._current_scroll_speed(), _gap(), opt["dec"], opt["depth"], survived, times.size(), opt["secs"],
+	print("BENCH screen %.0f px | scroll %.0f gap %.1f | autopilot dec %d depth %d | survived %d/%d runs of %d s | mean %.1f s, median %.1f s, worst %.1f s | flowers %s" % [
+		g.screen_h, g._current_scroll_speed(), _gap(), opt["dec"], opt["depth"], survived, times.size(), opt["secs"],
 		mean, times[times.size() / 2], times[0], str(rows)], " | ended by ", causes)
 	quit()
 

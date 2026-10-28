@@ -113,7 +113,8 @@ func _run() -> void:
 	Main = load("res://scripts/main.gd")
 	Main.forced_lang = lang
 	sd = root.get_node("SaveData")
-	sd.best_score = 10
+	# a record short of the first bee, so the game over has one to name
+	sd.best_score = 5
 	sd.unlocked_bees = []
 	sd.selected_bee = "normal"
 	sd.seen_tutorial = true
@@ -253,14 +254,18 @@ func _run() -> void:
 	for i in 400:
 		g._spawn_row()
 	var in_middle := 0
+	var drawn := 0                         # rows left to chance: not intro or breather rows
 	var furthest := 0.0                    # from one of them to the gap before it or after it
 	for i in range(first, g.flowers.size()):
+		if not g._is_easy_row(i + 1):
+			drawn += 1
 		if not is_equal_approx(g.flowers[i].position.x, g.SCREEN_W / 2.0):
 			continue
-		in_middle += 1
+		if not g._is_easy_row(i + 1):
+			in_middle += 1
 		furthest = maxf(furthest, absf(g.obstacles[i - 1].gap_x - g.SCREEN_W / 2.0))
 		furthest = maxf(furthest, absf(g.obstacles[i].gap_x - g.SCREEN_W / 2.0))
-	ok(in_middle > 96 and in_middle < 144, "about three flowers in ten come up in the middle of the screen (%d of 400)" % in_middle)
+	ok(in_middle > drawn * 0.24 and in_middle < drawn * 0.36, "about three flowers in ten come up in the middle of the screen (%d of %d)" % [in_middle, drawn])
 	ok(furthest <= g.MAX_LEG_HARD, "and no gap before or after one of them is out of reach (%.0f px at most)" % furthest)
 
 	await fresh()
@@ -286,7 +291,8 @@ func _run() -> void:
 	await ticks(3)
 	ok(g.state == g.State.GAMEOVER and g.game_over_screen.visible, "the run ends in the game-over screen")
 	ok(g.death_label.text == g._t("died_flower"), "it says what happened: '%s'" % g.death_label.text)
-	ok(g.goal_chip.visible and g.goal_title.text == g._t("next_bee") % "Rosy Bee", "and names the next bee: '%s' / '%s'" % [g.goal_title.text, g.goal_hint.text])
+	ok(g.goal_chip.visible and g.goal_title.text == g._t("next_bee") % "Rosy Bee" and g.goal_hint.text == g._t("next_goal") % g.BEE_SKINS["rosy"]["score"],
+			"and names the next bee: '%s' / '%s'" % [g.goal_title.text, g.goal_hint.text])
 
 	# keyboard restart — but not in the first instant, when a tap meant for
 	# the run could still be on its way
@@ -299,15 +305,16 @@ func _run() -> void:
 	# ------------------------------------------------ a bee won in the run, then dying at once
 	g._flap(1)
 	await ticks(2)
-	g.score = 25
+	var rosy_at: int = g.BEE_SKINS["rosy"]["score"]
+	g.score = rosy_at
 	g._check_bee_unlocks()
-	ok(g.bee_notice.visible, "reaching 25 shows the unlock notice")
+	ok(g.bee_notice.visible, "reaching %d shows the unlock notice" % rosy_at)
 	g._trigger_game_over("hedge")
 	g.dying_timer = 99.0
 	await ticks(3)
 	ok(not g.bee_notice.visible, "the notice is gone once the game-over screen is up")
 	ok(g.goal_title.text == g._t("unlocked") % "Rosy Bee", "the chip says the bee was won: '%s'" % g.goal_title.text)
-	ok(g.new_record_badge.visible and sd.best_score == 25, "a record is still a record (best %d)" % sd.best_score)
+	ok(g.new_record_badge.visible and sd.best_score == rosy_at, "a record is still a record (best %d)" % sd.best_score)
 	g._show_bee_notice("rosy")
 	g._on_bee_menu_pressed()
 	ok(not g.bee_notice.visible and g.bee_menu.visible, "opening the bee menu puts the notice away")

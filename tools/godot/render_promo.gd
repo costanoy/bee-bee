@@ -437,8 +437,8 @@ func _build_timeline() -> void:
 
 	# --- the seven bees, one per beat
 	_show(_card([["7 ABELHAS", 72, GOLD], ["PARA DESBLOQUEAR", 36]], Vector2(200, 112)), T_BEES + 4, T_ASK - 10, tap, -6.0)
-	var bees := [["normal", "Bee", "início"], ["rosy", "Rosy", "25 pontos"], ["mint", "Mint", "60 pontos"],
-			["ice", "Ice", "100 pontos"], ["grape", "Grape", "150 pontos"], ["queen", "Queen", "220 pontos"],
+	var bees := [["normal", "Bee", "início"], ["rosy", "Rosy", "10 pontos"], ["mint", "Mint", "25 pontos"],
+			["ice", "Ice", "50 pontos"], ["grape", "Grape", "100 pontos"], ["queen", "Queen", "175 pontos"],
 			["shining", "Silver", "300 pontos"]]
 	for k in bees.size():
 		var centre := Vector2(200, 596) if k == 6 else Vector2(78 + (k % 3) * 122, 268 + (k / 3) * 164)

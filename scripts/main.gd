@@ -6,6 +6,15 @@ extends Node2D
 
 enum State { START, STARTING, PLAYING, PAUSED, DYING, GAMEOVER }
 
+# Moments of a run, for whatever shows or plays something on them. Both come
+# from on_flower_collected after the unlock check and the record line, so a
+# listener can tell whether the same flower also won a bee
+# (bees_won_this_run) or beat the record (score > record_at_run_start).
+# `count` is the new score.
+signal flower_collected(count: int)
+# every MILESTONE_EVERY-th flower; the breather rows come right after it
+signal milestone_reached(count: int)
+
 const SCREEN_W := 400.0
 # shortest view the layout is made for (16:9); see _ready
 const MIN_SCREEN_H := 711.0
@@ -38,13 +47,20 @@ const DIFFICULTY_RAMP_TIME := 35.0
 # (hitbox and model) and `speed` (sideways speed) are relative to the base
 # values in bee.gd, so a skin could fly differently; today every skin is
 # purely cosmetic. `glow` draws the model unshaded.
+# TEST — a lower ladder (was Rosy 25, Mint 60, Ice 100, Grape 150, Queen 220;
+# Silver stays at 300, the hardest, as the user asked). With the old one the
+# first bee came out of reach for a new or casual player (the bench's casual
+# pilot never got to 25 in 240 runs) and 25 -> 60 was a cliff. Now the first
+# one comes in a new player's first session and every step after it asks
+# roughly twice as much. Old saves only gain: a record that covers a score
+# counts as winning the bee (_bee_unlocked).
 const BEE_SKINS := {
 	"normal": {"name": "Bee", "score": 0, "model": "bee", "size": 1.0, "speed": 1.0, "glow": false},
-	"rosy": {"name": "Rosy Bee", "score": 25, "model": "bee_voxel_rosy", "size": 1.0, "speed": 1.0, "glow": false},
-	"mint": {"name": "Mint Bee", "score": 60, "model": "bee_voxel_mint", "size": 1.0, "speed": 1.0, "glow": false},
-	"ice": {"name": "Ice Bee", "score": 100, "model": "bee_voxel_ice", "size": 1.0, "speed": 1.0, "glow": false},
-	"grape": {"name": "Grape Bee", "score": 150, "model": "bee_voxel_grape", "size": 1.0, "speed": 1.0, "glow": false},
-	"queen": {"name": "Queen Bee", "score": 220, "model": "bee_voxel_queen", "size": 1.0, "speed": 1.0, "glow": false},
+	"rosy": {"name": "Rosy Bee", "score": 10, "model": "bee_voxel_rosy", "size": 1.0, "speed": 1.0, "glow": false},
+	"mint": {"name": "Mint Bee", "score": 25, "model": "bee_voxel_mint", "size": 1.0, "speed": 1.0, "glow": false},
+	"ice": {"name": "Ice Bee", "score": 50, "model": "bee_voxel_ice", "size": 1.0, "speed": 1.0, "glow": false},
+	"grape": {"name": "Grape Bee", "score": 100, "model": "bee_voxel_grape", "size": 1.0, "speed": 1.0, "glow": false},
+	"queen": {"name": "Queen Bee", "score": 175, "model": "bee_voxel_queen", "size": 1.0, "speed": 1.0, "glow": false},
 	"shining": {"name": "Silver Bee", "score": 300, "model": "bee_voxel_shining", "size": 1.0, "speed": 1.0, "glow": true},
 }
 # menu order: easiest to hardest
@@ -60,10 +76,43 @@ const GOLD := Color(1, 0.82, 0.18)
 # (five taps a second, 0.8 s of foresight) lasts a minute in 16 runs of 40
 # with the scroll and gap as they are now — it managed none of 30 before.
 const MAX_LEG_HARD := 150.0
+# TEST — new: a row's legs are also capped by the scroll speed the row will
+# be FLOWN at, not only by the difficulty when it is built. A row is built
+# about a screen above the top edge and passed 7-9 s later, by when the ramp
+# has moved on: a row built 22 s into a run allowed legs of 242 px and was
+# flown at 170 px/s, the old "leg 200" set-up the user called impossible,
+# right in the middle of the ramp and on the way to the first bees (the
+# bench's death rate jumped from 2% to 31% per 10 s between 20 and 40 s).
+# Holding leg x scroll to the plateau's (150 x 180) keeps the sideways speed
+# a row asks for at what the plateau asks, all through the run; at the top
+# of the ramp it gives MAX_LEG_HARD exactly, so the plateau is unchanged.
+# Old line, to undo: `var max_leg: float = lerp(SCREEN_W, MAX_LEG_HARD, diff)`
+# alone, without the minf() under it in _spawn_row.
+const LEG_TIMES_SCROLL := MAX_LEG_HARD * SCROLL_MAX
+# How far down the screen (a share of its height from the top edge) the bee
+# usually is when it passes a row: what makes the lead from building a row to
+# flying it depend on the screen. 0.75 gives back the 7-9 s the audit's probe
+# measured on the bench's 711 px screen; a 19.5:9 phone (867 px) has about
+# 10 s, so a fixed lead would have underestimated it there.
+const ROW_MET_AT := 0.75
 # TEST — three flowers in ten come up in the middle of the screen (asked
 # for, to make a game that had become very hard a little easier). 0.0 gives
 # every flower a place of its own again, as it always was.
 const MIDDLE_FLOWER_CHANCE := 0.3
+# TEST — new: easy rows. The first INTRO_ROWS rows of every run while the
+# player's record is under INTRO_UNTIL_BEST, so a first run doesn't end in
+# its first seconds (the bench's beginner lost 67% of runs in under 10 s),
+# and BREATHER_ROWS rows right after every MILESTONE_EVERY-th flower, a
+# short breath that gives a long run a shape without slowing the scroll.
+# They take the middle-flower path: the flower in the middle of the screen
+# and a wide gap (EASY_GAP) no more than EASY_GAP_SPREAD from it. Every row
+# still holds exactly one flower. To undo: INTRO_ROWS 0 and BREATHER_ROWS 0.
+const INTRO_ROWS := 6
+const INTRO_UNTIL_BEST := 15
+const MILESTONE_EVERY := 25
+const BREATHER_ROWS := 2
+const EASY_GAP := 185.0
+const EASY_GAP_SPREAD := 70.0
 
 # How long after the first flap the camera waits before it starts climbing
 # (the bee itself is already flying/falling normally during this pause).
@@ -118,7 +167,9 @@ const SFX_NEAR_MISS_DB := -7.0
 # of the bee's radius, i.e. how much closer than "just barely fits" still counts.
 const NEAR_MISS_MARGIN := 8.0
 const CAMERA_SHAKE_DURATION := 0.18
-const CAMERA_SHAKE_MAGNITUDE := 4.0
+# TEST — 2 px (was 4.0): at 4 it was the death shake's (7 px) little brother
+# and a close call read like a hit; at 2 it is a shiver, the whoosh carries it.
+const CAMERA_SHAKE_MAGNITUDE := 2.0
 # Death gets a bigger jolt than a near miss — it's the bigger event of the
 # two. Reuses the same SFX_HIT that already plays on every game over; no
 # second sound layered on top, just nudged up a touch (below) so it reads
@@ -368,6 +419,12 @@ var camera_shake_magnitude := 0.0
 var highest_spawn_y := 0.0
 var last_gap_x := 0.0
 var rows_spawned := 0
+# Set when a run is laid out (_reset_to_ground_scene), for the whole run:
+# `first_run` while the player has never flown (the tutorial's run; it stays
+# true after the first flap saves seen_tutorial), `new_player_run` while the
+# record is under INTRO_UNTIL_BEST (the run opens with intro rows).
+var first_run := false
+var new_player_run := false
 var score := 0
 var dying_timer := 0.0
 # What ended the run ("hedge", "flower" or "fall"); the game-over screen says it.
@@ -661,6 +718,8 @@ func _reset_to_ground_scene() -> void:
 	highest_spawn_y = -200.0
 	last_gap_x = SCREEN_W / 2.0   # the bee starts centred on the ground
 	rows_spawned = 0
+	first_run = not SaveData.seen_tutorial
+	new_player_run = SaveData.best_score < INTRO_UNTIL_BEST
 
 	has_tapped_once = SaveData.seen_tutorial
 	hint_alpha = 0.0 if SaveData.seen_tutorial else 1.0
@@ -697,9 +756,19 @@ func _spawn_row() -> void:
 	# date from a slower game; the cap itself is now set by measurement, see
 	# MAX_LEG_HARD.)
 	var max_leg: float = lerp(SCREEN_W, MAX_LEG_HARD, diff)
+	# TEST — and by the speed the row will be flown at (see LEG_TIMES_SCROLL)
+	max_leg = minf(max_leg, LEG_TIMES_SCROLL / _scroll_speed_when_met(y))
 	var gap_x: float
 	var fx: float
-	if randf() < MIDDLE_FLOWER_CHANCE:
+	# this row's flower is the one that takes the score to `row`
+	var row: int = rows_spawned + 1
+	if _is_easy_row(row):
+		# TEST — intro and breather rows (see INTRO_ROWS): a wide gap near the
+		# middle, the flower in the middle, within a short hop of either gap.
+		gap_width = maxf(gap_width, EASY_GAP)
+		gap_x = SCREEN_W / 2.0 + randf_range(-EASY_GAP_SPREAD, EASY_GAP_SPREAD)
+		fx = SCREEN_W / 2.0
+	elif randf() < MIDDLE_FLOWER_CHANCE:
 		# The flower in the middle of the screen and the gap wherever it
 		# falls, even right over the flower: these are the easy rows. There
 		# is no leg to check either, the middle being within reach of any gap.
@@ -758,6 +827,26 @@ func _spawn_row() -> void:
 		add_child(gull)
 		gull.setup()
 		seagulls.append(gull)
+
+
+# The scroll speed by the time the bee meets a row whose hedge is at `row_y`:
+# once the camera has climbed until that hedge is ROW_MET_AT of the way down
+# the screen. The ramp is a steady acceleration (SCROLL_BASE to SCROLL_MAX in
+# DIFFICULTY_RAMP_TIME), so over a climb d the speed goes from v0 to
+# sqrt(v0^2 + 2 a d).
+func _scroll_speed_when_met(row_y: float) -> float:
+	var v0: float = _current_scroll_speed()
+	var climb: float = maxf(0.0, camera_y + screen_h * ROW_MET_AT - row_y)
+	var accel: float = (SCROLL_MAX - SCROLL_BASE) / DIFFICULTY_RAMP_TIME
+	return minf(SCROLL_MAX, sqrt(v0 * v0 + 2.0 * accel * climb))
+
+
+# Rows numbered from 1, as the flowers they hold: the intro rows of a new
+# player's run, and the breathers right after every MILESTONE_EVERY-th flower.
+func _is_easy_row(row: int) -> bool:
+	if new_player_run and row <= INTRO_ROWS:
+		return true
+	return row > MILESTONE_EVERY and (row - 1) % MILESTONE_EVERY < BREATHER_ROWS
 
 
 func _spawn_record_line(y: float, flower_x: float) -> void:
@@ -958,6 +1047,9 @@ func on_flower_collected(flower: Area2D) -> void:
 		# passing the record is worth hearing at once, not only at game over
 		_play_sfx(SFX_RECORD, SFX_RECORD_DB - 4.0)
 		_vibrate(60)
+	flower_collected.emit(score)
+	if score % MILESTONE_EVERY == 0:
+		milestone_reached.emit(score)
 
 
 func _bee_contacts_trustworthy() -> bool:
