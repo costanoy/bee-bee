@@ -163,6 +163,16 @@ func setup(p_main: Node2D) -> void:
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.glow_enabled = true
 	env.glow_intensity = 0.4
+	if OS.has_feature("web"):
+		# In the browser (WebGL, compatibility renderer) glow is several extra
+		# full-screen passes, and phones report a devicePixelRatio of 2-3, so
+		# the 3D was drawn at up to 9x the pixels. Drop the glow and draw the
+		# 3D at no more than 1.25 device pixels per CSS pixel; the 2D UI keeps
+		# its full sharpness.
+		env.glow_enabled = false
+		var dpr := float(str(JavaScriptBridge.eval("window.devicePixelRatio || 1", true)))
+		if dpr > 1.25:
+			get_viewport().scaling_3d_scale = clampf(1.25 / dpr, 0.5, 1.0)
 	# depth haze: the far backdrop fades into the horizon colour, the
 	# gameplay plane (~24 units away) stays crisp
 	env.fog_enabled = true
