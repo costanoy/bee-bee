@@ -60,7 +60,7 @@ page = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bee Bee — Política de Privacidade / Privacy Policy</title>
+<title>Bee Bee: Política de Privacidade / Privacy Policy</title>
 <meta name="robots" content="index, follow">
 <link rel="icon" href="assets/favicon.png">
 <style>

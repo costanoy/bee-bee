@@ -1,4 +1,4 @@
-# Política de Privacidade — Bee Bee
+# Política de Privacidade do Bee Bee
 
 > **Antes de publicar:** troque o campo `[E-MAIL DE CONTATO]` (nas duas línguas), confira a
 > data e hospede este texto numa página pública. O Play
@@ -72,7 +72,7 @@ Dúvidas ou pedidos sobre privacidade: [E-MAIL DE CONTATO]
 
 ---
 
-# Privacy Policy — Bee Bee
+# Bee Bee Privacy Policy
 
 **Last updated:** October 1, 2026
 

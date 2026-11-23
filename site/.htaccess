@@ -1,4 +1,4 @@
-# Bee Bee test site — settings for Apache/LiteSpeed hosting (Hostinger).
+# Bee Bee test site: settings for Apache/LiteSpeed hosting (Hostinger).
 
 # The browser refuses to run WebAssembly served under the wrong type, and
 # Android only offers to install a file that arrives as a package.
