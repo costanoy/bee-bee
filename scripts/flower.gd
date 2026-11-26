@@ -13,9 +13,9 @@ const FLOWER_R := 17.2
 
 # [kind (view3d.gd's flower_<kind> model), colour of its pickup burst]
 const KINDS := [
-	["red", Color(0.94, 0.2, 0.2)],
-	["yellow", Color(1.0, 0.82, 0.25)],
-	["blue", Color(0.35, 0.2, 0.95)],
+	["red", Color(0.97, 0.13, 0.15)],
+	["yellow", Color(1.0, 0.87, 0.12)],
+	["blue", Color(0.32, 0.33, 0.97)],
 ]
 
 var sway_phase := 0.0
