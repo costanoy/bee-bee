@@ -126,9 +126,9 @@ func _init() -> void:
 
 	# ---- pause menu and credits
 	g._on_pause_pressed()
-	await _shot("09_pause", 10, false)
+	await _shot("09_pause", 30, false)
 	g._on_credits_pressed()
-	await _shot("10_credits", 10, false)
+	await _shot("10_credits", 30, false)
 	g.credits_screen.visible = false
 	g._on_resume_pressed()
 
@@ -268,7 +268,7 @@ func _init() -> void:
 	g._apply_sound_setting()
 	_title("city")
 	g._on_settings_pressed()
-	await _shot("25_settings_title", 14, false)
+	await _shot("25_settings_title", 30, false)
 	g._on_settings_closed()
 	sd.music_muted = true
 	g._apply_music_mute()
@@ -283,7 +283,7 @@ func _init() -> void:
 	g._on_settings_pressed()
 	g.settings_privacy.visible = true
 	g.settings_credits.position.y = g.settings_privacy.position.y + g.LINK_H
-	await _shot("26_settings_game_over", 14, false)
+	await _shot("26_settings_game_over", 30, false)
 	g._on_settings_closed()
 
 	# ---- the pause menu with the ad-privacy link
@@ -291,7 +291,7 @@ func _init() -> void:
 	g._on_pause_pressed()
 	g.privacy_button.visible = true
 	g.credits_button.position.y = g.privacy_button.position.y + g.LINK_H
-	await _shot("27_pause_privacy", 10, false)
+	await _shot("27_pause_privacy", 30, false)
 	g._on_resume_pressed()
 
 	# ---- a game over three short of the record
@@ -334,7 +334,7 @@ func _init() -> void:
 	await _shot("31_title_cutout", 14, false)
 	g._on_settings_pressed()
 	g._on_credits_pressed()
-	await _shot("32_credits_cutout", 10, false)
+	await _shot("32_credits_cutout", 30, false)
 	g._close_top_menu()
 	g._close_top_menu()
 	main_script.forced_cutout = -1.0

@@ -3217,7 +3217,7 @@ func _build_pause_screen() -> Control:
 	# and the menu has to stay readable over whatever happened to be on
 	# screen when the player tapped.
 	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.5)
+	dim.color = Color(0, 0, 0, 0.78)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	screen.add_child(dim)
@@ -3255,7 +3255,7 @@ func _build_settings_screen() -> Control:
 	screen.visible = false
 
 	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.55)
+	dim.color = Color(0, 0, 0, 0.78)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	screen.add_child(dim)
