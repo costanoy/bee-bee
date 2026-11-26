@@ -124,6 +124,13 @@ var city_mat: StandardMaterial3D
 # The darkness the sky's colours were last written for (_sync_sky); -1 makes
 # the next frame write them again, for materials that just came in.
 var sky_d_done := -1.0
+# How much brighter the lights are made for the compatibility renderer (the
+# browser), which lights in gamma space and so draws the same lights darker
+# and more saturated than the mobile renderer does.
+var ambient_boost := 1.0
+var sun_boost := 1.0
+const COMPAT_AMBIENT_BOOST := 2.0
+const COMPAT_SUN_BOOST := 3.2
 
 var sun_disc: Node3D
 # the sun's turning ball, when its model has one (the flat disc doesn't)
@@ -166,7 +173,10 @@ func setup(p_main: Node2D) -> void:
 	sky.radiance_size = Sky.RADIANCE_SIZE_32
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_energy = 0.37
+	if RenderingServer.get_current_rendering_method() == "gl_compatibility":
+		ambient_boost = COMPAT_AMBIENT_BOOST
+		sun_boost = COMPAT_SUN_BOOST
+	env.ambient_light_energy = 0.37 * ambient_boost
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.glow_enabled = true
@@ -408,10 +418,10 @@ func _sync_sky() -> void:
 	for mat in hedge_mats:
 		mat.albedo_color = Color(hedge_gain, hedge_gain, hedge_gain)
 	# night stays bright enough to read the flowers — they're the goal
-	sun_light.light_energy = lerpf(0.65, 0.36, d)
+	sun_light.light_energy = lerpf(0.65, 0.36, d) * sun_boost
 	sun_light.light_color = Color(1.0, 0.96, 0.88).lerp(Color(0.66, 0.74, 1.0), d)
 	env.ambient_light_color = Color.WHITE.lerp(horizon, lerpf(0.3, 0.6, d))
-	env.ambient_light_energy = lerpf(0.37, 0.31, d)
+	env.ambient_light_energy = lerpf(0.37, 0.31, d) * ambient_boost
 	# the sun sets: sinks (above) and fades out as the sky turns
 	if sun_disc:
 		sun_mat.albedo_color.a = clampf(1.0 - d * 2.2, 0.0, 1.0)
