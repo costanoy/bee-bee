@@ -404,7 +404,7 @@ const COUNTDOWN_STEP := 0.45
 const COUNTDOWN_FONT := 64
 # The digits of the score are big, and a flower (or the bee) going behind
 # them was hidden: they fade to this while one is there.
-const SCORE_BEHIND_ALPHA := 0.4
+const SCORE_BEHIND_ALPHA := 0.7
 # The tutorial's dashes stay this far clear of a flower's reach and the bee's.
 const HINT_CLEAR := 9.0
 # A near miss says so beside the bee ("Ufa!"), rising this far as it fades.

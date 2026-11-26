@@ -1074,7 +1074,7 @@ func _close_calls() -> void:
 		g.camera_y += g._screen_pos(f.position, 0.1).y - want_y
 	await ticks(1)
 	await frames(15)
-	ok(g.score_label.modulate.a <= 0.5 and is_equal_approx(g.score_label.modulate.a, g.SCORE_BEHIND_ALPHA), "a flower behind the score's digits fades them (to %.2f, flower at %s)" % [g.score_label.modulate.a, g._screen_pos(f.position, 0.1)])
+	ok(g.score_label.modulate.a < 1.0 and is_equal_approx(g.score_label.modulate.a, g.SCORE_BEHIND_ALPHA), "a flower behind the score's digits fades them (to %.2f, flower at %s)" % [g.score_label.modulate.a, g._screen_pos(f.position, 0.1)])
 	g.camera_y -= g.OBSTACLE_SPACING / 2.0     # half a row: between two flowers
 	await ticks(1)
 	await frames(15)
