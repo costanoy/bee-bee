@@ -19,6 +19,20 @@ Jogo de subir sem parar em voxel 3D, para Android e navegador. Com um toque à e
 - Sete abelhas desbloqueáveis, cada uma ao chegar a uma pontuação.
 - Interface em português e inglês.
 
+## Abelhas
+
+Cada abelha é liberada ao pegar a quantidade de flores dela numa partida. Todas voam igual: a diferença é só a aparência.
+
+| Abelha | Flores |
+|---|---|
+| Bee | desde o início |
+| Rosy Bee | 25 |
+| Mint Bee | 60 |
+| Ice Bee | 100 |
+| Grape Bee | 150 |
+| Queen Bee | 220 |
+| Silver Bee | 300 |
+
 ## Tecnologias
 
 | Parte | Tecnologia |
