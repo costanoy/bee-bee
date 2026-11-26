@@ -483,6 +483,7 @@ func _sync_scenery() -> void:
 	base.mesh = bm
 	var bmat := StandardMaterial3D.new()
 	bmat.albedo_color = Color(0.40, 0.60, 0.14)
+	bmat.disable_fog = true      # fog hazed it to a flat grey-teal block once the camera climbed
 	base.material_override = bmat
 	base.position = Vector3(0, foot_y - 45.0 + 0.5, -BACKDROP_DEPTH + 4.0)
 	scenery.add_child(base)
