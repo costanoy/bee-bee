@@ -16,9 +16,12 @@ const FOV := 50.0
 const BEE_SCALE := 1.0
 const FLOWER_SCALE := 1.0        # voxel flowers are built at their in-game size
 const CAM_PITCH := 7.0           # degrees, looking slightly down onto the play plane
-# voxel hedge tiles (make_voxel_hedge.py): 24 cubes = 0.96 units wide
+# voxel hedge tiles (make_voxel_hedge.py): 24 cubes = 0.96 units wide, laid
+# whole (never stretched) outward from an end cap of 12 cubes = 0.48 units at
+# each side of every gap
 const HEDGE_VARIANTS := ["hedge_voxel_a", "hedge_voxel_b", "hedge_voxel_c"]
 const HEDGE_TILE_W := 0.96
+const HEDGE_CAP_W := 0.48
 var voxel := {
 	"bee": "bee_voxel",
 	"flower_red": "flower_voxel_red",
@@ -76,9 +79,8 @@ var stars: MultiMeshInstance3D
 var star_mat: StandardMaterial3D
 
 var mirrors := {}                # 2D node instance id -> Node3D
-# hedge tile models and the width (3D units) of one tile
+# hedge tile models
 var hedge_models: Array = HEDGE_VARIANTS
-var hedge_seg_w := HEDGE_TILE_W
 var flower_scale := FLOWER_SCALE
 var bee3d: Node3D
 var bee_scale := BEE_SCALE
@@ -111,6 +113,9 @@ var gull_mats: Array = []
 # but disappeared into the dark blue sky.
 var flower_mats: Array = []
 var bee_mats: Array = []
+# the hedges' materials too (tiles and caps), brightened at night so a hedge
+# keeps its body against the dark sky instead of sinking into it
+var hedge_mats: Array = []
 var bee_glows := false
 # the city backdrop's wall material, while the city is the backdrop in use
 var city_mat: StandardMaterial3D
@@ -131,7 +136,7 @@ var record_for: Object
 
 func setup(p_main: Node2D) -> void:
 	main = p_main
-	for f in ["bee", "hedge_voxel_a", "hedge_voxel_b", "hedge_voxel_c", "flower_red", "flower_yellow", "flower_blue",
+	for f in ["bee", "hedge_voxel_a", "hedge_voxel_b", "hedge_voxel_c", "hedge_voxel_cap_l", "hedge_voxel_cap_r", "flower_red", "flower_yellow", "flower_blue",
 			"cloud_voxel_a", "cloud_voxel_b", "cloud_voxel_c", "gull", "moon", "jupiter", "ufo", "ground",
 			"tree_voxel_round_a", "tree_voxel_round_b", "tree_voxel_round_c",
 			"tree_voxel_pine_a", "tree_voxel_pine_b", "tree_voxel_pine_c",
@@ -201,6 +206,8 @@ func setup(p_main: Node2D) -> void:
 	_build_stars()
 	_build_bursts()
 	gull_mats = _materials_of(models["gull"])
+	for f in HEDGE_VARIANTS + ["hedge_voxel_cap_l", "hedge_voxel_cap_r"]:
+		hedge_mats.append_array(_materials_of(models[f]))
 	for kind in main.FlowerScript.KINDS:
 		flower_mats.append_array(_materials_of(models["flower_" + kind[0]]))
 	# sample the tick positions after main.gd and the bee have moved
@@ -390,6 +397,9 @@ func _sync_sky() -> void:
 	if not bee_glows:
 		for mat in bee_mats:
 			mat.albedo_color = Color(gain, gain, gain)
+	var hedge_gain := lerpf(1.0, HEDGE_NIGHT_GAIN, clampf((d - 0.4) / 0.6, 0.0, 1.0))
+	for mat in hedge_mats:
+		mat.albedo_color = Color(hedge_gain, hedge_gain, hedge_gain)
 	# night stays bright enough to read the flowers — they're the goal
 	sun_light.light_energy = lerpf(0.65, 0.36, d)
 	sun_light.light_color = Color(1.0, 0.96, 0.88).lerp(Color(0.66, 0.74, 1.0), d)
@@ -546,20 +556,26 @@ func _build_hedge_row(o) -> Node3D:
 	row.position = to3(Vector2(main.SCREEN_W / 2.0, band_mid))
 	var gap_left: float = o.gap_x - o.gap_width / 2.0
 	var gap_right: float = o.gap_x + o.gap_width / 2.0
-	# bars run well past the screen edges: the tilted camera shows a little
-	# more of the plane's width near the top of the screen
-	for bar in [[-80.0, gap_left], [gap_right, main.SCREEN_W + 80.0]]:
-		var x1: float = bar[0]
-		var x2: float = bar[1]
-		if x2 <= x1 + 1.0:
-			continue
-		var width_u: float = (x2 - x1) / PX
-		var n := maxi(1, int(ceil(width_u / hedge_seg_w)))
-		var seg_w := width_u / n
-		for i in n:
-			var h := spawn(hedge_models[randi() % hedge_models.size()], row)
-			h.scale = Vector3(seg_w / hedge_seg_w, 1, 1)
-			h.position = Vector3((x1 - main.SCREEN_W / 2.0) / PX + i * seg_w, 0, 0)
+	# Each bar ends in a cap exactly at the gap edge (the collision's edge);
+	# whole tiles run outward from the cap, well past the screen edges: the
+	# tilted camera shows a little more of the plane's width near the top of
+	# the screen. A tile's origin is its left edge, cap_l spans [-0.48, 0] and
+	# cap_r [0, 0.48] from the gap edge. No cap for a bar that is not there.
+	var half_w: float = main.SCREEN_W / 2.0
+	var tile_px := HEDGE_TILE_W * PX
+	var cap_px := HEDGE_CAP_W * PX
+	if gap_left > -79.0:
+		spawn("hedge_voxel_cap_l", row).position = Vector3((gap_left - half_w) / PX, 0, 0)
+		var x := gap_left - cap_px
+		while x > -80.0:
+			x -= tile_px
+			spawn(hedge_models[randi() % hedge_models.size()], row).position = Vector3((x - half_w) / PX, 0, 0)
+	if gap_right < main.SCREEN_W + 79.0:
+		spawn("hedge_voxel_cap_r", row).position = Vector3((gap_right - half_w) / PX, 0, 0)
+		var x := gap_right + cap_px
+		while x < main.SCREEN_W + 80.0:
+			spawn(hedge_models[randi() % hedge_models.size()], row).position = Vector3((x - half_w) / PX, 0, 0)
+			x += tile_px
 	return row
 
 
@@ -705,6 +721,7 @@ const GULL_DEPTH := -7.0
 const GULL_HAZE := 0.5
 const CITY_HAZE := 0.16
 const NIGHT_GAIN := 1.7
+const HEDGE_NIGHT_GAIN := 1.5
 
 
 func _build_gull(_g) -> Node3D:
