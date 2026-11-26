@@ -482,7 +482,7 @@ func _sync_scenery() -> void:
 	bm.size = Vector3(160, 90, 2)
 	base.mesh = bm
 	var bmat := StandardMaterial3D.new()
-	bmat.albedo_color = Color(0.40, 0.70, 0.40) if hills else Color(0.46, 0.72, 0.46)
+	bmat.albedo_color = Color(0.40, 0.60, 0.14)
 	base.material_override = bmat
 	base.position = Vector3(0, foot_y - 45.0 + 0.5, -BACKDROP_DEPTH + 4.0)
 	scenery.add_child(base)
