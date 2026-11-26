@@ -116,6 +116,8 @@ var bee_mats: Array = []
 # the hedges' materials too (tiles and caps), brightened at night so a hedge
 # keeps its body against the dark sky instead of sinking into it
 var hedge_mats: Array = []
+# the clouds' materials, hazed toward the sky colour (the clouds are opaque)
+var cloud_mats: Array = []
 var bee_glows := false
 # the city backdrop's wall material, while the city is the backdrop in use
 var city_mat: StandardMaterial3D
@@ -208,6 +210,8 @@ func setup(p_main: Node2D) -> void:
 	gull_mats = _materials_of(models["gull"])
 	for f in HEDGE_VARIANTS + ["hedge_voxel_cap_l", "hedge_voxel_cap_r"]:
 		hedge_mats.append_array(_materials_of(models[f]))
+	for c in ["cloud_voxel_a", "cloud_voxel_b", "cloud_voxel_c"]:
+		cloud_mats.append_array(_materials_of(models[c]))
 	for kind in main.FlowerScript.KINDS:
 		flower_mats.append_array(_materials_of(models["flower_" + kind[0]]))
 	# sample the tick positions after main.gd and the bee have moved
@@ -388,6 +392,9 @@ func _sync_sky() -> void:
 	# switched off for it (see _sync_scenery)
 	if city_mat:
 		city_mat.albedo_color = Color.WHITE.lerp(horizon, CITY_HAZE)
+	# clouds too, lightly by day and more by night
+	for mat in cloud_mats:
+		mat.albedo_color = Color.WHITE.lerp(horizon, lerpf(0.15, 0.4, d))
 	# Flowers and bee give back more of the light they get as it dims (the
 	# colour is multiplied past 1), so they keep close to their daytime look
 	# against the night sky.
@@ -735,14 +742,6 @@ func _build_gull(_g) -> Node3D:
 func _build_cloud(c) -> Node3D:
 	var span: float = c.span
 	var n := spawn("cloud_voxel_a" if span >= 65.0 else ("cloud_voxel_b" if span >= 55.0 else "cloud_voxel_c"))
-	# The clouds are see-through. Writing depth as they draw (their cubes are
-	# stored nearest-first) keeps a cloud's own inner steps from blending in
-	# behind its front as streaks.
-	for m: MeshInstance3D in _meshes(n):
-		for i in m.mesh.get_surface_count():
-			var mat: Material = m.mesh.surface_get_material(i)
-			if mat is StandardMaterial3D:
-				mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_ALWAYS
 	return n
 
 
