@@ -266,15 +266,13 @@ func _run() -> void:
 	for i in 400:
 		g._spawn_row()
 	var in_middle := 0
-	var drawn := 0                         # rows left to chance: not intro or breather rows
+	var drawn := 0
 	var furthest := 0.0                    # from one of them to the gap before it or after it
 	for i in range(first, g.flowers.size()):
-		if not g._is_easy_row(i + 1):
-			drawn += 1
+		drawn += 1
 		if not is_equal_approx(g.flowers[i].position.x, g.SCREEN_W / 2.0):
 			continue
-		if not g._is_easy_row(i + 1):
-			in_middle += 1
+		in_middle += 1
 		furthest = maxf(furthest, absf(g.obstacles[i - 1].gap_x - g.SCREEN_W / 2.0))
 		furthest = maxf(furthest, absf(g.obstacles[i].gap_x - g.SCREEN_W / 2.0))
 	ok(in_middle > drawn * 0.24 and in_middle < drawn * 0.36, "about three flowers in ten come up in the middle of the screen (%d of %d)" % [in_middle, drawn])

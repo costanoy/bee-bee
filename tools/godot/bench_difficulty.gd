@@ -25,8 +25,7 @@ extends SceneTree
 #                  867 and a 20:9 one 889. A taller screen builds rows earlier,
 #                  so it gives a little more foresight.
 #   --best=N       the player's record during the runs (default 100000, an
-#                  old hand). Under main.gd's INTRO_UNTIL_BEST every run opens
-#                  with the intro rows a new player gets.
+#                  old hand).
 #
 # What it is for: a row the best autopilot cannot get through is a row no
 # player can, so its survival rate separates "hard" from "impossible" when

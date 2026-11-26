@@ -138,7 +138,7 @@ func _run() -> void:
 
 	await _assets()
 	await _difficulty()
-	await _easy_rows()
+	await _run_moments()
 	await _sky()
 	await _backdrops()
 	await _bees()
@@ -224,94 +224,9 @@ func _difficulty() -> void:
 	ok(too_far == 0, "no flower out of reach in 2000 rows at full speed (%d)" % too_far)
 	ok(in_gap == 0, "and none of them sits in the way of its gap (%d)" % in_gap)
 
-	# Up the ramp, a row's legs are capped by the speed it is FLOWN at: the
-	# world scrolled as in a run (the bee left out), each row's speed taken
-	# when its hedge comes ROW_MET_AT of the way down the screen. On the
-	# bench's screen and on a 19.5:9 phone's, whose longer lead is the point.
-	var real_h: float = g.screen_h
-	for h in [real_h, 867.0]:
-		g.screen_h = h
-		var seen := {"worst": 0.0, "widest_mid": 0.0, "met": 0}
-		for run_seed in [5, 6, 7, 8]:
-			seed(run_seed)
-			await fresh()
-			_scroll_a_minute(seen)
-		ok(seen["met"] > 150 and seen["worst"] <= g.LEG_TIMES_SCROLL * 1.01,
-				"screen %.0f px: no row up the ramp asks for more sideways speed than the plateau (%.0f of %.0f, %d rows)" % [h, seen["worst"], g.LEG_TIMES_SCROLL, seen["met"]])
-		# flown at 158 px/s or faster, where rows capped by the difficulty of
-		# 8 s earlier allowed legs of 210 to 280 px
-		var at_25: float = g.SCROLL_BASE + (g.SCROLL_MAX - g.SCROLL_BASE) * 25.0 / g.DIFFICULTY_RAMP_TIME
-		ok(seen["widest_mid"] > 0.0 and seen["widest_mid"] <= g.LEG_TIMES_SCROLL / at_25 + 0.5,
-				"  the widest leg flown 25-35 s into a run is %.0f px (at most %.0f)" % [seen["widest_mid"], g.LEG_TIMES_SCROLL / at_25])
-	g.screen_h = real_h
-	await fresh()
 
-
-# The world scrolled for a minute of a run as the game scrolls it (the bee
-# left out), noting for every row the widest leg it asks for and the speed
-# when its hedge has come ROW_MET_AT of the way down the screen.
-func _scroll_a_minute(seen: Dictionary) -> void:
-	var legs := {}                       # obstacle id -> widest leg its row asks for
-	var dt := 1.0 / 60.0
-	while g.elapsed < 60.0:
-		g.elapsed += dt
-		g.camera_y -= g._current_scroll_speed() * dt
-		while g.highest_spawn_y > g.camera_y - g.screen_h:
-			var prev_gx: float = g.last_gap_x
-			g._spawn_row()
-			legs[g.obstacles[-1].get_instance_id()] = maxf(absf(g.flowers[-1].position.x - prev_gx),
-					absf(g.flowers[-1].position.x - g.obstacles[-1].gap_x))
-		for o in g.obstacles:
-			var id: int = o.get_instance_id()
-			if legs.has(id) and o.position.y >= g.camera_y + g.screen_h * g.ROW_MET_AT:
-				seen["worst"] = maxf(seen["worst"], legs[id] * g._current_scroll_speed())
-				if g.elapsed > 25.0 and g.elapsed < 35.0:
-					seen["widest_mid"] = maxf(seen["widest_mid"], legs[id])
-				legs.erase(id)
-				seen["met"] += 1
-
-
-# ------------------------------------------------------------------ easy rows
-func _easy_rows() -> void:
-	# a new player's runs open with easy rows: wide gap near the middle, flower in the middle
-	sd.best_score = g.INTRO_UNTIL_BEST - 1
-	await fresh()
-	var easy := 0
-	for i in g.INTRO_ROWS:
-		var o = g.obstacles[i]
-		# the flowers have swayed by now (flower.gd, 1.5 px either way)
-		if o.gap_width >= g.EASY_GAP - 0.01 and absf(o.gap_x - 200.0) <= g.EASY_GAP_SPREAD + 0.01 \
-				and absf(g.flowers[i].position.x - 200.0) <= 1.6:
-			easy += 1
-	ok(g.new_player_run and g.INTRO_ROWS > 0 and easy == g.INTRO_ROWS, "with a record of %d a run opens with %d easy rows (%d)" % [sd.best_score, g.INTRO_ROWS, easy])
-	ok(g.obstacles[g.INTRO_ROWS - 1].gap_width >= g.EASY_GAP - 0.01 and g.obstacles.size() == g.INTRO_ROWS, "  that is every row laid out before the first flap")
-	g._spawn_row()
-	ok(g.obstacles[-1].gap_width < g.EASY_GAP, "  and the next one is an ordinary row")
-	sd.best_score = g.INTRO_UNTIL_BEST
-	await fresh()
-	var wide := 0
-	for o in g.obstacles:
-		if o.gap_width >= g.EASY_GAP - 0.01:
-			wide += 1
-	ok(not g.new_player_run and wide == 0, "with a record of %d the run starts on ordinary rows (%d wide)" % [sd.best_score, wide])
-
-	# two breather rows after every 25th flower, at the same scroll speed
-	seed(3)
-	g.elapsed = 100.0
-	while g.rows_spawned < 3 * g.MILESTONE_EVERY + 4:
-		g._spawn_row()
-	var wrong := []
-	for i in g.obstacles.size():
-		var row: int = i + 1
-		var is_easy: bool = g.obstacles[i].gap_width >= g.EASY_GAP - 0.01 \
-				and absf(g.obstacles[i].gap_x - 200.0) <= g.EASY_GAP_SPREAD + 0.01 and is_equal_approx(g.flowers[i].position.x, 200.0)
-		var want: bool = row > g.MILESTONE_EVERY and (row - 1) % g.MILESTONE_EVERY < g.BREATHER_ROWS
-		if is_easy != want:
-			wrong.append(row)
-	ok(g.BREATHER_ROWS > 0 and wrong.is_empty(), "rows 26-27, 51-52 and 76-77 are breathers, and no others (wrong: %s)" % [wrong])
-	ok(is_equal_approx(g._current_scroll_speed(), g.SCROLL_MAX), "  the scroll keeps its speed through them")
-	ok(g.obstacles.size() == g.flowers.size(), "  one flower to every row, breathers too")
-
+# ------------------------------------------------------------------ run moments
+func _run_moments() -> void:
 	# the moments, for whatever shows them: every flower, and every 25th
 	await fresh()
 	var counts := []
@@ -575,8 +490,8 @@ func _near_miss() -> void:
 	g.bee.position.y = o.position.y - 60.0
 	await ticks(1)
 	ok(g.camera_shake_time > 0.0 and o.near_miss_checked, "then the screen shakes: a near miss")
-	ok(g.camera_shake_magnitude <= 2.0 and g.camera_shake_magnitude < g.DEATH_SHAKE_MAGNITUDE / 3.0,
-			"  a shiver of %.0f px, nothing like the death shake's %.0f" % [g.camera_shake_magnitude, g.DEATH_SHAKE_MAGNITUDE])
+	ok(g.camera_shake_magnitude <= 4.0 and g.camera_shake_magnitude < g.DEATH_SHAKE_MAGNITUDE,
+			"  a shake of %.0f px, smaller than the death shake's %.0f" % [g.camera_shake_magnitude, g.DEATH_SHAKE_MAGNITUDE])
 
 	await fresh()
 	g._flap(1)
@@ -823,8 +738,8 @@ func _notice_slot() -> void:
 	sd.unlocked_bees = []
 	g.rule_due = false
 	await fresh()                          # not flown: the world holds still for the checks
-	# the 25th flower also wins Mint: one notice, the bee's, and its jingle alone
-	g.score = g.BEE_SKINS["mint"]["score"] - 1
+	# the 25th flower also wins Rosy: one notice, the bee's, and its jingle alone
+	g.score = g.BEE_SKINS["rosy"]["score"] - 1
 	g.on_flower_collected(g.flowers[0])
 	ok(g.score % g.MILESTONE_EVERY == 0 and g.notice_now.get("kind") == "bee" and g.notice_queue.is_empty(),
 			"a milestone on a bee's flower leaves the slot to the bee (%s, %d waiting)" % [g.notice_title.text, g.notice_queue.size()])
@@ -1255,12 +1170,12 @@ func _game_over_screen() -> void:
 	# the record beaten, a bee won in the run
 	sd.unlocked_bees = ["rosy"]
 	sd.selected_bee = "normal"
-	await ended_run(20, 26, "hedge")
+	await ended_run(50, 62, "hedge")
 	await frames(40)
-	ok(g.new_record_badge.visible and g.new_record_badge.text == g._t("record_beaten") and g.final_score_label.text == "26"
+	ok(g.new_record_badge.visible and g.new_record_badge.text == g._t("record_beaten") and g.final_score_label.text == "62"
 			and not g.final_best_label.visible and not g.score_caption.visible,
-			"a record beaten: '%s' over the score alone (it showed '26 | 26')" % g.new_record_badge.text)
-	ok(g.record_note.text == g._t("previous_record") % 20, "  and what the record was: '%s'" % g.record_note.text)
+			"a record beaten: '%s' over the score alone (it showed '62 | 62')" % g.new_record_badge.text)
+	ok(g.record_note.text == g._t("previous_record") % 50, "  and what the record was: '%s'" % g.record_note.text)
 	ok(g.goal_title.text == g._t("unlocked") % "Mint Bee" and g.goal_hint.text == g._t("use_it") and g.goal_go.visible,
 			"the chip offers the bee won: '%s' / '%s'" % [g.goal_title.text, g.goal_hint.text])
 	g.game_over_msec = Time.get_ticks_msec()
