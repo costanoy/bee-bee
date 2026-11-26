@@ -43,7 +43,7 @@ func _init() -> void:
 		sv.add_child(we)
 
 		var sun := DirectionalLight3D.new()
-		sun.rotation_degrees = Vector3(-35, -30, 0)      # same angle as the game's
+		sun.rotation_degrees = Vector3(-42, -55, 0)      # same angle as the game's
 		sun.light_color = Color(1.0, 0.96, 0.88)
 		sv.add_child(sun)
 

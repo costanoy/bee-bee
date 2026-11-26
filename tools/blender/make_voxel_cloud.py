@@ -1,24 +1,16 @@
 """Bee Bee — the drifting clouds as voxel art: three sizes on the shared grid.
 
-  blender --background --factory-startup --python make_voxel_cloud.py -- <models_dir> <preview_dir> [scale_bee.glb]
+  blender --background --factory-startup --python make_voxel_cloud.py -- <models_dir> <preview_dir>
 
-Storybook clouds: a flat base and a few big round puffs, the tallest a
-little left of centre, painted rather than see-through. Each puff is
-painted the way a picture book draws a cloud, flat in the front view: a
-white face, a lavender crescent along its belly (the puff's own outline
-offset up toward the light) and a deeper sliver at the very bottom of the
-crescent. Where a puff sits in front of another, the one behind gets a
-soft lavender crease line along the front one's outline, so every puff
-reads as its own ball. Over that, a gentle vertical gradient, a white top
-rim and a lavender underside (STYLE.md, "Clouds": never grey, never inked,
-0.25 of luma at most inside a cloud). Opaque and single-sided with the
-back left out (the camera is always on the -Y side), so there are no alpha
-streaks and no overdraw; the time-of-day colour comes from the game, which
-hazes the cloud material toward the horizon like the gulls. One model per
-size (large / medium / small = a / b / c, 45 / 35 / 25 cubes wide), all
-used unscaled. Exports cloud_voxel_a/b/c.glb and review renders (with the
-voxel bee beside them for scale, from <models_dir> or the optional third
-path).
+Each cloud is a union of rounded puffs sitting on a flat-bottomed slab, so
+it reads as the classic cartoon cloud from the front. Pure white where a
+cube faces the sky, a touch of blue on the body and a blue-grey underside
+give it volume without any texture. They are see-through (ALPHA), so the
+sky and the sun show through them. The game used to stretch one model to
+every cloud size; a scaled voxel model would break the shared cube size,
+so there is one model per size instead (large / medium / small = a / b / c),
+all used unscaled. Exports cloud_voxel_a/b/c.glb and review renders (with
+the voxel bee beside them for scale).
 """
 import bpy, math, sys, os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -26,154 +18,93 @@ import voxel_kit as vk
 
 ARGS = sys.argv[sys.argv.index("--") + 1:]
 MODELS, PREVIEW = ARGS[0], ARGS[1]
-BEE = ARGS[2] if len(ARGS) > 2 else os.path.join(MODELS, "bee_voxel.glb")
 os.makedirs(PREVIEW, exist_ok=True)
 
-# STYLE.md "Clouds" (mid layer): white tops, a lavender belly
-C_TOP = (1.00, 1.00, 1.00)
-C_BODY = (0.95, 0.94, 0.99)
-C_LAV = (0.81, 0.75, 0.93)
-C_UNDER = (0.69, 0.62, 0.85)
-C_CREASE = (0.87, 0.83, 0.95)       # the line a puff draws on the one behind it
+TOP = (1.0, 1.0, 1.0)
+BODY = (0.93, 0.96, 1.0)
+LOW = (0.86, 0.92, 1.0)
+UNDER = (0.72, 0.82, 0.96)
+# see-through, like the wings: the sky (and the sun) show through the cloud
+ALPHA = 0.6
 
-# variant: (width, [(cx, cy, cz, rx, ry, rz) per puff]) — in cubes, x centred
-# on 0, the base on z 0. Front puffs (lower cy) overlap the ones behind; the
-# first puff is the long flat base the others sit on.
+# variant: (slab half-width, [(cx, cz, rx, rz, ry) per puff]) — all in cubes
 CLOUDS = {
-    "a": (45, [(0.0, 1.5, 2.0, 19.0, 2.5, 2.5),
-               (-15.0, -1.0, 4.0, 7.5, 3.0, 5.0), (-4.0, 0.5, 8.0, 9.5, 3.5, 9.5),
-               (8.0, -1.5, 5.5, 7.5, 3.5, 7.0), (17.5, -0.5, 3.0, 5.5, 3.0, 4.5)]),
-    "b": (35, [(0.0, 1.5, 2.0, 14.5, 2.5, 2.5),
-               (-10.5, -1.0, 4.0, 6.5, 3.0, 5.0), (-1.0, 0.5, 7.0, 8.5, 3.5, 8.5),
-               (11.0, -1.5, 4.0, 7.0, 3.0, 5.0)]),
-    "c": (25, [(0.0, 1.5, 2.0, 9.5, 2.0, 2.5),
-               (-6.0, -1.0, 4.0, 6.5, 3.0, 5.0), (6.0, 0.0, 5.0, 7.0, 3.0, 7.0)]),
+    "a": (22, [(-13, 4, 9, 8, 5), (-3, 8, 11, 11, 6), (9, 6, 10, 9, 5), (17, 3, 6, 5, 4)]),
+    "b": (17, [(-9, 3, 8, 7, 5), (2, 7, 10, 10, 6), (12, 3, 6, 6, 4)]),
+    "c": (12, [(-5, 3, 7, 6, 4), (5, 5, 8, 8, 5)]),
 }
 
-# Each puff's front is cut flat this far in front of its centre (a share of
-# its depth): a round ball's front steps back one cube per contour, and the
-# lit top of every step showed as a white dash across the puff. Cut, only
-# the outer ring of a puff steps back.
-FRONT = 0.45
-# the crescents, as how far the puff's own outline is moved up (and a little
-# left, toward the painted light) before it is cut out of the puff, in
-# shares of the puff's radii: what is left over is the shaded belly
-BELLY = (-0.10, 0.42)
-DEEP = (-0.05, 0.18)
-# and the white shine on the other side: the outline moved down and right
-SHINE = (0.08, -0.14)
 
-
-def puff_cells(pf, width):
-    """A puff's cells: cut flat in front, the base on z 0 and the cloud kept
-    to its width (columns -width//2 .. width - width//2 - 1)."""
-    cx, cy, cz, rx, ry, rz = pf
-    return {(x, y, z) for (x, y, z) in vk.ellipsoid(cx, cy, cz, rx, ry, rz)
-            if z >= 0 and -(width // 2) <= x < width - width // 2 and y + 0.5 >= cy - FRONT * ry}
-
-
-def inside(pf, x, z, shift=(0.0, 0.0)):
-    """Whether column (x, z) lies inside the puff's front outline moved by
-    shift (shares of its radii)."""
-    cx, cy, cz, rx, ry, rz = pf
-    u = (x + 0.5 - cx) / rx - shift[0]
-    w = (z + 0.5 - cz) / rz - shift[1]
-    return u * u + w * w <= 1.0
-
-
-def smooth(cells):
-    """Drops lone cubes from the outline (seen from the front: a cell with
-    one neighbour or none in the 2D silhouette, or a single cube standing
-    on a top edge), so no single-cube nub sticks out of a puff's curve."""
-    while True:
-        m = {(x, z) for (x, _, z) in cells}
-        lone = {(x, z) for (x, z) in m if sum((x + dx, z + dz) in m for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1))) <= 1}
-        lone |= {(x, z) for (x, z) in m if (x, z + 1) not in m and (x - 1, z) not in m and (x + 1, z) not in m}
-        if not lone:
-            return cells
-        cells = {p for p in cells if (p[0], p[2]) not in lone}
-
-
-def cloud(width, puffs):
-    half = width / 2.0
-    sets = [puff_cells(pf, width) for pf in puffs]
-    cells = smooth(set().union(*sets))
-    # a flat base with its bottom corners rounded off
-    cells = {p for p in cells if not (p[2] == 0 and abs(p[0] + 0.5) > half - 2.5)}
-    # who owns each column of the front view: the puff whose front is
-    # nearest the camera there (the most inside one on a tie)
-    fronts = [vk.front({p: 1 for p in s}) for s in sets]
-    owner = {}
-    for (x, z) in vk.silhouette({p: 1 for p in cells}):
-        best = None
-        for i, pf in enumerate(puffs):
-            if (x, z) in fronts[i]:
-                u, w = (x + 0.5 - pf[0]) / pf[3], (z + 0.5 - pf[2]) / pf[5]
-                key = (fronts[i][(x, z)], u * u + w * w)
-                if best is None or key < best[0]:
-                    best = (key, i)
-        owner[(x, z)] = best[1] if best else 0
-    paint = {}
-    for (x, z), i in owner.items():
-        pf = puffs[i]
-        if not inside(pf, x, z, DEEP):
-            c = C_UNDER
-        elif not inside(pf, x, z, BELLY):
-            c = C_LAV
+def cloud(half_w, puffs):
+    cells = set()
+    # the slab: a rounded bar the puffs sit on, which gives the flat base
+    for x in range(-half_w, half_w):
+        for z in range(0, 4):
+            inset = 2 if z == 0 else (1 if z == 3 else 0)
+            if not (-half_w + inset <= x < half_w - inset):
+                continue
+            end = min(x + half_w, half_w - 1 - x)          # cubes from the nearer tip
+            depth = 3 if (z == 0 or end < 2) else 4
+            for y in range(-depth, depth):
+                cells.add((x, y, z))
+    for cx, cz, rx, rz, ry in puffs:
+        for x in range(cx - rx, cx + rx + 1):
+            for z in range(0, cz + rz + 1):
+                for y in range(-ry, ry + 1):
+                    if ((x + 0.5 - cx) / rx) ** 2 + ((z + 0.5 - cz) / rz) ** 2 + ((y + 0.5) / ry) ** 2 <= 1.0:
+                        cells.add((x, y, z))
+    vox = {}
+    # nearest cubes first (the camera is always on the -Y side): see cloud_material
+    for (x, y, z) in sorted(cells, key=lambda c: (c[1], c[2], c[0])):
+        if z == 0:
+            c = UNDER
+        elif z == 1:
+            c = LOW
+        elif (x, y, z + 1) not in cells:
+            c = TOP
         else:
-            c = C_BODY if inside(pf, x, z, SHINE) else C_TOP
-            # the crease: next to the outline of a puff in front of this one
-            for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                j = owner.get((x + dx, z + dz))
-                if j is not None and j != i and fronts[j][(x + dx, z + dz)] < fronts[i].get((x, z), 99) - 0.5:
-                    c = C_CREASE
-                    break
-        paint[(x, z)] = c
-    vox = {p: paint[(p[0], p[2])] for p in cells}
-    vox = vk.gradient(vox, top=0.03, bottom=-0.07)
-    vox = vk.rim(vox, "top", colour=C_TOP)
-    vox = vk.rim(vox, "bottom", colour=C_UNDER)
+            c = BODY
+        vox[(x, y, z)] = c
     return vox
 
 
 def cloud_material():
-    # opaque and single-sided: the camera only ever sees the front, and the
-    # back is left out (NO_BACK), so nothing needs drawing from behind
-    m = vk.material("Voxel", rough=0.9)
+    # Single-sided: with the default double-sided export the far side of the
+    # cloud shows through the near side as a grid of streaks, and the layers
+    # add up until it is nearly opaque again. For the same reason the cubes
+    # are emitted nearest-first and the game draws the cloud with
+    # depth_draw_mode ALWAYS, so only its nearest surface gets blended.
+    m = vk.material("Voxel", alpha=ALPHA, rough=0.9)
     m.use_backface_culling = True
     return m
 
 
 def centre(vox):
-    xs = [x for x, _, _ in vox]
     zs = [z for _, _, z in vox]
-    return ((min(xs) + max(xs) + 1) / 2.0, 0.0, (min(zs) + max(zs) + 1) / 2.0)
+    return (0.0, 0.0, (min(zs) + max(zs) + 1) / 2.0)
 
 
-BUDGET = {"a": 2000, "b": 1500, "c": 1000}
 built = {}
-for name, (width, puffs) in CLOUDS.items():
+for name, (half_w, puffs) in CLOUDS.items():
     vk.reset()
     root = vk.empty("Cloud")
-    vox = cloud(width, puffs)
+    vox = cloud(half_w, puffs)
     built[name] = vox
-    vk.build("Cloud", vox, cloud_material(), root, origin=centre(vox), skip=vk.NO_BACK)
-    vk.report("cloud " + name, root, budget=BUDGET[name])
+    vk.build_mesh("Cloud", vox, cloud_material(), root, origin=centre(vox), seed=11, jitter=0.03, alpha=ALPHA)
     vk.export(os.path.join(MODELS, "cloud_voxel_%s.glb" % name))
     xs = [x for x, _, _ in vox]
     zs = [z for _, _, z in vox]
-    print("cloud", name, "cubes:", len(vox), "w:", max(xs) - min(xs) + 1, "h:", max(zs) - min(zs) + 1,
-          "luma %.2f-%.2f" % (min(map(vk.luma, vox.values())), max(map(vk.luma, vox.values()))))
+    print("cloud", name, "cubes:", len(vox), "w:", max(xs) - min(xs) + 1, "h:", max(zs) - min(zs) + 1)
 
 # ---------------------------------------------------------------- review renders
 vk.reset()
 mat = cloud_material()
 xpos = {"a": -1.75, "b": 0.05, "c": 1.45}
 for name, vox in built.items():
-    o = vk.build("Cloud_" + name, vox, mat, None, origin=centre(vox), skip=vk.NO_BACK)
+    o = vk.build_mesh("Cloud_" + name, vox, mat, None, origin=centre(vox), seed=11, jitter=0.03, alpha=ALPHA)
     o.location = (xpos[name], 0, 0)
 try:
-    bpy.ops.import_scene.gltf(filepath=BEE)
+    bpy.ops.import_scene.gltf(filepath=os.path.join(MODELS, "bee_voxel.glb"))
     bee = [o for o in bpy.context.scene.objects if o.name == "Bee"][0]
     bee.scale = (1.0, 1.0, 1.0)
     bee.location = (2.55, 0, 0)
@@ -182,7 +113,7 @@ try:
             o.hide_render = True
 except Exception as e:
     print("no bee for scale:", e)
-pv = vk.Preview(game_like=True)
+pv = vk.Preview()
 pv.shoot(os.path.join(PREVIEW, "clouds_front.png"), (0.0, -1.0, 0.13), (0.25, 0, 0), 6.2, 1500, 520)
 pv.shoot(os.path.join(PREVIEW, "clouds_3q.png"), (0.5, -1.0, 0.5), (0.25, 0, 0), 6.2, 1500, 680)
 pv.shoot(os.path.join(PREVIEW, "cloud_close.png"), (0.45, -1.0, 0.4), (-1.75, 0, 0), 2.3, 900, 700)

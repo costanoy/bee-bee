@@ -67,7 +67,7 @@ func _init() -> void:
 		sv.size = Vector2i(w, h)
 		sv.size_2d_override = Vector2i(400, roundi(400.0 * h / w))
 		sv.size_2d_override_stretch = true
-		sv.msaa_3d = Viewport.MSAA_2X
+		sv.msaa_3d = Viewport.MSAA_4X
 		sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 		root.add_child(sv)
 		sv.add_child(g)
