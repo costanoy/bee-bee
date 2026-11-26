@@ -20,8 +20,8 @@ extends SceneTree
 # position (same perspective as in the game), top aimed at the second
 # hedge's gap, bottom at the bee. Prints the triangle count of every model.
 #
-# --light=new is the art audit's renderer change (constants NEW_* below, to
-# be copied into view3d.gd); --light=old is view3d.gd as it is today.
+# --light=new is the art audit's renderer change (constants NEW_* below, now in
+# view3d.gd); --light=old is view3d.gd as it was before that change.
 # --hedge=new lays whole, unstretched tiles outward from the gap: an end cap
 # at each gap when the model set has hedge_voxel_cap_l.glb and
 # hedge_voxel_cap_r.glb (cap_l's origin is its gap-side edge, the right end

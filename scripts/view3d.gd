@@ -150,19 +150,21 @@ func setup(p_main: Node2D) -> void:
 	sky_mat.sun_angle_max = 0.0
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
-	# The sky lights the scene (ambient source sky), and every change to its
-	# colours re-renders this cubemap. At the default 256 that was about half
-	# the GPU's time per frame; the scene's materials are rough and vertex
-	# coloured, so they only ever take its blurriest level, which looks the
-	# same from 32. (Sky.PROCESS_MODE_REALTIME, which render_promo.gd uses,
-	# needs 256 and sets it back.)
+	# The sky only paints the background now: the scene is lit by the front
+	# key light and a colour ambient (see _sync_sky), and its reflections are
+	# off. Every change to the sky's colours still re-renders this cubemap; at
+	# the default 256 that was about half the GPU's time per frame, and 32 is
+	# plenty for a background. (Sky.PROCESS_MODE_REALTIME, which
+	# render_promo.gd uses, needs 256 and sets it back.)
 	sky.radiance_size = Sky.RADIANCE_SIZE_32
 	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.9
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_energy = 0.37
+	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.glow_enabled = true
 	env.glow_intensity = 0.4
+	env.glow_hdr_threshold = 1.2
 	if OS.has_feature("web"):
 		# In the browser (WebGL, compatibility renderer) glow is several extra
 		# full-screen passes, and phones report a devicePixelRatio of 2-3, so
@@ -186,7 +188,7 @@ func setup(p_main: Node2D) -> void:
 	add_child(we)
 
 	sun_light = DirectionalLight3D.new()
-	sun_light.rotation_degrees = Vector3(-42, -55, 0)   # from the upper left, raking across the scene
+	sun_light.rotation_degrees = Vector3(-35, -30, 0)   # a front key light from the upper left
 	sun_light.light_color = Color(1.0, 0.96, 0.88)
 	# No shadows: everything sits on one plane with only sky behind it, so
 	# they'd barely show, and a shadow pass roughly doubles the draw cost on
@@ -389,9 +391,10 @@ func _sync_sky() -> void:
 		for mat in bee_mats:
 			mat.albedo_color = Color(gain, gain, gain)
 	# night stays bright enough to read the flowers — they're the goal
-	sun_light.light_energy = lerpf(1.25, 0.6, d)
+	sun_light.light_energy = lerpf(0.65, 0.36, d)
 	sun_light.light_color = Color(1.0, 0.96, 0.88).lerp(Color(0.66, 0.74, 1.0), d)
-	env.ambient_light_energy = lerpf(0.9, 0.8, d)
+	env.ambient_light_color = Color.WHITE.lerp(horizon, lerpf(0.3, 0.6, d))
+	env.ambient_light_energy = lerpf(0.37, 0.31, d)
 	# the sun sets: sinks (above) and fades out as the sky turns
 	if sun_disc:
 		sun_mat.albedo_color.a = clampf(1.0 - d * 2.2, 0.0, 1.0)
