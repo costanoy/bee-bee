@@ -50,6 +50,7 @@ CENTRES = {
 # what each flower's pickup burst should use (flower.gd KINDS): the petal
 # base, since the burst cubes are lit by the same light as the petals
 BURSTS = {name: p[2] for name, p in PETALS.items()}
+STICKER = False                     # the warm-white border round the flower
 PAPER = (1.00, 0.93, 0.74)          # sticker border, warm white
 PAPER_SHADE = (0.96, 0.82, 0.62)    # ... its lower half
 INK = (0.22, 0.08, 0.19)            # shows on screen as main.gd UI_INK
@@ -188,6 +189,10 @@ def flower(name):
     # its lower part a warmer shade, with a plum ink line along its lower
     # edge: every outline cell whose open side faces down (the local normal,
     # from the air round it), so the line runs on round the curves
+    # Off since 26/11: the user found the border round the flower odd. The
+    # petals' own lit rim and seam still separate them from the sky.
+    if not STICKER:
+        return vox
     sil = vk.silhouette(vox)
     border = {(x + a, z + b) for (x, z) in sil for a in range(-2, 3) for b in range(-2, 3)
               if a * a + b * b <= 2.6}
