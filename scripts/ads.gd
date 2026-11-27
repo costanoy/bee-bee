@@ -14,6 +14,11 @@ extends Node
 # Never tap real ads on your own device; keep the test ids while developing.
 const INTERSTITIAL_ID := "ca-app-pub-3940256099942544/1033173712"
 
+# OFF until the game goes up on Google Play (the user's call, 2026-11-27):
+# no ads, no consent form, no "Ad privacy" button. The plugin stays in the
+# build, so turning ads back on is this line, true, plus the real ids above.
+const ADS_ENABLED := false
+
 # An ad is offered on "Play Again" once this many runs have ended since the
 # last one, and never sooner than MIN_SECONDS_BETWEEN_ADS after it. The same
 # wait applies from the moment the game opens, so a session never starts
@@ -46,7 +51,7 @@ var _last_ad_msec := 0
 
 
 func start() -> void:
-	_available = OS.get_name() == "Android" and Engine.has_singleton("PoingGodotAdMob")
+	_available = ADS_ENABLED and OS.get_name() == "Android" and Engine.has_singleton("PoingGodotAdMob")
 	_last_ad_msec = Time.get_ticks_msec()
 	if not _available:
 		return
